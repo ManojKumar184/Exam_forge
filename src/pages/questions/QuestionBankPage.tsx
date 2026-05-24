@@ -4,8 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert
 } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { Search, Filter, Eye, Check, X, Trash2, Edit, ChevronDown } from 'lucide-react';
+import { Search, Eye, Check, X, Trash2, Edit } from 'lucide-react';
 import type { Question, Subject, Chapter, ExamType } from '../../types';
 
 export function QuestionBankPage() {
@@ -43,6 +42,13 @@ export function QuestionBankPage() {
       fetchChapters(filters.subject_id);
     }
   }, [filters.subject_id]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      applyFilters();
+    }, filters.search ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   const applyFilters = () => {
     const cleanFilters: Record<string, any> = {};
@@ -101,6 +107,7 @@ export function QuestionBankPage() {
     switch (status) {
       case 'approved': return 'success';
       case 'pending': return 'warning';
+      case 'needs_review': return 'info';
       case 'rejected': return 'error';
       default: return 'default';
     }
@@ -177,6 +184,7 @@ export function QuestionBankPage() {
             options={[
               { value: '', label: 'All Status' },
               { value: 'pending', label: 'Pending' },
+              { value: 'needs_review', label: 'Needs Review' },
               { value: 'approved', label: 'Approved' },
               { value: 'rejected', label: 'Rejected' }
             ]}
@@ -249,7 +257,7 @@ export function QuestionBankPage() {
                   >
                     View
                   </Button>
-                  {canApproveQuestions && question.status === 'pending' && (
+                  {canApproveQuestions && (question.status === 'pending' || question.status === 'needs_review') && (
                     <>
                       <Button
                         variant="ghost"

@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useAuthStore } from './stores/authStore';
+import { ApiConfigError } from './components/ApiConfigError';
+import { apiConfig } from './config/api';
+import { useAuth } from './hooks/useAuth';
 import { useDataStore } from './stores/dataStore';
 import { Loading } from './components/ui';
 
@@ -18,7 +20,7 @@ import { Layout } from './components/layout/Layout';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isInitialized } = useAuthStore();
+  const { isAuthenticated, isInitialized } = useAuth();
 
   if (!isInitialized) {
     return <Loading fullScreen text="Loading..." />;
@@ -33,7 +35,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Admin Route wrapper
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { profile } = useAuthStore();
+  const { profile } = useAuth();
 
   if (!profile || profile.role !== 'super_admin') {
     return <Navigate to="/dashboard" replace />;
@@ -129,14 +131,18 @@ function AppRoutes() {
 }
 
 function App() {
-  const { initialize } = useAuthStore();
+  const { isInitialized, isAuthenticated } = useAuth();
   const { fetchSubjects, fetchExamTypes } = useDataStore();
 
   useEffect(() => {
-    initialize();
+    if (!apiConfig.isConfigured || !isInitialized || !isAuthenticated) return;
     fetchSubjects();
     fetchExamTypes();
-  }, []);
+  }, [isInitialized, isAuthenticated, fetchSubjects, fetchExamTypes]);
+
+  if (!apiConfig.isConfigured) {
+    return <ApiConfigError />;
+  }
 
   return (
     <>

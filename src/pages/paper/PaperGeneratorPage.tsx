@@ -1,15 +1,12 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
+import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState } from '../../components/ui';
 import {
-  Card, Button, Input, Select, Badge, Loading, Alert, Modal, EmptyState
-} from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import {
-  FileText, Plus, Minus, RefreshCw, Eye, Trash2, ChevronUp, ChevronDown, Wand2, Settings, Save
+  Plus, Trash2, ChevronUp, ChevronDown, Wand2, Settings, Save
 } from 'lucide-react';
-import type { Question, Subject, Chapter } from '../../types';
+import type { Question } from '../../types';
 
 interface SelectedQuestion extends Question {
   customMarks: number;
@@ -28,11 +25,10 @@ export function PaperGeneratorPage() {
   const navigate = useNavigate();
   const { profile, canGeneratePapers } = useAuth();
   const {
-    subjects, chapters, examTypes, questions,
-    fetchSubjects, fetchExamTypes, fetchQuestions
+    subjects, examTypes, questions,
+    fetchSubjects, fetchExamTypes, fetchQuestions, createPaper
   } = useDataStore();
 
-  const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
   // Paper configuration
@@ -61,12 +57,6 @@ export function PaperGeneratorPage() {
     fetchExamTypes();
     fetchQuestions({ status: 'approved' });
   }, []);
-
-  useEffect(() => {
-    if (subjectId) {
-      supabase.from('chapters').select('*').eq('subject_id', subjectId);
-    }
-  }, [subjectId]);
 
   const currentSection = sections.find(s => s.id === currentSectionId);
 
@@ -184,36 +174,8 @@ export function PaperGeneratorPage() {
 
     try {
       const paperCode = `PAPER-${Date.now().toString(36).toUpperCase()}`;
-
-      const { data: paper, error: paperError } = await supabase
-        .from('papers')
-        .insert({
-          title,
-          description: `${examTypes.find(e => e.id === examTypeId)?.name} - ${subjects.find(s => s.id === subjectId)?.name}`,
-          paper_code: paperCode,
-          exam_type_id: examTypeId,
-          subject_id: subjectId,
-          class: classLevel,
-          total_marks: totalMarks,
-          total_questions: totalQuestions,
-          duration_minutes: duration,
-          is_online: false,
-          status: 'draft',
-          created_by: profile?.id,
-          sections: sections.map(s => ({
-            name: s.name,
-            questionCount: s.questions.length,
-            marksPerQuestion: s.marksPerQuestion
-          }))
-        })
-        .select()
-        .single();
-
-      if (paperError) throw paperError;
-
       const paperQuestions = sections.flatMap(s =>
         s.questions.map((q, index) => ({
-          paper_id: paper.id,
           question_id: q.id,
           section: s.id,
           section_order: 0,
@@ -222,11 +184,27 @@ export function PaperGeneratorPage() {
         }))
       );
 
-      const { error: pqError } = await supabase
-        .from('paper_questions')
-        .insert(paperQuestions);
-
-      if (pqError) throw pqError;
+      const { error } = await createPaper({
+        title,
+        description: `${examTypes.find(e => e.id === examTypeId)?.name} - ${subjects.find(s => s.id === subjectId)?.name}`,
+        paper_code: paperCode,
+        exam_type_id: examTypeId,
+        subject_id: subjectId,
+        class: classLevel,
+        total_marks: totalMarks,
+        total_questions: totalQuestions,
+        duration_minutes: duration,
+        is_online: false,
+        status: 'draft',
+        created_by: profile?.id || '',
+        sections: sections.map((s) => ({
+          name: s.name,
+          questionCount: s.questions.length,
+          marksPerQuestion: s.marksPerQuestion,
+        })),
+        questions: paperQuestions as any,
+      });
+      if (error) throw error;
 
       navigate('/papers');
     } catch (error: any) {

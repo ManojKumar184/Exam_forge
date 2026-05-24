@@ -49,7 +49,6 @@ export function RegisterPage() {
   const roleOptions = [
     { value: 'student', label: 'Student' },
     { value: 'faculty', label: 'Faculty / Teacher' },
-    { value: 'super_admin', label: 'Administrator' },
   ];
 
   return (

@@ -51,7 +51,7 @@ export interface ExamType {
 // Question types
 export type QuestionType = 'mcq' | 'descriptive' | 'numerical';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type QuestionStatus = 'pending' | 'approved' | 'rejected';
+export type QuestionStatus = 'pending' | 'approved' | 'rejected' | 'needs_review';
 
 export interface QuestionOption {
   text: string;

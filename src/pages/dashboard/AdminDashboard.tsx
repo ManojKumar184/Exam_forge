@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, StatCard, Button, Badge, Loading } from '../../components/ui';
+import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading } from '../../components/ui';
 import {
   Users,
   FileQuestion,

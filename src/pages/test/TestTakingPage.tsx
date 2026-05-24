@@ -1,23 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 import { Card, Button, Badge, Loading, Modal, Alert } from '../../components/ui';
-import { useAuth } from '../../hooks/useAuth';
+import { autosaveTestApi, startTestApi, submitTestApi } from '../../api/tests';
 import {
-  Clock, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertCircle, Trophy, Play
+  Clock, ChevronLeft, ChevronRight, Flag, Trophy
 } from 'lucide-react';
-import type { Question } from '../../types';
-
-interface TestInfo {
-  id: string;
-  test_code: string;
-  duration_minutes: number;
-  shuffle_questions: boolean;
-  shuffle_options: boolean;
-  show_results: boolean;
-  allow_review: boolean;
-  paper_id: string;
-}
+import type { Question, TestAttempt, OnlineTest } from '../../types';
 
 interface QuestionWithOrder {
   id: string;
@@ -39,15 +27,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function TestTakingPage() {
-  const { testId, attemptId } = useParams();
+  const { testId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
-
-  const [test, setTest] = useState<TestInfo | null>(null);
+  const [test, setTest] = useState<OnlineTest | null>(null);
   const [questions, setQuestions] = useState<QuestionWithOrder[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [attempt, setAttempt] = useState<any>(null);
+  const [attempt, setAttempt] = useState<TestAttempt | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
@@ -82,38 +68,16 @@ export function TestTakingPage() {
   }, [timeLeft, attempt]);
 
   const loadTest = async () => {
+    if (!testId) return;
     try {
-      const { data: testData, error: testError } = await supabase
-        .from('online_tests')
-        .select('*')
-        .eq('id', testId)
-        .single();
-
-      if (testError) throw testError;
+      const started = await startTestApi(testId);
+      const testData = started.test;
       setTest(testData);
-      setTimeLeft(testData.duration_minutes * 60);
+      setAttempt(started.attempt);
+      setTimeLeft(testData.duration_minutes * 60 - (started.attempt.time_spent_seconds || 0));
 
-      const { data: paperQuestions, error: pqError } = await supabase
-        .from('paper_questions')
-        .select('*, question:questions(*, subject:subjects(*), chapter:chapters(*))')
-        .eq('paper_id', testData.paper_id)
-        .order('question_order');
-
-      if (pqError) throw pqError;
-
-      let orderedQuestions = paperQuestions || [];
-
-      if (testData.shuffle_questions) {
-        const shuffled = [...orderedQuestions].sort(() => Math.random() - 0.5);
-        shuffled.forEach((q, i) => {
-          const original = orderedQuestions.find(o => o.question === q.question);
-          if (original) {
-            original.order_index = i;
-          }
-        });
-      }
-
-      const questionsWithShuffled: QuestionWithOrder[] = orderedQuestions.map((pq, index) => {
+      const paperQuestions = testData.paper?.questions || [];
+      const questionsWithShuffled: QuestionWithOrder[] = paperQuestions.map((pq, index) => {
         let shuffledOptions;
         if (testData.shuffle_options && pq.question?.options) {
           const optCount = (pq.question.options as any[]).length;
@@ -122,42 +86,17 @@ export function TestTakingPage() {
 
         return {
           id: pq.question_id,
-          question: pq.question,
+          question: pq.question as Question,
           order_index: index,
           shuffled_options: shuffledOptions,
-          user_answer: undefined,
-          is_marked: false,
+          user_answer: started.attempt.answers?.find((a) => a.question_id === pq.question_id)?.selected_option ?? undefined,
+          is_marked: started.attempt.answers?.find((a) => a.question_id === pq.question_id)?.is_marked_for_review ?? false,
           is_visited: false,
           marks: pq.custom_marks || pq.question?.marks || 4,
         };
       });
 
       setQuestions(questionsWithShuffled);
-
-      const { data: existingAttempt } = await supabase
-        .from('test_attempts')
-        .select('*')
-        .eq('test_id', testId)
-        .eq('user_id', profile?.id)
-        .eq('status', 'in_progress')
-        .maybeSingle();
-
-      if (existingAttempt) {
-        setAttempt(existingAttempt);
-      } else if (!attemptId) {
-        const { data: newAttempt, error: attemptError } = await supabase
-          .from('test_attempts')
-          .insert({
-            test_id: testId,
-            user_id: profile?.id,
-            status: 'in_progress',
-          })
-          .select()
-          .single();
-
-        if (attemptError) throw attemptError;
-        setAttempt(newAttempt);
-      }
     } catch (error) {
       console.error('Error loading test:', error);
       navigate('/tests');
@@ -178,21 +117,16 @@ export function TestTakingPage() {
   }, []);
 
   const saveProgress = async () => {
-    if (!attempt) return;
+    if (!attempt || !testId) return;
 
     const answers = questions.map((q) => ({
-      attempt_id: attempt.id,
       question_id: q.id,
       selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
       is_marked_for_review: q.is_marked,
       time_spent_seconds: 0,
     }));
 
-    for (const answer of answers) {
-      await supabase
-        .from('test_answers')
-        .upsert(answer, { onConflict: 'attempt_id,question_id' });
-    }
+    await autosaveTestApi(testId, { answers, time_spent_seconds: test!.duration_minutes * 60 - timeLeft });
   };
 
   const handleAnswer = async (optionIndex: number) => {
@@ -202,14 +136,17 @@ export function TestTakingPage() {
       )
     );
 
-    if (attempt) {
-      await supabase.from('test_answers').upsert({
-        attempt_id: attempt.id,
-        question_id: questions[currentIndex].id,
-        selected_option: optionIndex,
-        is_marked_for_review: questions[currentIndex].is_marked,
-        time_spent_seconds: 0,
-      }, { onConflict: 'attempt_id,question_id' });
+    if (attempt && testId) {
+      await autosaveTestApi(testId, {
+        answers: [
+          {
+            question_id: questions[currentIndex].id,
+            selected_option: optionIndex,
+            is_marked_for_review: questions[currentIndex].is_marked,
+            time_spent_seconds: 0,
+          },
+        ],
+      });
     }
   };
 
@@ -240,63 +177,25 @@ export function TestTakingPage() {
     setIsLoading(true);
     setShowSubmitModal(false);
 
-    let correct = 0;
-    let wrong = 0;
-    let skipped = 0;
-    let totalScore = 0;
+    if (!testId) return;
+    await autosaveTestApi(testId, {
+      answers: questions.map((q) => ({
+        question_id: q.id,
+        selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
+        is_marked_for_review: q.is_marked,
+      })),
+      time_spent_seconds: test!.duration_minutes * 60 - timeLeft,
+    });
 
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      const isCorrect = q.user_answer !== undefined && q.question.correct_option === q.user_answer;
-
-      if (q.user_answer === undefined) {
-        skipped++;
-      } else if (isCorrect) {
-        correct++;
-        totalScore += q.marks;
-      } else {
-        wrong++;
-      }
-
-      if (attempt) {
-        await supabase
-          .from('test_answers')
-          .update({
-            is_correct: isCorrect,
-            marks_obtained: isCorrect ? q.marks : 0,
-          })
-          .eq('attempt_id', attempt.id)
-          .eq('question_id', q.id);
-      }
-    }
-
-    const maxScore = questions.reduce((sum, q) => sum + q.marks, 0);
-    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-
-    if (attempt) {
-      await supabase
-        .from('test_attempts')
-        .update({
-          status: auto ? 'auto_submitted' : 'submitted',
-          submitted_at: new Date().toISOString(),
-          score: totalScore,
-          max_score: maxScore,
-          percentage,
-          correct_answers: correct,
-          wrong_answers: wrong,
-          skipped_answers: skipped,
-          time_spent_seconds: test!.duration_minutes * 60 - timeLeft,
-        })
-        .eq('id', attempt.id);
-    }
+    const submitted = await submitTestApi(testId);
 
     setResult({
-      score: totalScore,
-      maxScore,
-      percentage: percentage.toFixed(1),
-      correct,
-      wrong,
-      skipped,
+      score: submitted.score,
+      maxScore: submitted.max_score,
+      percentage: submitted.percentage.toFixed(1),
+      correct: submitted.correct_answers,
+      wrong: submitted.wrong_answers,
+      skipped: submitted.skipped_answers,
       timeTaken: test!.duration_minutes * 60 - timeLeft,
     });
 

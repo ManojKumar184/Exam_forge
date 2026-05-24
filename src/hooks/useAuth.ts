@@ -1,4 +1,4 @@
-import { useAuthStore } from '../stores/authStore';
+import { useAuthContext } from '../context/AuthContext';
 import type { UserRole } from '../types';
 
 export function useAuth() {
@@ -13,8 +13,9 @@ export function useAuth() {
     signOut,
     updateProfile,
     refreshProfile,
-    initialize,
-  } = useAuthStore();
+    forgotPassword,
+    resetPassword,
+  } = useAuthContext();
 
   const isRole = (role: UserRole | UserRole[]) => {
     if (!profile) return false;
@@ -43,7 +44,8 @@ export function useAuth() {
     signOut,
     updateProfile,
     refreshProfile,
-    initialize,
+    forgotPassword,
+    resetPassword,
     isRole,
     isAdmin,
     isFaculty,

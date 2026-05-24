@@ -21,3 +21,12 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+
+build
+backend/.env
+uploads
+
+.DS_Store
+coverage
+*.log

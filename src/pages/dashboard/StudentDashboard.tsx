@@ -1,27 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, StatCard, Button, Badge, Loading } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { Trophy, Clock, TrendingUp, FileText, Target, Award, Calendar } from 'lucide-react';
-import type { TestAttempt, OnlineTest } from '../../types';
+import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading } from '../../components/ui';
+import { Trophy, Clock, FileText, Target, Award, Calendar } from 'lucide-react';
 
 export function StudentDashboard() {
   const { profile } = useAuth();
-  const { fetchOnlineTests, onlineTests } = useDataStore();
-  const [attempts, setAttempts] = useState<TestAttempt[]>([]);
+  const { fetchOnlineTests, onlineTests, fetchTestAttempts, testAttempts } = useDataStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      await fetchOnlineTests();
-      const { data } = await supabase
-        .from('test_attempts')
-        .select('*, test:online_tests(*)')
-        .eq('user_id', profile?.id)
-        .order('started_at', { ascending: false });
-      setAttempts(data || []);
+      await Promise.all([fetchOnlineTests(), fetchTestAttempts()]);
       setIsLoading(false);
     };
     load();
@@ -31,6 +22,7 @@ export function StudentDashboard() {
     return <Loading fullScreen text="Loading dashboard..." />;
   }
 
+  const attempts = testAttempts;
   const completedTests = attempts.filter(a => a.status === 'submitted' || a.status === 'auto_submitted');
   const avgScore = completedTests.length > 0
     ? Math.round(completedTests.reduce((sum, a) => sum + (a.percentage || 0), 0) / completedTests.length)

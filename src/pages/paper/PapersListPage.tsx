@@ -1,26 +1,19 @@
-import React, { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { Card, Button, Badge, Loading, EmptyState, Modal } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { FileText, Plus, Eye, Trash2, Download, PlayCircle, Calendar, Clock } from 'lucide-react';
+import { FileText, Plus, Eye, PlayCircle, Calendar, Clock } from 'lucide-react';
 import type { Paper } from '../../types';
 
 export function PapersListPage() {
   const navigate = useNavigate();
-  const { papers, fetchPapers, deletePaper, isLoading } = useDataStore();
-  const [selectedPaper, setSelectedPaper] = React.useState<Paper | null>(null);
-  const [showCreateTestModal, setShowCreateTestModal] = React.useState(false);
+  const { papers, fetchPapers, createOnlineTest, isLoading } = useDataStore();
+  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
+  const [showCreateTestModal, setShowCreateTestModal] = useState(false);
 
   useEffect(() => {
     fetchPapers();
   }, []);
-
-  const handleDelete = async (paperId: string) => {
-    if (confirm('Are you sure you want to delete this paper?')) {
-      await deletePaper(paperId);
-    }
-  };
 
   const handleCreateOnlineTest = async () => {
     if (!selectedPaper) return;
@@ -30,23 +23,18 @@ export function PapersListPage() {
     const startTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const endTime = new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const { data, error } = await supabase
-      .from('online_tests')
-      .insert({
-        paper_id: selectedPaper.id,
-        test_code: testCode,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        duration_minutes: selectedPaper.duration_minutes,
-        shuffle_questions: true,
-        shuffle_options: true,
-        show_results: true,
-        is_public: true,
-        status: 'scheduled',
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      })
-      .select()
-      .single();
+    const { data, error } = await createOnlineTest({
+      paper_id: selectedPaper.id,
+      test_code: testCode,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      duration_minutes: selectedPaper.duration_minutes,
+      shuffle_questions: true,
+      shuffle_options: true,
+      show_results: true,
+      is_public: true,
+      status: 'scheduled',
+    });
 
     if (!error && data) {
       setShowCreateTestModal(false);

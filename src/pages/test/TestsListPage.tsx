@@ -1,34 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import { Card, Button, Badge, Loading, EmptyState, Input } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
-import { PlayCircle, Clock, Calendar, CheckCircle, AlertCircle, Search, Plus } from 'lucide-react';
+import { PlayCircle, Clock, Calendar, CheckCircle, Search, Plus } from 'lucide-react';
 import type { OnlineTest } from '../../types';
 
 export function TestsListPage() {
   const navigate = useNavigate();
   const { profile, isAdmin, isFaculty, isStudent } = useAuth();
-  const { onlineTests, fetchOnlineTests, isLoading } = useDataStore();
+  const { onlineTests, fetchOnlineTests, fetchTestAttempts, testAttempts, isLoading } = useDataStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [userAttempts, setUserAttempts] = useState<any[]>([]);
 
   useEffect(() => {
     fetchOnlineTests();
     if (isStudent) {
-      loadUserAttempts();
+      fetchTestAttempts();
     }
   }, [profile?.id]);
-
-  const loadUserAttempts = async () => {
-    const { data } = await supabase
-      .from('test_attempts')
-      .select('*')
-      .eq('user_id', profile?.id);
-    setUserAttempts(data || []);
-  };
 
   const filteredTests = onlineTests.filter((test) => {
     if (searchTerm && !test.test_code.toLowerCase().includes(searchTerm.toLowerCase())) return false;
@@ -58,7 +48,7 @@ export function TestsListPage() {
   };
 
   const hasAttempted = (testId: string) => {
-    return userAttempts.some(a => a.test_id === testId && a.status !== 'in_progress');
+    return testAttempts.some(a => a.test_id === testId && a.status !== 'in_progress');
   };
 
   if (isLoading) {

@@ -1,7 +1,28 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
-import type { Subject, Chapter, ExamType, Question, Paper, OnlineTest, TestAttempt, Profile, AnalyticsData } from '../types';
-import type { PostgrestError } from '@supabase/supabase-js';
+import { fetchChaptersApi, fetchExamTypesApi, fetchSubjectsApi } from '../api/catalog';
+import {
+  fetchQuestionsApi,
+  approveQuestionApi,
+  rejectQuestionApi,
+  deleteQuestionApi,
+  updateQuestionApi,
+  createQuestionApi,
+} from '../api/questions';
+import { fetchPapersApi, createPaperApi, updatePaperApi, deletePaperApi } from '../api/papers';
+import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi } from '../api/tests';
+import { fetchAdminAnalyticsApi } from '../api/analytics';
+import { getApiErrorMessage } from '../api/client';
+import type {
+  Subject,
+  Chapter,
+  ExamType,
+  Question,
+  Paper,
+  OnlineTest,
+  TestAttempt,
+  Profile,
+  AnalyticsData,
+} from '../types';
 
 interface DataState {
   subjects: Subject[];
@@ -23,16 +44,16 @@ interface DataState {
   fetchTestAttempts: (testId?: string) => Promise<void>;
   fetchUsers: () => Promise<void>;
   fetchAnalytics: () => Promise<AnalyticsData>;
-  createQuestion: (question: Partial<Question>) => Promise<{ data: Question | null; error: PostgrestError | null }>;
-  updateQuestion: (id: string, updates: Partial<Question>) => Promise<{ error: PostgrestError | null }>;
-  deleteQuestion: (id: string) => Promise<{ error: PostgrestError | null }>;
-  approveQuestion: (id: string) => Promise<{ error: PostgrestError | null }>;
-  rejectQuestion: (id: string, notes: string) => Promise<{ error: PostgrestError | null }>;
-  createPaper: (paper: Partial<Paper>) => Promise<{ data: Paper | null; error: PostgrestError | null }>;
-  updatePaper: (id: string, updates: Partial<Paper>) => Promise<{ error: PostgrestError | null }>;
-  deletePaper: (id: string) => Promise<{ error: PostgrestError | null }>;
-  createOnlineTest: (test: Partial<OnlineTest>) => Promise<{ data: OnlineTest | null; error: PostgrestError | null }>;
-  updateOnlineTest: (id: string, updates: Partial<OnlineTest>) => Promise<{ error: PostgrestError | null }>;
+  createQuestion: (question: Partial<Question>) => Promise<{ data: Question | null; error: any }>;
+  updateQuestion: (id: string, updates: Partial<Question>) => Promise<{ error: any }>;
+  deleteQuestion: (id: string) => Promise<{ error: any }>;
+  approveQuestion: (id: string) => Promise<{ error: any }>;
+  rejectQuestion: (id: string, notes: string) => Promise<{ error: any }>;
+  createPaper: (paper: Partial<Paper>) => Promise<{ data: Paper | null; error: any }>;
+  updatePaper: (id: string, updates: Partial<Paper>) => Promise<{ error: any }>;
+  deletePaper: (id: string) => Promise<{ error: any }>;
+  createOnlineTest: (test: Partial<OnlineTest>) => Promise<{ data: OnlineTest | null; error: any }>;
+  updateOnlineTest: (id: string, updates: Partial<OnlineTest>) => Promise<{ error: any }>;
   clearError: () => void;
 }
 
@@ -49,163 +70,182 @@ export const useDataStore = create<DataState>((set, get) => ({
   error: null,
 
   fetchSubjects: async () => {
-    const { data, error } = await supabase.from('subjects').select('*').order('name');
-    if (!error) set({ subjects: data || [] });
+    try {
+      const subjects = await fetchSubjectsApi();
+      set({ subjects });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error) });
+    }
   },
 
   fetchChapters: async (subjectId) => {
-    let query = supabase.from('chapters').select('*, subject:subjects(*)').order('chapter_number');
-    if (subjectId) query = query.eq('subject_id', subjectId);
-    const { data, error } = await query;
-    if (!error) set({ chapters: data || [] });
+    try {
+      const chapters = await fetchChaptersApi(subjectId);
+      set({ chapters });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error) });
+    }
   },
 
   fetchExamTypes: async () => {
-    const { data, error } = await supabase.from('exam_types').select('*').order('name');
-    if (!error) set({ examTypes: data || [] });
+    try {
+      const examTypes = await fetchExamTypesApi();
+      set({ examTypes });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error) });
+    }
   },
 
   fetchQuestions: async (filters = {}) => {
     set({ isLoading: true, error: null });
     try {
-      let query = supabase
-        .from('questions')
-        .select('*, subject:subjects(*), chapter:chapters(*), exam_type:exam_types(*)')
-        .order('created_at', { ascending: false });
-      if (filters.subject_id) query = query.eq('subject_id', filters.subject_id);
-      if (filters.chapter_id) query = query.eq('chapter_id', filters.chapter_id);
-      if (filters.exam_type_id) query = query.eq('exam_type_id', filters.exam_type_id);
-      if (filters.class) query = query.eq('class', filters.class);
-      if (filters.difficulty) query = query.eq('difficulty', filters.difficulty);
-      if (filters.question_type) query = query.eq('question_type', filters.question_type);
-      if (filters.status) query = query.eq('status', filters.status);
-      if (filters.search) query = query.ilike('question_text', '%' + filters.search + '%');
-      const { data, error } = await query;
-      if (error) throw error;
-      set({ questions: data || [], isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      const result = await fetchQuestionsApi({
+        ...filters,
+        class: filters.class ? Number(filters.class) : undefined,
+        limit: Number(filters.limit || 100),
+        page: Number(filters.page || 1),
+      });
+      set({ questions: result.items || [], isLoading: false });
+    } catch (error: unknown) {
+      set({ error: getApiErrorMessage(error), isLoading: false });
     }
   },
 
   fetchPapers: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await supabase
-        .from('papers')
-        .select('*, subject:subjects(*), exam_type:exam_types(*)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      set({ papers: data || [], isLoading: false });
-    } catch (error: any) {
-      set({ error: error.message, isLoading: false });
+      const papers = await fetchPapersApi();
+      set({ papers, isLoading: false });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error), isLoading: false });
     }
   },
 
   fetchOnlineTests: async () => {
-    const { data, error } = await supabase
-      .from('online_tests')
-      .select('*, paper:papers(*)')
-      .order('created_at', { ascending: false });
-    if (!error) set({ onlineTests: data || [] });
+    try {
+      const onlineTests = await fetchTestsApi();
+      set({ onlineTests });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error) });
+    }
   },
 
   fetchTestAttempts: async (testId) => {
-    let query = supabase.from('test_attempts').select('*').order('started_at', { ascending: false });
-    if (testId) query = query.eq('test_id', testId);
-    const { data, error } = await query;
-    if (!error) set({ testAttempts: data || [] });
+    try {
+      const data = await fetchTestAttemptsApi(testId);
+      set({ testAttempts: data || [] });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error) });
+    }
   },
 
   fetchUsers: async () => {
-    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    if (!error) set({ users: data || [] });
+    // user listing endpoint can be added in Phase 4 admin module
+    set({ users: [] });
   },
 
   fetchAnalytics: async () => {
-    const [usersResult, questionsResult, papersResult, testsResult, attemptsResult] = await Promise.all([
-      supabase.from('profiles').select('role'),
-      supabase.from('questions').select('status'),
-      supabase.from('papers').select('id'),
-      supabase.from('online_tests').select('id'),
-      supabase.from('test_attempts').select('id'),
-    ]);
-    const users = usersResult.data || [];
-    const questions = questionsResult.data || [];
-    return {
-      total_users: users.length,
-      total_admins: users.filter(u => u.role === 'super_admin').length,
-      total_faculty: users.filter(u => u.role === 'faculty').length,
-      total_students: users.filter(u => u.role === 'student').length,
-      total_questions: questions.length,
-      total_papers: papersResult.data?.length || 0,
-      total_tests: testsResult.data?.length || 0,
-      total_attempts: attemptsResult.data?.length || 0,
-      pending_questions: questions.filter(q => q.status === 'pending').length,
-      approved_questions: questions.filter(q => q.status === 'approved').length,
-    };
+    return fetchAdminAnalyticsApi();
   },
 
   createQuestion: async (question) => {
-    const { data, error } = await supabase.from('questions').insert(question).select().single();
-    if (!error && data) set({ questions: [data, ...get().questions] });
-    return { data, error };
+    try {
+      const data = await createQuestionApi(question);
+      set({ questions: [data, ...get().questions] });
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   updateQuestion: async (id, updates) => {
-    const { error } = await supabase.from('questions').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
-    if (!error) set({ questions: get().questions.map(q => (q.id === id ? { ...q, ...updates } : q)) });
-    return { error };
+    try {
+      const data = await updateQuestionApi(id, updates);
+      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   deleteQuestion: async (id) => {
-    const { error } = await supabase.from('questions').delete().eq('id', id);
-    if (!error) set({ questions: get().questions.filter(q => q.id !== id) });
-    return { error };
+    try {
+      await deleteQuestionApi(id);
+      set({ questions: get().questions.filter((q) => q.id !== id) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   approveQuestion: async (id) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('questions').update({ status: 'approved', reviewed_by: user?.id, reviewed_at: new Date().toISOString() }).eq('id', id);
-    if (!error) set({ questions: get().questions.map(q => q.id === id ? { ...q, status: 'approved' as const } : q) });
-    return { error };
+    try {
+      const data = await approveQuestionApi(id);
+      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   rejectQuestion: async (id, notes) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('questions').update({ status: 'rejected', reviewed_by: user?.id, reviewed_at: new Date().toISOString(), review_notes: notes }).eq('id', id);
-    if (!error) set({ questions: get().questions.map(q => q.id === id ? { ...q, status: 'rejected' as const, review_notes: notes } : q) });
-    return { error };
+    try {
+      const data = await rejectQuestionApi(id, notes);
+      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   createPaper: async (paper) => {
-    const { data, error } = await supabase.from('papers').insert(paper).select().single();
-    if (!error && data) set({ papers: [data, ...get().papers] });
-    return { data, error };
+    try {
+      const data = await createPaperApi(paper);
+      set({ papers: [data, ...get().papers] });
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   updatePaper: async (id, updates) => {
-    const { error } = await supabase.from('papers').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
-    if (!error) set({ papers: get().papers.map(p => (p.id === id ? { ...p, ...updates } : p)) });
-    return { error };
+    try {
+      const data = await updatePaperApi(id, updates);
+      set({ papers: get().papers.map((p) => (p.id === id ? data : p)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   deletePaper: async (id) => {
-    const { error } = await supabase.from('papers').delete().eq('id', id);
-    if (!error) set({ papers: get().papers.filter(p => p.id !== id) });
-    return { error };
+    try {
+      await deletePaperApi(id);
+      set({ papers: get().papers.filter((p) => p.id !== id) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   createOnlineTest: async (test) => {
-    const { data, error } = await supabase.from('online_tests').insert(test).select().single();
-    if (!error && data) set({ onlineTests: [data, ...get().onlineTests] });
-    return { data, error };
+    try {
+      const data = await createTestApi(test);
+      set({ onlineTests: [data, ...get().onlineTests] });
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   updateOnlineTest: async (id, updates) => {
-    const { error } = await supabase.from('online_tests').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
-    if (!error) set({ onlineTests: get().onlineTests.map(t => (t.id === id ? { ...t, ...updates } : t)) });
-    return { error };
+    try {
+      const data = await updateTestApi(id, updates);
+      set({ onlineTests: get().onlineTests.map((t) => (t.id === id ? data : t)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   clearError: () => set({ error: null }),
