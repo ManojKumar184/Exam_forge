@@ -58,7 +58,7 @@ export function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="flex h-dvh min-h-0 bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -70,10 +70,10 @@ export function Layout() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700
+          fixed top-0 left-0 z-50 h-full w-64 shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0 lg:static lg:z-0
+          lg:translate-x-0 lg:static lg:z-0 lg:h-full
         `}
       >
         <div className="flex flex-col h-full">
@@ -140,9 +140,8 @@ export function Layout() {
       </aside>
 
       {/* Main content */}
-      <div className="lg:ml-64">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
+        <header className="shrink-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -164,8 +163,7 @@ export function Layout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="p-4 lg:p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 lg:p-5">
           <Outlet />
         </main>
       </div>

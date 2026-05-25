@@ -1,4 +1,5 @@
 import * as questionService from '../services/questionService.js';
+import { reconstructQuestionInput } from '../services/questionReconstructService.js';
 
 export async function list(req, res) {
   const data = await questionService.listQuestions(req.query, req.user);
@@ -65,5 +66,11 @@ export async function bulkUpdateMetadata(req, res) {
     req.body.updates,
     req.user
   );
+  res.json({ success: true, data });
+}
+
+/** Editor assist: parse/OCR/Gemini reconstruct without persisting. */
+export async function reconstruct(req, res) {
+  const data = await reconstructQuestionInput(req.body);
   res.json({ success: true, data });
 }

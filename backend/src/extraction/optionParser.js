@@ -2,11 +2,17 @@
  * MCQ option detection — coaching layouts, OCR spacing, inline (a)(b)(c)(d).
  */
 
-const OPTION_LINE_START =
-  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*)(.+)$/;
+import {
+  extractMcqOptionsInline,
+  countMcqOptionMarkers,
+  hasMcqOptionPattern,
+} from './mcqOptionExtract.js';
 
-const INLINE_OPTION_CHUNK =
-  /(?:^|[\s;])(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*)([\s\S]*?)(?=(?:[\s;]\(?\s*[a-dA-D]\s*\)?\s*[\).:\-–—])|$)/gi;
+const OPTION_LINE_START =
+  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)(.+)$/;
+
+/** Lines that continue previous option (wrapped OCR / Word export). */
+const OPTION_CONTINUATION_RE = /^\s{2,}|^[a-z]/;
 
 export function isOptionLine(line) {
   return OPTION_LINE_START.test(line.trim());
@@ -15,78 +21,47 @@ export function isOptionLine(line) {
 export function parseOptionLine(line) {
   const m = line.trim().match(OPTION_LINE_START);
   if (!m) return null;
+  const label = (m[1] || m[2] || '').toLowerCase();
   return {
-    label: m[1].toLowerCase(),
-    text: (m[2] || '').trim(),
+    label,
+    text: (m[3] || '').trim(),
     image: null,
     latex: null,
   };
 }
 
 /**
+ * Append wrapped lines to the last option when not a new question/option start.
+ */
+export function appendOptionContinuation(options, line) {
+  if (!options.length || !line?.trim()) return options;
+  const trimmed = line.trim();
+  if (OPTION_LINE_START.test(trimmed) || /^(?:Q|Question)\s*\d/i.test(trimmed)) {
+    return options;
+  }
+  const last = options[options.length - 1];
+  if (!last?.text) return options;
+  if (OPTION_CONTINUATION_RE.test(line) || trimmed.length < 120) {
+    const copy = [...options];
+    copy[copy.length - 1] = { ...last, text: `${last.text} ${trimmed}`.trim() };
+    return copy;
+  }
+  return options;
+}
+
+/**
  * Pull (a)(b)(c)(d) options embedded in question body text.
  */
 export function extractInlineOptions(text) {
-  if (!text) return { stem: text, options: [] };
-  const options = [];
-  let stem = text;
-
-  const markerRe = /\(\s*([a-dA-D])\s*\)/g;
-  const markers = [];
-  let m;
-  while ((m = markerRe.exec(text)) !== null) {
-    markers.push({ index: m.index, label: m[1].toLowerCase() });
-  }
-
-  if (markers.length >= 2) {
-    for (let i = 0; i < markers.length; i += 1) {
-      const start = markers[i].index + 3;
-      const end = i + 1 < markers.length ? markers[i + 1].index : text.length;
-      const chunk = text.slice(start, end).replace(/^[\s).:\-–—]+/, '').trim();
-      if (chunk.length > 0) {
-        options.push({ text: chunk, image: null, latex: null, label: markers[i].label });
-      }
-    }
-    stem = text.slice(0, markers[0].index).trim();
-  }
-
-  if (options.length < 2) {
-    const lines = text.split('\n');
-    const lineOpts = [];
-    let stemLines = [];
-    for (const line of lines) {
-      const parsed = parseOptionLine(line);
-      if (parsed) lineOpts.push(parsed);
-      else stemLines.push(line);
-    }
-    if (lineOpts.length >= 2) {
-      return {
-        stem: stemLines.join('\n').trim(),
-        options: lineOpts.map(({ text: t, image, latex }) => ({ text: t, image, latex })),
-      };
-    }
-  }
-
+  const { stem, options } = extractMcqOptionsInline(text);
   return {
-    stem: stem || text,
+    stem,
     options: options.map(({ text: t, image, latex }) => ({ text: t, image, latex })),
   };
 }
 
 export function countOptionMarkers(text) {
-  if (!text) return 0;
-  const labels = new Set();
-  const patterns = [
-    /\(\s*([a-dA-D])\s*\)/g,
-    /(?:^|\s)([a-dA-D])[\).:\-–—]\s/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(text)) !== null) labels.add(m[1].toLowerCase());
-  }
-  return labels.size;
+  return countMcqOptionMarkers(text);
 }
 
-export function hasMcqOptionPattern(text) {
-  return countOptionMarkers(text) >= 2 || /\(\s*[a-dA-D]\s*\).*\(\s*[a-dA-D]\s*\)/s.test(text || '');
-}
+export { hasMcqOptionPattern };

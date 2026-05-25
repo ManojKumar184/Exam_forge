@@ -37,7 +37,7 @@ export function detectQuestionType(block) {
 
   if (MATCH_RE.test(lower)) {
     tags.push('match_following');
-    return { questionType: 'descriptive', tags, subtype: 'match' };
+    return { questionType: 'descriptive', tags, subtype: 'match_following' };
   }
 
   if (MCQ_MULTIPLE_RE.test(lower)) {

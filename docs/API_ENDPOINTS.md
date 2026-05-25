@@ -36,6 +36,7 @@ Base URL: `http://localhost:5000/api` (dev)
 | GET | `/questions` | Yes | Pagination, filters, search |
 | GET | `/questions/:id` | Yes | Faculty/student: approved only |
 | POST | `/questions` | Faculty, Admin | |
+| POST | `/questions/reconstruct` | Faculty, Admin | Editor assist only — `{ html?, plain?, ocrText?, images?, useGemini? }` → reconstructed fields (not persisted) |
 | PATCH | `/questions/:id` | Admin | |
 | DELETE | `/questions/:id` | Admin | |
 | POST | `/questions/:id/approve` | Admin | |

@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Input, Select, Textarea, Card, Alert, Badge } from '../ui';
+import { Button, Input, Select, Card, Alert, Badge } from '../ui';
 import { LatexToolbar } from './LatexToolbar';
-import { QuestionContentPreview } from '../content/RichContent';
+import { RichQuestionEditor } from './RichQuestionEditor';
+import { ReconstructionPreview } from './ReconstructionPreview';
+import { OptionRichFields } from './OptionRichFields';
 import type { Question, QuestionOption, QuestionType } from '../../types';
+import type { EditorSubtype } from '../../utils/questionPasteDetect';
+import {
+  runQuestionReconstruction,
+  type ReconstructResult,
+} from '../../utils/questionReconstruct';
+import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAutoWrap';
+import { useDataStore } from '../../stores/dataStore';
 
 const DRAFT_KEY = 'examforge_question_draft';
-
-export type EditorSubtype =
-  | 'mcq_single'
-  | 'mcq_multiple'
-  | 'integer'
-  | 'numerical'
-  | 'descriptive'
-  | 'comprehension'
-  | 'match_following';
 
 interface QuestionEditorFormProps {
   initial?: Partial<Question>;
@@ -38,11 +38,66 @@ const SUBTYPE_OPTIONS: { value: EditorSubtype; label: string; questionType: Ques
 
 function defaultOptions(): QuestionOption[] {
   return [
-    { text: '', latex: null, image: undefined },
-    { text: '', latex: null, image: undefined },
-    { text: '', latex: null, image: undefined },
-    { text: '', latex: null, image: undefined },
+    { text: '', latex: null },
+    { text: '', latex: null },
+    { text: '', latex: null },
+    { text: '', latex: null },
   ];
+}
+
+function stemToEditorHtml(text: string): string {
+  const safe = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return safe
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => `<p>${l.trim()}</p>`)
+    .join('');
+}
+
+function applyReconstructResult(
+  result: ReconstructResult,
+  setters: {
+    setBodyHtml: (v: string) => void;
+    setBodyPlain: (v: string) => void;
+    setQuestionLatex: (v: string) => void;
+    setQuestionImages: (v: string[]) => void;
+    setOptions: (v: QuestionOption[]) => void;
+    setSubtype: (v: EditorSubtype) => void;
+    setNumericalAnswer: (v: string) => void;
+    setCorrectOption: (v: number | null) => void;
+    setTagsInput: (fn: (prev: string) => string) => void;
+  }
+) {
+  const plain = result.questionText.trim();
+  const officeGarbage = /Normal\s+0\s+false/i.test(result.questionHtml || '');
+  const displayHtml =
+    result.questionHtml?.trim() && !officeGarbage
+      ? result.questionHtml
+      : stemToEditorHtml(plain);
+  setters.setBodyHtml(displayHtml);
+  setters.setBodyPlain(plain);
+  setters.setQuestionLatex(result.questionLatex || '');
+  if (result.questionImages.length) setters.setQuestionImages(result.questionImages);
+  if (result.options.length >= 2) {
+    setters.setOptions(result.options);
+  } else if (result.options.length) {
+    setters.setOptions([
+      ...result.options,
+      ...defaultOptions().slice(result.options.length),
+    ]);
+  }
+  setters.setSubtype(result.subtype);
+  if (result.numericalAnswer != null) {
+    setters.setNumericalAnswer(String(result.numericalAnswer));
+  }
+  if (result.correctOption != null) setters.setCorrectOption(result.correctOption);
+  setters.setTagsInput((prev) => {
+    const existing = prev.split(',').map((t) => t.trim()).filter(Boolean);
+    return [...new Set([...result.tags, ...existing])].join(', ');
+  });
 }
 
 export function QuestionEditorForm({
@@ -55,8 +110,11 @@ export function QuestionEditorForm({
   submitLabel = 'Save question',
 }: QuestionEditorFormProps) {
   const [subtype, setSubtype] = useState<EditorSubtype>('mcq_single');
-  const [questionText, setQuestionText] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('');
+  const [bodyPlain, setBodyPlain] = useState('');
   const [questionLatex, setQuestionLatex] = useState('');
+  const [questionImages, setQuestionImages] = useState<string[]>([]);
+  const [ocrText, setOcrText] = useState('');
   const [options, setOptions] = useState<QuestionOption[]>(defaultOptions());
   const [explanation, setExplanation] = useState('');
   const [classLevel, setClassLevel] = useState(11);
@@ -64,18 +122,26 @@ export function QuestionEditorForm({
   const [chapterId, setChapterId] = useState('');
   const [examTypeId, setExamTypeId] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [marks, setMarks] = useState(4);
   const [correctOption, setCorrectOption] = useState<number | null>(0);
   const [numericalAnswer, setNumericalAnswer] = useState('');
   const [tagsInput, setTagsInput] = useState('');
-  const [status, setStatus] = useState<'pending' | 'needs_review'>('pending');
   const [showPreview, setShowPreview] = useState(true);
+  const [showAdvancedMath, setShowAdvancedMath] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [reconstructing, setReconstructing] = useState(false);
+  const [lastReconstruct, setLastReconstruct] = useState<ReconstructResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconstructTimer = useRef<ReturnType<typeof setTimeout>>();
+  const { fetchChapters } = useDataStore();
 
   const isMcq = subtype === 'mcq_single' || subtype === 'mcq_multiple';
   const filteredChapters = chapters.filter((c) => c.subject_id === subjectId);
+
+  useEffect(() => {
+    if (subjectId) fetchChapters(subjectId);
+    else setChapterId('');
+  }, [subjectId, fetchChapters]);
 
   useEffect(() => {
     if (!initial?.id) {
@@ -83,28 +149,41 @@ export function QuestionEditorForm({
       if (draft) {
         try {
           const d = JSON.parse(draft);
-          setQuestionText(d.questionText || '');
-          setQuestionLatex(d.questionLatex || '');
+          setBodyHtml(d.bodyHtml || '');
+          setBodyPlain(d.bodyPlain || '');
+          setQuestionImages(d.questionImages || []);
           setOptions(d.options || defaultOptions());
           setSubtype(d.subtype || 'mcq_single');
+          setSubjectId(d.subjectId || '');
+          setExamTypeId(d.examTypeId || '');
+          setOcrText(d.ocrText || '');
         } catch {
           /* ignore */
         }
       }
       return;
     }
-    setQuestionText(initial.question_text || '');
+    const text = initial.question_text || '';
+    setBodyHtml(text);
+    setBodyPlain(text.replace(/<[^>]+>/g, ' '));
     setQuestionLatex(initial.question_latex || '');
-    setOptions((initial.options as QuestionOption[])?.length ? (initial.options as QuestionOption[]) : defaultOptions());
+    setQuestionImages(initial.question_images || []);
+    setOptions(
+      (initial.options as QuestionOption[])?.length
+        ? (initial.options as QuestionOption[])
+        : defaultOptions()
+    );
     setExplanation(initial.explanation || '');
     setClassLevel(initial.class || 11);
     setSubjectId(initial.subject_id || '');
     setChapterId(initial.chapter_id || '');
     setExamTypeId(initial.exam_type_id || '');
     setDifficulty(initial.difficulty || 'medium');
-    setMarks(initial.marks || 4);
     setCorrectOption(initial.correct_option ?? 0);
-    setTagsInput((initial.tags || []).join(', '));
+    setNumericalAnswer(
+      initial.numerical_answer != null ? String(initial.numerical_answer) : ''
+    );
+    setTagsInput((initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', '));
     const sub = initial.tags?.find((t) =>
       SUBTYPE_OPTIONS.some((o) => o.value === t)
     ) as EditorSubtype | undefined;
@@ -115,9 +194,18 @@ export function QuestionEditorForm({
     if (initial?.id) return;
     localStorage.setItem(
       DRAFT_KEY,
-      JSON.stringify({ questionText, questionLatex, options, subtype })
+      JSON.stringify({
+        bodyHtml,
+        bodyPlain,
+        questionImages,
+        options,
+        subtype,
+        subjectId,
+        examTypeId,
+        ocrText,
+      })
     );
-  }, [initial?.id, questionText, questionLatex, options, subtype]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, examTypeId, ocrText]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -125,13 +213,64 @@ export function QuestionEditorForm({
     return () => clearTimeout(autosaveTimer.current);
   }, [persistDraft]);
 
+  const triggerReconstruction = useCallback(
+    (payload: { html: string; plain: string; images: string[] }) => {
+      if (reconstructTimer.current) clearTimeout(reconstructTimer.current);
+      reconstructTimer.current = setTimeout(async () => {
+        const plainLen = (payload.plain || payload.html?.replace(/<[^>]+>/g, ' ') || '').trim().length;
+        if (plainLen < 12 && !payload.images.length && !ocrText.trim()) return;
+
+        setReconstructing(true);
+        try {
+          const result = await runQuestionReconstruction({
+            html: payload.html,
+            plain: payload.plain,
+            ocrText,
+            images: payload.images,
+            useGemini: true,
+          });
+          applyReconstructResult(result, {
+            setBodyHtml,
+            setBodyPlain,
+            setQuestionLatex,
+            setQuestionImages,
+            setOptions,
+            setSubtype,
+            setNumericalAnswer,
+            setCorrectOption,
+            setTagsInput,
+          });
+          setLastReconstruct(result);
+          const src = [
+            result.sources.parser && 'parser',
+            result.sources.ocr && 'OCR',
+            result.sources.gemini && 'Gemini',
+          ]
+            .filter(Boolean)
+            .join(' + ');
+          toast.success(`Reconstructed (${result.subtype.replace(/_/g, ' ')})${src ? ` · ${src}` : ''}`);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Reconstruction failed');
+        } finally {
+          setReconstructing(false);
+        }
+      }, 600);
+    },
+    [ocrText]
+  );
+
   const insertLatex = (snippet: string) => {
-    setQuestionText((t) => (t ? `${t} ${snippet}` : snippet));
+    const wrapped = snippet.startsWith('$$') ? snippet : autoWrapEquations(snippet);
+    setBodyPlain((t) => (t ? `${t} ${wrapped}` : wrapped));
+    setBodyHtml((h) => `${h || ''}<p>${wrapped}</p>`);
+    const latex = extractPrimaryLatex(wrapped);
+    if (latex) setQuestionLatex(latex);
   };
 
   const validate = (): string[] => {
+    const text = bodyPlain || bodyHtml.replace(/<[^>]+>/g, ' ').trim();
     const errs: string[] = [];
-    if (questionText.trim().length < 5) errs.push('Question text is required (min 5 characters)');
+    if (text.length < 5) errs.push('Question content is required');
     if (!subjectId) errs.push('Subject is required');
     if (!examTypeId) errs.push('Exam type is required');
     if (isMcq) {
@@ -144,20 +283,23 @@ export function QuestionEditorForm({
 
   const buildPayload = (): Record<string, unknown> => {
     const sub = SUBTYPE_OPTIONS.find((s) => s.value === subtype)!;
+    const displayText = bodyHtml.trim() || autoWrapEquations(bodyPlain.trim());
+    const autoLatex = extractPrimaryLatex(displayText);
     const tags = [
       subtype,
       ...tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
     ];
     return {
-      question_text: questionText.trim(),
-      question_latex: questionLatex.trim() || null,
+      question_text: displayText,
+      question_latex: questionLatex.trim() || autoLatex || null,
+      question_images: questionImages,
       question_type: sub.questionType,
       class: classLevel,
       subject_id: subjectId,
       chapter_id: chapterId || null,
       exam_type_id: examTypeId,
       difficulty,
-      marks,
+      marks: 4,
       options: isMcq ? options.filter((o) => o.text?.trim()) : [],
       correct_option: isMcq && subtype === 'mcq_single' ? correctOption : null,
       numerical_answer:
@@ -166,35 +308,37 @@ export function QuestionEditorForm({
           : null,
       explanation: explanation.trim() || null,
       tags: [...new Set(tags)],
-      status,
+      status: 'pending',
       source: 'manual',
+      has_diagram: questionImages.length > 0,
+      has_equation: Boolean(questionLatex || autoLatex || /\$/.test(displayText)),
     };
   };
 
   const previewQuestion: Question = {
     id: 'preview',
-    question_text: questionText,
-    question_latex: questionLatex || null,
+    question_text: bodyPlain.trim() || bodyHtml,
+    question_latex: questionLatex || extractPrimaryLatex(bodyHtml || bodyPlain) || null,
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
-    question_images: [],
-    options: isMcq ? options : [],
+    question_images: questionImages,
+    options: isMcq ? options.filter((o) => o.text?.trim()) : [],
     option_images: {},
     correct_option: correctOption,
-    numerical_answer: null,
+    numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
     numerical_tolerance: 0,
     answer_text: null,
     difficulty,
-    marks,
+    marks: 4,
     class: classLevel,
     explanation: explanation || null,
     explanation_latex: null,
     explanation_images: [],
     diagrams: [],
-    has_diagram: false,
-    has_equation: Boolean(questionLatex || /\$/.test(questionText)),
-    tags: [],
+    has_diagram: questionImages.length > 0,
+    has_equation: Boolean(questionLatex || /\$/.test(bodyPlain)),
+    tags: [subtype, ...tagsInput.split(',').map((t) => t.trim()).filter(Boolean)],
     ai_confidence: 0,
-    ai_metadata: { provider: 'manual', latexFirst: true },
+    ai_metadata: { provider: 'manual', reconstruction: lastReconstruct?.sources },
     status: 'pending',
     subject_id: subjectId,
     chapter_id: chapterId,
@@ -232,8 +376,8 @@ export function QuestionEditorForm({
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-      <div className="space-y-4 min-w-0">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(300px,380px)] gap-4 xl:gap-6">
+      <div className="space-y-3 min-w-0 order-2 xl:order-1">
         {errors.length > 0 && (
           <Alert variant="error" title="Fix before publishing">
             <ul className="list-disc pl-4 text-sm">
@@ -244,81 +388,73 @@ export function QuestionEditorForm({
           </Alert>
         )}
 
-        <Card className="p-4 space-y-3">
-          <h3 className="font-semibold text-slate-900 dark:text-white">Question type</h3>
+        <Card className="p-3 sm:p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold text-slate-900 dark:text-white">Paste & reconstruct</h3>
+            <Badge variant="info">
+              {reconstructing ? 'Working…' : 'Auto-detect · OCR · Gemini'}
+            </Badge>
+          </div>
+          <RichQuestionEditor
+            value={bodyHtml}
+            images={questionImages}
+            ocrText={ocrText}
+            onOcrTextChange={setOcrText}
+            onChange={(html, plain) => {
+              setBodyHtml(html);
+              setBodyPlain(plain);
+              const latex = extractPrimaryLatex(plain || html);
+              if (latex) setQuestionLatex(latex);
+            }}
+            onImagesChange={setQuestionImages}
+            onPastePayload={triggerReconstruction}
+          />
+          <details
+            className="rounded-lg border border-slate-200 dark:border-slate-600"
+            open={showAdvancedMath}
+            onToggle={(e) => setShowAdvancedMath((e.target as HTMLDetailsElement).open)}
+          >
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+              Advanced equation tools
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
+              <LatexToolbar onInsert={insertLatex} />
+              <Input
+                label="Display LaTeX override (optional)"
+                value={questionLatex}
+                onChange={(e) => setQuestionLatex(e.target.value)}
+                placeholder="Auto-detected from $...$ in content"
+              />
+            </div>
+          </details>
+        </Card>
+
+        <Card className="p-3 sm:p-4">
           <Select
+            label="Question type (override)"
             value={subtype}
             onChange={(e) => setSubtype(e.target.value as EditorSubtype)}
             options={SUBTYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
           />
         </Card>
 
-        <Card className="p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Question body</h3>
-            <Badge variant="info">LaTeX-first</Badge>
-          </div>
-          <LatexToolbar onInsert={insertLatex} />
-          <Textarea
-            label="Text (use $...$ for inline, $$...$$ for block math)"
-            rows={6}
-            value={questionText}
-            onChange={(e) => setQuestionText(e.target.value)}
-          />
-          <Input
-            label="Primary LaTeX (optional block equation)"
-            value={questionLatex}
-            onChange={(e) => setQuestionLatex(e.target.value)}
-            placeholder="e.g. \\int_0^1 x^2 dx"
-          />
-        </Card>
-
         {isMcq && (
-          <Card className="p-4 space-y-3">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Options</h3>
-            {options.map((opt, idx) => (
-              <div key={idx} className="flex gap-2 items-start">
-                <span className="font-medium pt-2 w-6">{String.fromCharCode(65 + idx)}.</span>
-                <div className="flex-1 space-y-1">
-                  <Input
-                    value={opt.text}
-                    onChange={(e) => {
-                      const next = [...options];
-                      next[idx] = { ...next[idx], text: e.target.value };
-                      setOptions(next);
-                    }}
-                    placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                  />
-                  <Input
-                    value={opt.latex || ''}
-                    onChange={(e) => {
-                      const next = [...options];
-                      next[idx] = { ...next[idx], latex: e.target.value || undefined };
-                      setOptions(next);
-                    }}
-                    placeholder="Option LaTeX (optional)"
-                    className="text-sm"
-                  />
-                </div>
-                {subtype === 'mcq_single' && (
-                  <input
-                    type="radio"
-                    name="correct"
-                    checked={correctOption === idx}
-                    onChange={() => setCorrectOption(idx)}
-                    className="mt-3"
-                    title="Correct answer"
-                  />
-                )}
-              </div>
-            ))}
+          <Card className="p-3 sm:p-4 space-y-2">
+            <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Options</h3>
+            <OptionRichFields
+              options={options}
+              subtype={subtype}
+              correctOption={correctOption}
+              onOptionsChange={setOptions}
+              onCorrectChange={setCorrectOption}
+            />
           </Card>
         )}
 
         {(subtype === 'integer' || subtype === 'numerical') && (
-          <Card className="p-4">
+          <Card className="p-3 sm:p-4">
             <Input
-              label="Numerical / integer answer"
+              label="Answer"
               type="number"
               step="any"
               value={numericalAnswer}
@@ -327,31 +463,20 @@ export function QuestionEditorForm({
           </Card>
         )}
 
-        <Card className="p-4 space-y-3">
-          <Textarea
+        <Card className="p-3 sm:p-4">
+          <Input
             label="Explanation (optional)"
-            rows={3}
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
           />
         </Card>
 
-        <Card className="p-4 grid grid-cols-2 gap-3">
+        <Card className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Select
             label="Class"
             value={String(classLevel)}
             onChange={(e) => setClassLevel(Number(e.target.value))}
             options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
-          />
-          <Select
-            label="Difficulty"
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-            options={[
-              { value: 'easy', label: 'Easy' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'hard', label: 'Hard' },
-            ]}
           />
           <Select
             label="Subject"
@@ -367,34 +492,61 @@ export function QuestionEditorForm({
             value={chapterId}
             onChange={(e) => setChapterId(e.target.value)}
             options={[
-              { value: '', label: 'Optional' },
-              ...filteredChapters.map((c) => ({ value: c.id, label: c.name })),
+              {
+                value: '',
+                label: !subjectId
+                  ? 'Select subject first'
+                  : filteredChapters.length
+                    ? 'No chapter (optional)'
+                    : 'Loading chapters…',
+              },
+              ...filteredChapters.map((c) => ({
+                value: c.id,
+                label: c.chapter_number != null ? `${c.chapter_number}. ${c.name}` : c.name,
+              })),
             ]}
           />
           <Select
-            label="Exam type"
+            label="Exam"
             value={examTypeId}
             onChange={(e) => setExamTypeId(e.target.value)}
             options={[{ value: '', label: 'Select…' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
           />
-          <Input
-            label="Marks"
-            type="number"
-            min={1}
-            value={String(marks)}
-            onChange={(e) => setMarks(Number(e.target.value) || 4)}
+          <Select
+            label="Difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
+            options={[
+              { value: 'easy', label: 'Easy' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'hard', label: 'Hard' },
+            ]}
           />
           <Input
-            label="Tags (comma-separated)"
+            label="Tags"
             value={tagsInput}
             onChange={(e) => setTagsInput(e.target.value)}
-            className="col-span-2"
+            className="col-span-2 sm:col-span-3"
+            placeholder="comma-separated"
           />
         </Card>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pb-2">
           <Button variant="outline" onClick={onCancel}>
             Cancel
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={reconstructing}
+            onClick={() =>
+              triggerReconstruction({
+                html: bodyHtml,
+                plain: bodyPlain,
+                images: questionImages,
+              })
+            }
+          >
+            Re-run reconstruction
           </Button>
           <Button variant="ghost" onClick={() => handleSubmit(true)} disabled={isSaving}>
             Save draft
@@ -405,22 +557,25 @@ export function QuestionEditorForm({
         </div>
       </div>
 
-      <div className="xl:sticky xl:top-20 h-fit space-y-3">
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Live preview</h3>
+      <div className="xl:sticky xl:top-2 h-fit space-y-2 order-1 xl:order-2 max-h-[calc(100dvh-5rem)] overflow-y-auto">
+        <Card className="p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-slate-900 dark:text-white text-sm">
+              Live reconstruction preview
+            </h3>
             <Button size="sm" variant="ghost" onClick={() => setShowPreview(!showPreview)}>
               {showPreview ? 'Hide' : 'Show'}
             </Button>
           </div>
-          {showPreview && <QuestionContentPreview question={previewQuestion} />}
+          {showPreview && (
+            <ReconstructionPreview
+              previewQuestion={previewQuestion}
+              subtype={subtype}
+              reconstructing={reconstructing}
+              lastResult={lastReconstruct}
+            />
+          )}
         </Card>
-        {questionText.length > 30 && (
-          <p className="text-xs text-slate-500">
-            Tip: Use the toolbar for fractions, integrals, and matrices. Equations render with{' '}
-            {import.meta.env.VITE_MATH_RENDERER || 'MathJax'}.
-          </p>
-        )}
       </div>
     </div>
   );

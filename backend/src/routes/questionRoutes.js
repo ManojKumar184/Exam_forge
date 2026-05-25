@@ -10,6 +10,7 @@ import {
   listQuestionsSchema,
   bulkIdsSchema,
   bulkUpdateMetadataSchema,
+  reconstructQuestionSchema,
 } from '../validators/questionValidators.js';
 import * as questionController from '../controllers/questionController.js';
 
@@ -19,6 +20,14 @@ router.use(authenticate);
 
 router.get('/', validateQuery(listQuestionsSchema), asyncHandler(questionController.list));
 router.get('/meta/count', validateQuery(listQuestionsSchema), asyncHandler(questionController.count));
+
+router.post(
+  '/reconstruct',
+  authorize('super_admin', 'faculty'),
+  validate(reconstructQuestionSchema),
+  asyncHandler(questionController.reconstruct)
+);
+
 router.get('/:id', asyncHandler(questionController.getOne));
 
 router.post(

@@ -1,6 +1,7 @@
 import { BaseAIProvider } from './baseProvider.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { geminiGenerateContent, resolveGeminiModel } from '../geminiClient.js';
 
 /**
  * Lightweight Gemini classification — single question block only (no PDFs).
@@ -23,6 +24,9 @@ export class GeminiProvider extends BaseAIProvider {
 
   async classify(question, catalog, docMeta = {}) {
     if (!this.isConfigured()) return null;
+
+    const apiKey = env.ai.geminiApiKey;
+    const model = await resolveGeminiModel(apiKey, env.ai.geminiModel);
 
     const subjectList = (catalog.subjects || []).map((s) => s.name).slice(0, 12).join(', ');
     const examList = (catalog.examTypes || []).map((e) => e.name).slice(0, 8).join(', ');
@@ -50,26 +54,32 @@ Topics sample: ${topicSample}
 ${this.buildQuestionBlockPayload(question)}`;
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.ai.geminiModel}:generateContent?key=${env.ai.geminiApiKey}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await geminiGenerateContent({
+        apiKey,
+        model,
+        payload: {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
-        }),
-        signal: AbortSignal.timeout(env.ai.requestTimeoutMs),
+        },
       });
 
-      if (!res.ok) {
-        logger.warn('Gemini classify failed', { status: res.status });
+      if (result.error || !result.res) {
+        logger.warn('Gemini classify skipped — using rules-only fallback', {
+          reason: result.error?.bodyText || result.error?.error || 'unknown',
+        });
         return null;
       }
 
-      const body = await res.json();
+      const body = await result.res.json();
       const text = body.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
+      if (!jsonMatch) {
+        logger.warn('Gemini classify: no JSON in response', {
+          model: result.modelId,
+          preview: text.slice(0, 300),
+        });
+        return null;
+      }
       const parsed = JSON.parse(jsonMatch[0]);
 
       const tags = [];

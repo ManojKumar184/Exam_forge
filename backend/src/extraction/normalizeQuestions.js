@@ -3,7 +3,7 @@ import { computeDuplicateHash } from '../utils/duplicateHash.js';
 import { enrichTextWithLatexFields, enrichOptionWithLatex } from './latexUtils.js';
 import { preprocessDocumentText } from './columnReadingOrder.js';
 import { detectSectionHeader } from './sectionParser.js';
-import { isOptionLine, parseOptionLine, extractInlineOptions } from './optionParser.js';
+import { isOptionLine, parseOptionLine, extractInlineOptions, appendOptionContinuation } from './optionParser.js';
 
 const QUESTION_START_RE =
   /^(?:Q(?:uestion)?\s*)?(\d{1,3})[\).:\-\s]+|^\((\d{1,3})\)\s+|^(\d{1,3})\.\s+(?=[A-Za-z(\\$])/i;
@@ -36,12 +36,20 @@ export function splitTextIntoBlocks(rawText) {
 
   const blocks = [];
   let current = { lines: [], options: [], questionNumber: null, section: 'General' };
+  let passageLines = [];
+  let inComprehensionPassage = false;
 
   const flush = () => {
     if (current.lines.length > 0 || current.options.length > 0) {
+      if (passageLines.length > 0 && inComprehensionPassage) {
+        current.passage = passageLines.join('\n').trim();
+        current.tags = [...(current.tags || []), 'comprehension'];
+      }
       blocks.push({ ...current });
     }
-    current = { lines: [], options: [], questionNumber: null, section: current.section };
+    current = { lines: [], options: [], questionNumber: null, section: current.section, tags: [] };
+    passageLines = [];
+    inComprehensionPassage = false;
   };
 
   for (const line of lines) {
@@ -53,28 +61,45 @@ export function splitTextIntoBlocks(rawText) {
     if (sectionHeader) {
       flush();
       current.section = sectionHeader.name;
+      inComprehensionPassage = /comprehension|passage/i.test(sectionHeader.name);
       continue;
     }
 
     if (isOptionLine(trimmed)) {
       const opt = parseOptionLine(trimmed);
       if (opt) {
+        inComprehensionPassage = false;
         current.options.push({ text: opt.text, image: null, latex: null });
         continue;
       }
+    }
+
+    if (
+      inComprehensionPassage &&
+      !isQuestionStart(trimmed) &&
+      current.lines.length === 0 &&
+      current.options.length === 0
+    ) {
+      passageLines.push(trimmed);
+      continue;
     }
 
     if (isQuestionStart(trimmed) && (current.lines.length > 0 || current.options.length > 0)) {
       flush();
       current.questionNumber = extractQuestionNumber(trimmed);
       current.lines.push(stripQuestionPrefix(trimmed));
+      inComprehensionPassage = false;
       continue;
     }
 
     if (current.options.length > 0 && !isQuestionStart(trimmed) && !isOptionLine(trimmed)) {
-      const last = current.options[current.options.length - 1];
-      if (last && trimmed.length < 200 && !/^(?:Q|Question)\s*\d/i.test(trimmed)) {
-        last.text = `${last.text} ${trimmed}`.trim();
+      const merged = appendOptionContinuation(current.options, trimmed);
+      if (merged !== current.options) {
+        current.options = merged.map((o) => ({
+          text: o.text,
+          image: o.image ?? null,
+          latex: o.latex ?? null,
+        }));
         continue;
       }
     }
@@ -96,6 +121,9 @@ export function normalizeQuestions(rawBlocks, context = {}) {
 
   for (const block of rawBlocks) {
     let questionText = block.lines.join('\n').trim();
+    if (block.passage) {
+      questionText = `${block.passage}\n\n${questionText}`.trim();
+    }
     if (!questionText || questionText.length < 5) continue;
 
     const inline = extractInlineOptions(questionText);
@@ -109,6 +137,7 @@ export function normalizeQuestions(rawBlocks, context = {}) {
     const tags = [
       ...new Set([...(typeResult.tags || []), ...(block.section ? [`section:${block.section}`] : [])]),
     ];
+    if (block.passage && !tags.includes('comprehension')) tags.push('comprehension');
     if (block.questionNumber) tags.push(`qnum:${block.questionNumber}`);
     if (typeResult.subtype) tags.push(typeResult.subtype);
 

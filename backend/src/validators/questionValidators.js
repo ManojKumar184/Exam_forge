@@ -25,6 +25,14 @@ export const createQuestionSchema = z.object({
 
 export const updateQuestionSchema = createQuestionSchema.partial();
 
+export const reconstructQuestionSchema = z.object({
+  html: z.string().max(500_000).optional(),
+  plain: z.string().max(200_000).optional(),
+  ocrText: z.string().max(200_000).optional(),
+  images: z.array(z.string().max(2_000_000)).max(6).optional(),
+  useGemini: z.boolean().optional(),
+});
+
 export const listQuestionsSchema = z.object({
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),

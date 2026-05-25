@@ -1,5 +1,6 @@
 import { splitContentParts, hasRenderableMath } from '../../lib/latexParts';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { decodeHtmlEntities } from '../../utils/wordHtmlCleanup';
 import { MathRenderer } from '../math/MathRenderer';
 import type { Question, QuestionOption } from '../../types';
 
@@ -15,9 +16,10 @@ interface RichContentProps {
 }
 
 function renderTextWithMath(text: string, compact?: boolean) {
-  const parts = splitContentParts(text);
-  if (parts.length === 1 && parts[0].type === 'text' && !hasRenderableMath(text)) {
-    return <span className="whitespace-pre-wrap break-words">{text}</span>;
+  const decoded = decodeHtmlEntities(text);
+  const parts = splitContentParts(decoded);
+  if (parts.length === 1 && parts[0].type === 'text' && !hasRenderableMath(decoded)) {
+    return <span className="whitespace-pre-wrap break-words leading-snug">{decoded}</span>;
   }
 
   return (
@@ -59,17 +61,24 @@ export function RichContent({
       .map((d) => (d as { url: string }).url),
   ].filter((url, idx, arr) => url && arr.indexOf(url) === idx);
 
-  const primaryText = text || '';
+  const primaryText = decodeHtmlEntities(text || '');
   const blockLatex = latex?.trim();
+  const hasHtmlMarkup = /<(table|img|p|div|span|br|sup|sub)\b/i.test(primaryText);
 
   return (
-    <div className={`rich-content space-y-2 min-w-0 ${className}`}>
+    <div className={`rich-content space-y-1.5 min-w-0 ${className}`}>
       {blockLatex && !primaryText.includes('$') ? (
         <MathRenderer latex={blockLatex} display className={compact ? 'text-sm' : undefined} />
       ) : null}
       {primaryText ? (
-        <div className={`${compact ? 'text-sm' : 'text-base'} overflow-x-auto`}>
-          {renderTextWithMath(primaryText, compact)}
+        <div
+          className={`${compact ? 'text-sm' : 'text-base'} overflow-x-auto prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1`}
+        >
+          {hasHtmlMarkup ? (
+            <div dangerouslySetInnerHTML={{ __html: primaryText }} />
+          ) : (
+            renderTextWithMath(primaryText, compact)
+          )}
         </div>
       ) : null}
       {orderedImages.map((src, i) => (
@@ -88,38 +97,81 @@ export function RichContent({
 
 export function RichOptionContent({ option, index }: { option: QuestionOption | string; index: number }) {
   if (typeof option === 'string') {
+    const hasHtml = /<(table|img|p|div|span|br)\b/i.test(option);
     return (
       <span className="break-words">
         <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
-        {renderTextWithMath(option, true)}
+        {hasHtml ? (
+          <span
+            className="prose prose-sm dark:prose-invert max-w-none inline"
+            dangerouslySetInnerHTML={{ __html: option }}
+          />
+        ) : (
+          renderTextWithMath(option, true)
+        )}
       </span>
     );
   }
+
+  const optText = option.text || '';
+  const hasHtml = /<(table|img|p|div|span|br)\b/i.test(optText);
 
   return (
     <div className="flex items-start gap-2 min-w-0">
       <span className="font-medium shrink-0">{String.fromCharCode(65 + index)}.</span>
       <div className="flex-1 min-w-0">
-        <RichContent
-          text={option.text}
-          latex={option.latex}
-          images={option.image ? [option.image] : []}
-          compact
-        />
+        {hasHtml ? (
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1"
+            dangerouslySetInnerHTML={{ __html: optText }}
+          />
+        ) : (
+          <RichContent
+            text={optText}
+            latex={option.latex}
+            images={option.image ? [option.image] : []}
+            compact
+          />
+        )}
+        {option.image && !optText.includes(option.image) && (
+          <img
+            src={resolveMediaUrl(option.image)}
+            alt=""
+            className="mt-1 max-h-32 rounded border border-slate-200 dark:border-slate-600"
+          />
+        )}
       </div>
     </div>
   );
 }
 
-export function QuestionContentPreview({ question, compact }: { question: Question; compact?: boolean }) {
+export function QuestionContentPreview({
+  question,
+  compact,
+  showOptions,
+}: {
+  question: Question;
+  compact?: boolean;
+  showOptions?: boolean;
+}) {
+  const opts = (question.options || []).filter((o) => o?.text?.trim());
   return (
-    <RichContent
-      text={question.question_text}
-      latex={question.question_latex}
-      images={question.question_images}
-      imageMetadata={question.image_metadata}
-      diagrams={question.diagrams}
-      compact={compact}
-    />
+    <div className="space-y-2">
+      <RichContent
+        text={question.question_text}
+        latex={question.question_latex}
+        images={question.question_images}
+        imageMetadata={question.image_metadata}
+        diagrams={question.diagrams}
+        compact={compact}
+      />
+      {showOptions && opts.length > 0 && (
+        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-700">
+          {opts.map((opt, idx) => (
+            <RichOptionContent key={idx} option={opt} index={idx} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -174,8 +174,8 @@ export function QuestionBankPage() {
         )}
       </div>
 
-      <Card className="p-2 sm:p-3 sticky top-14 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
+      <Card className="p-2 sm:p-3 sticky top-0 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex flex-wrap items-end gap-2">
           <div className="w-full sm:w-56 min-w-[12rem] flex-1 sm:flex-none">
             <Input
               placeholder="Search questions..."
@@ -423,7 +423,7 @@ export function QuestionBankPage() {
       )}
 
       {isAdmin && selectedIds.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.08)] safe-area-pb">
           <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
               {selectedIds.length} selected
