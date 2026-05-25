@@ -40,4 +40,7 @@ const uploadSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+uploadSchema.index({ uploadedBy: 1, createdAt: -1 });
+uploadSchema.index({ status: 1, processingStage: 1 });
+
 export const Upload = mongoose.model('Upload', uploadSchema);

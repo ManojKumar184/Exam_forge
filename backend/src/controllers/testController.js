@@ -1,4 +1,6 @@
 import * as testService from '../services/testService.js';
+import * as gradingService from '../services/gradingService.js';
+import * as analyticsService from '../services/analyticsService.js';
 
 export async function list(req, res) {
   const data = await testService.listTests(req.query, req.user);
@@ -47,6 +49,39 @@ export async function attempts(req, res) {
 
 export async function leaderboard(req, res) {
   const data = await testService.getLeaderboard(req.params.id);
+  res.json({ success: true, data });
+}
+
+export async function gradingQueue(req, res) {
+  const data = await gradingService.getGradingQueue(req.params.id, req.user);
+  res.json({ success: true, data });
+}
+
+export async function attemptDetail(req, res) {
+  const data = await gradingService.getAttemptDetail(
+    req.params.id,
+    req.params.attemptId,
+    req.user
+  );
+  res.json({ success: true, data });
+}
+
+export async function gradeAttempt(req, res) {
+  const data = await gradingService.gradeAttemptAnswers(
+    req.params.id,
+    req.params.attemptId,
+    req.body,
+    req.user
+  );
+  res.json({ success: true, data });
+}
+
+export async function testAnalytics(req, res) {
+  const facultyId = req.user.role === 'faculty' ? req.user._id : null;
+  const data = await analyticsService.getTestPerformanceAnalytics(req.params.id, facultyId);
+  if (!data) {
+    return res.status(404).json({ success: false, message: 'Test not found' });
+  }
   res.json({ success: true, data });
 }
 

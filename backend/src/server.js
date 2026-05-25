@@ -3,7 +3,12 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import {
+  globalApiLimiter,
+  authLimiter,
+  uploadLimiter,
+} from './middleware/rateLimits.js';
+import { logger } from './utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -27,6 +32,7 @@ async function bootstrap() {
   await connectDatabase();
 
   const app = express();
+  app.set('trust proxy', 1);
 
   app.use(helmet());
   app.use(
@@ -40,14 +46,7 @@ async function bootstrap() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 300,
-      standardHeaders: true,
-      legacyHeaders: false,
-    })
-  );
+  app.use(globalApiLimiter);
 
   app.use('/uploads', express.static(env.uploadDir));
 
@@ -90,7 +89,7 @@ function setupGracefulShutdown() {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('unhandledRejection', (reason) => {
-    console.error('[server] Unhandled rejection:', reason);
+    logger.error('Unhandled rejection', { reason: String(reason) });
   });
 }
 

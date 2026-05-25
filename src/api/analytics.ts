@@ -22,3 +22,40 @@ export async function fetchStudentAnalyticsApi(): Promise<Record<string, number>
   return data.data;
 }
 
+export interface TestPerformanceAnalytics {
+  test_id: string;
+  total_attempts: number;
+  pending_grading: number;
+  average_score: number;
+  weak_topics: Array<{ topic: string; wrong_count: number }>;
+  question_performance: Array<{
+    question_id: string;
+    question_type: string;
+    difficulty: string;
+    chapter: string;
+    max_marks: number;
+    attempts: number;
+    correct: number;
+    wrong: number;
+    skipped: number;
+    accuracy_pct: number;
+    avg_marks_awarded: number;
+  }>;
+  descriptive_analytics: Array<{
+    question_id: string;
+    chapter: string;
+    avg_marks_awarded: number;
+    max_marks: number;
+    graded_rate_pct: number;
+  }>;
+}
+
+export async function fetchTestPerformanceAnalyticsApi(
+  testId: string
+): Promise<TestPerformanceAnalytics> {
+  const { data } = await apiClient.get<{ success: boolean; data: TestPerformanceAnalytics }>(
+    `/analytics/test/${testId}`
+  );
+  return data.data;
+}
+

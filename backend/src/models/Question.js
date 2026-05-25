@@ -89,5 +89,9 @@ questionSchema.index({ status: 1, uploadId: 1 });
 questionSchema.index({ status: 1, questionType: 1, class: 1 });
 questionSchema.index({ questionText: 'text' });
 questionSchema.index({ createdAt: -1 });
+questionSchema.index({ uploadId: 1, status: 1 });
+questionSchema.index({ duplicateOf: 1 });
+questionSchema.index({ subjectId: 1, class: 1, status: 1, difficulty: 1 });
+questionSchema.index({ aiConfidence: 1, status: 1 });
 
 export const Question = mongoose.model('Question', questionSchema);

@@ -163,14 +163,24 @@ export function TestsListPage() {
                     </Button>
                   )
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => navigate('/leaderboard', { state: { testId: test.id } })}
-                  >
-                    View leaderboard
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => navigate('/leaderboard', { state: { testId: test.id } })}
+                    >
+                      View leaderboard
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => navigate(`/tests/${test.id}/grading`)}
+                    >
+                      Grade descriptive
+                    </Button>
+                  </div>
                 )}
               </Card>
             );

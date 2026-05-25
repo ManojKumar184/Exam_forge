@@ -67,3 +67,39 @@ export async function fetchTestLeaderboardApi(testId: string): Promise<Leaderboa
   return data.data;
 }
 
+export interface AttemptReviewPayload {
+  test_id: string;
+  attempt: TestAttempt;
+  show_answers: boolean;
+  allow_review: boolean;
+}
+
+export async function fetchAttemptReviewApi(
+  testId: string,
+  attemptId: string
+): Promise<AttemptReviewPayload> {
+  const { data } = await apiClient.get<{ success: boolean; data: AttemptReviewPayload }>(
+    `/tests/${testId}/attempts/${attemptId}`
+  );
+  return data.data;
+}
+
+export async function fetchGradingQueueApi(testId: string): Promise<TestAttempt[]> {
+  const { data } = await apiClient.get<{ success: boolean; data: TestAttempt[] }>(
+    `/tests/${testId}/grading-queue`
+  );
+  return data.data;
+}
+
+export async function gradeAttemptApi(
+  testId: string,
+  attemptId: string,
+  grades: Array<{ answer_id: string; marks: number; remarks?: string | null }>
+): Promise<TestAttempt> {
+  const { data } = await apiClient.patch<{ success: boolean; data: TestAttempt }>(
+    `/tests/${testId}/attempts/${attemptId}/grade`,
+    { grades }
+  );
+  return data.data;
+}
+

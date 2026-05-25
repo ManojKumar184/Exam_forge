@@ -424,6 +424,45 @@ export function QuestionBankPage() {
                 </ul>
               </Alert>
             )}
+            {(selectedQuestion.rendering_metadata?.ocr ||
+              selectedQuestion.ai_metadata?.ocrConfidence != null) && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
+                <h4 className="font-medium text-slate-900 dark:text-white">OCR review</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500 mb-1 font-medium">Raw OCR preview</p>
+                    <pre className="whitespace-pre-wrap text-xs p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 max-h-48 overflow-auto">
+                      {selectedQuestion.rendering_metadata?.ocr?.rawTextPreview ||
+                        'No raw preview stored'}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1 font-medium">Parsed question (verify)</p>
+                    <div className="p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
+                      <QuestionContentPreview question={selectedQuestion} compact />
+                    </div>
+                    {selectedQuestion.rendering_metadata?.ocr?.confidence != null && (
+                      <p className="mt-2 text-slate-500">
+                        OCR confidence:{' '}
+                        {Math.round(selectedQuestion.rendering_metadata.ocr.confidence)}%
+                      </p>
+                    )}
+                    {(selectedQuestion.rendering_metadata?.ocr?.uncertainSpans?.length ?? 0) >
+                      0 && (
+                      <p className="mt-1 text-amber-700 dark:text-amber-400">
+                        {selectedQuestion.rendering_metadata.ocr.uncertainSpans.length} uncertain
+                        region(s) — edit before approval
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {selectedQuestion.ai_metadata?.providers && (
+                  <p className="text-xs text-slate-500">
+                    Classification: {(selectedQuestion.ai_metadata.providers as string[]).join(' → ')}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
               <div>
                 <p className="text-sm text-slate-500">Subject</p>

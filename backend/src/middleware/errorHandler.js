@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { logger } from '../utils/logger.js';
 
 export function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
@@ -7,7 +8,12 @@ export function errorHandler(err, req, res, next) {
   const code = err.code || 'INTERNAL_ERROR';
 
   if (statusCode >= 500) {
-    console.error('[error]', err);
+    logger.error('Request error', {
+      code,
+      message: err.message,
+      path: req.originalUrl,
+      method: req.method,
+    });
   }
 
   res.status(statusCode).json({

@@ -5,13 +5,11 @@ import { env } from '../config/env.js';
 import { getFileType } from '../config/multer.js';
 import { extractionService } from '../extraction/index.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
-import {
-  loadClassificationCatalog,
-  parseDocumentMetadata,
-  classifyExtractedQuestion,
-} from '../extraction/metadataClassifier.js';
+import { loadClassificationCatalog, parseDocumentMetadata } from '../extraction/metadataClassifier.js';
 import { mapUpload } from '../utils/questionMapper.js';
 import { AppError } from '../utils/AppError.js';
+import { logger } from '../utils/logger.js';
+import { retryAsync } from '../utils/retry.js';
 
 export async function processUpload(file, user, options = {}) {
   const fileType = getFileType(file.mimetype, file.originalname);
@@ -42,11 +40,15 @@ export async function processUpload(file, user, options = {}) {
       sourceFile: file.originalname,
     };
 
-    const extractResult = await extractionService.processAndDeduplicate(
-      filePath,
-      fileType,
-      uploadContext
+    const extractResult = await retryAsync(
+      () => extractionService.processAndDeduplicate(filePath, fileType, uploadContext),
+      { label: 'upload-extraction', retries: 1 }
     );
+
+    if (extractResult.usedOcr) {
+      upload.processingStage = 'ocr';
+      await upload.save();
+    }
 
     const docMeta = parseDocumentMetadata(
       extractResult.rawText || extractResult.questions?.map((q) => q.questionText).join('\n') || '',
@@ -68,8 +70,7 @@ export async function processUpload(file, user, options = {}) {
     const questionIds = [];
 
     for (const q of extractResult.questions) {
-      const classified = classifyExtractedQuestion(q, catalog, docMeta, uploadContext);
-      const ai = await classifyQuestionMetadata(q, catalog, docMeta);
+      const classified = await classifyQuestionMetadata(q, catalog, docMeta, uploadContext);
       const { isDuplicate, ...questionFields } = q;
       const imageMetadata =
         q.imageMetadata ||
@@ -89,6 +90,7 @@ export async function processUpload(file, user, options = {}) {
         difficulty: classified.difficulty ?? questionFields.difficulty,
         tags: classified.tags?.length ? classified.tags : questionFields.tags,
         status: classified.status || (q.isDuplicate ? 'needs_review' : 'pending'),
+        renderingMetadata: q.renderingMetadata || questionFields.renderingMetadata || {},
         questionImages: q.questionImages || questionFields.questionImages || [],
         imageMetadata,
         diagrams: q.diagrams || [],
@@ -102,8 +104,8 @@ export async function processUpload(file, user, options = {}) {
           ...(docMeta.warnings || []),
           ...(q.extractionWarnings || []),
         ],
-        aiConfidence: classified.aiConfidence ?? ai.aiConfidence,
-        aiMetadata: { ...ai.aiMetadata, ...classified.aiMetadata },
+        aiConfidence: classified.aiConfidence ?? 0,
+        aiMetadata: classified.aiMetadata || {},
         uploadId: upload._id,
         createdBy: user._id,
         source: 'upload',
@@ -129,6 +131,10 @@ export async function processUpload(file, user, options = {}) {
       warnings: upload.extractionWarnings,
     };
   } catch (err) {
+    logger.error('Upload processing failed', {
+      uploadId: upload._id.toString(),
+      error: err.message,
+    });
     upload.status = 'failed';
     upload.processingError = err.message;
     upload.processingStage = 'done';

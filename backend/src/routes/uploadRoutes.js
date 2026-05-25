@@ -4,8 +4,11 @@ import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import { uploadMiddleware } from '../config/multer.js';
 import * as uploadController from '../controllers/uploadController.js';
+import { uploadLimiter } from '../middleware/rateLimits.js';
 
 const router = Router();
+
+router.use(uploadLimiter);
 
 router.use(authenticate);
 

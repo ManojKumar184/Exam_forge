@@ -2,8 +2,13 @@ import { OnlineTest } from '../models/OnlineTest.js';
 import { Paper } from '../models/Paper.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { Leaderboard } from '../models/Leaderboard.js';
+import { recomputeLeaderboard } from './leaderboardService.js';
 import { AppError } from '../utils/AppError.js';
 import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry } from '../utils/examMapper.js';
+import {
+  computeGradingStatus,
+  recomputeAttemptTotals,
+} from './gradingService.js';
 
 function buildTestFilter(query, user) {
   const filter = {};
@@ -202,28 +207,6 @@ function scoreAnswer(answer, question, marks) {
   return { isCorrect: null, marks: 0, skipped: false };
 }
 
-async function recomputeLeaderboard(testId) {
-  const attempts = await TestAttempt.find({ testId, status: { $in: ['submitted', 'auto_submitted'] } })
-    .sort({ score: -1, timeSpentSeconds: 1, submittedAt: 1 });
-  await Leaderboard.deleteMany({ testId });
-  const docs = [];
-  for (let i = 0; i < attempts.length; i += 1) {
-    const rank = i + 1;
-    attempts[i].rank = rank;
-    await attempts[i].save();
-    docs.push({
-      testId,
-      userId: attempts[i].userId,
-      attemptId: attempts[i]._id,
-      score: attempts[i].score,
-      percentage: attempts[i].percentage,
-      timeSpentSeconds: attempts[i].timeSpentSeconds,
-      rank,
-    });
-  }
-  if (docs.length) await Leaderboard.insertMany(docs);
-}
-
 export async function submitAttempt(testId, user, { auto = false } = {}) {
   const attempt = await TestAttempt.findOne({
     testId,
@@ -252,7 +235,9 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
 
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId.toString());
-    const evalResult = scoreAnswer(answer, entry?.question, entry?.marks || 0);
+    const maxMarks = entry?.marks || 0;
+    answer.maxMarks = maxMarks;
+    const evalResult = scoreAnswer(answer, entry?.question, maxMarks);
     answer.isCorrect = evalResult.isCorrect;
     answer.marksObtained = evalResult.marks;
     if (evalResult.skipped) {
@@ -268,16 +253,17 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
   const maxScore = questionMap.size
     ? [...questionMap.values()].reduce((sum, q) => sum + q.marks, 0)
     : attempt.maxScore;
-  const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
 
   attempt.status = auto ? 'auto_submitted' : 'submitted';
   attempt.submittedAt = new Date();
-  attempt.score = score;
-  attempt.maxScore = maxScore;
-  attempt.percentage = Number(percentage.toFixed(2));
   attempt.correctAnswers = correct;
   attempt.wrongAnswers = wrong;
   attempt.skippedAnswers = skipped;
+  attempt.score = score;
+  attempt.maxScore = maxScore;
+  attempt.percentage = maxScore > 0 ? Number(((score / maxScore) * 100).toFixed(2)) : 0;
+  attempt.gradingStatus = computeGradingStatus(attempt, questionMap);
+  recomputeAttemptTotals(attempt, questionMap);
   await attempt.save();
 
   await recomputeLeaderboard(test._id);

@@ -2,9 +2,18 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
-import { fetchPaperApi, fetchPaperPoolStatsApi, selectQuestionsForPaperApi, type PoolStats } from '../../api/papers';
+import {
+  fetchPaperApi,
+  fetchPaperPoolStatsApi,
+  selectQuestionsForPaperApi,
+  downloadPaperPdfApi,
+  type PoolStats,
+} from '../../api/papers';
+import { downloadBlob } from '../../utils/downloadBlob';
+import { getApiErrorMessage } from '../../api/client';
+import toast from 'react-hot-toast';
 import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect } from '../../components/ui';
-import { Plus, Wand2, Settings, Save, Sparkles } from 'lucide-react';
+import { Plus, Wand2, Settings, Save, Sparkles, Download } from 'lucide-react';
 import type { Question } from '../../types';
 import {
   SortableSectionQuestions,
@@ -37,6 +46,7 @@ export function PaperGeneratorPage() {
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [paperStatus, setPaperStatus] = useState<'draft' | 'published'>('draft');
+  const [isExporting, setIsExporting] = useState(false);
 
   const [title, setTitle] = useState('');
   const [examTypeId, setExamTypeId] = useState('');
@@ -295,6 +305,22 @@ export function PaperGeneratorPage() {
     );
   };
 
+  const handleExportPdf = async () => {
+    if (!paperId) return;
+    setIsExporting(true);
+    try {
+      const blob = await downloadPaperPdfApi(paperId, {
+        allowDraft: paperStatus === 'draft',
+      });
+      downloadBlob(blob, `${title || 'paper'}.pdf`);
+      toast.success('PDF exported');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleSavePaper = async (status: 'draft' | 'published' = paperStatus) => {
     if (!title || !subjectId || !examTypeId) {
       alert('Please fill all required fields');
@@ -392,6 +418,16 @@ export function PaperGeneratorPage() {
             onChange={(e) => setPaperStatus(e.target.value as 'draft' | 'published')}
             className="w-32"
           />
+          {isEditMode && paperId && (
+            <Button
+              variant="outline"
+              onClick={() => void handleExportPdf()}
+              isLoading={isExporting}
+              leftIcon={<Download className="w-4 h-4" />}
+            >
+              Export PDF
+            </Button>
+          )}
           <Button variant="outline" onClick={() => handleSavePaper('draft')} isLoading={isLoading}>
             Save Draft
           </Button>

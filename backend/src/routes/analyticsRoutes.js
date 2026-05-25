@@ -10,6 +10,11 @@ router.use(authenticate);
 router.get('/admin', authorize('super_admin'), asyncHandler(analyticsController.adminAnalytics));
 router.get('/faculty', authorize('faculty', 'super_admin'), asyncHandler(analyticsController.facultyAnalytics));
 router.get('/student', authorize('student'), asyncHandler(analyticsController.studentAnalytics));
+router.get(
+  '/test/:testId',
+  authorize('super_admin', 'faculty'),
+  asyncHandler(analyticsController.testPerformance)
+);
 
 export default router;
 

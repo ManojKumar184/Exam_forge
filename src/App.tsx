@@ -13,7 +13,7 @@ import { LoginPage, RegisterPage } from './pages/auth';
 import { DashboardRouter } from './pages/dashboard';
 import { QuestionBankPage, UploadQuestionsPage } from './pages/questions';
 import { PaperGeneratorPage, PapersListPage } from './pages/paper';
-import { TestTakingPage, TestsListPage } from './pages/test';
+import { TestTakingPage, TestReviewPage, TestGradingPage, TestsListPage } from './pages/test';
 import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
@@ -148,10 +148,22 @@ function AppRoutes() {
         path="/test/:testId/review"
         element={
           <ProtectedRoute>
-            <TestTakingPage />
+            <TestReviewPage />
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/tests/:testId/grading"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TestGradingPage />} />
+        <Route path=":attemptId" element={<TestGradingPage />} />
+      </Route>
 
       <Route
         path="/leaderboard"

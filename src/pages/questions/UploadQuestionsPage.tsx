@@ -151,6 +151,7 @@ export function UploadQuestionsPage() {
         <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
           <li>Upload PDF or DOCX question papers</li>
           <li>Server parses and extracts structured questions (no fake data)</li>
+          <li>Scanned PDFs and images use OCR (Tesseract) — verify in Question Bank</li>
           <li>Uncertain extractions are marked <strong>needs_review</strong></li>
           <li>Approve questions in the Question Bank before faculty can use them</li>
         </ol>

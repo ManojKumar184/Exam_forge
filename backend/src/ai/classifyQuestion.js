@@ -1,35 +1,32 @@
-import {
-  classifyExtractedQuestion,
-  estimateDifficulty,
-} from '../extraction/metadataClassifier.js';
+import { classifyExtractedQuestion, estimateDifficulty } from '../extraction/metadataClassifier.js';
+import { runClassificationPipeline } from './classificationPipeline.js';
 
 /**
- * Rule-based classification (Phase 4 can extend with LLM).
+ * Modular AI-assisted classification (rules + semantic + optional LLM).
  */
-export async function classifyQuestionMetadata(question, catalog = null, docMeta = {}) {
+export async function classifyQuestionMetadata(
+  question,
+  catalog = null,
+  docMeta = {},
+  uploadContext = {}
+) {
   if (catalog?.subjects?.length) {
-    const result = classifyExtractedQuestion(question, catalog, docMeta, {});
-    return {
-      aiConfidence: result.aiConfidence,
-      aiMetadata: result.aiMetadata,
-      class: result.class,
-      subjectId: result.subjectId,
-      chapterId: result.chapterId,
-      examTypeId: result.examTypeId,
-      difficulty: result.difficulty,
-      tags: result.tags,
-      status: result.status,
-      extractionWarnings: result.extractionWarnings,
-    };
+    return runClassificationPipeline(question, catalog, docMeta, uploadContext);
   }
 
+  const result = classifyExtractedQuestion(question, catalog || {}, docMeta, uploadContext);
   return {
-    aiConfidence: 30,
-    aiMetadata: {
-      provider: 'rules',
-      status: 'PARTIAL',
-      message: 'Catalog not loaded — manual metadata required',
-    },
-    difficulty: estimateDifficulty(question),
+    aiConfidence: result.aiConfidence,
+    aiMetadata: result.aiMetadata,
+    class: result.class,
+    subjectId: result.subjectId,
+    chapterId: result.chapterId,
+    examTypeId: result.examTypeId,
+    difficulty: result.difficulty,
+    tags: result.tags,
+    status: result.status,
+    extractionWarnings: result.extractionWarnings,
   };
 }
+
+export { runClassificationPipeline, mergeClassification } from './classificationPipeline.js';

@@ -11,6 +11,7 @@ import {
   poolFilterSchema,
 } from '../validators/paperValidators.js';
 import * as paperController from '../controllers/paperController.js';
+import { heavyOperationLimiter } from '../middleware/rateLimits.js';
 
 const router = Router();
 
@@ -34,6 +35,17 @@ router.post(
   authorize('super_admin', 'faculty'),
   validate(generatePaperSchema),
   asyncHandler(paperController.generate)
+);
+router.get(
+  '/:id/export/pdf',
+  authorize('super_admin', 'faculty'),
+  heavyOperationLimiter,
+  asyncHandler(paperController.exportPdf)
+);
+router.get(
+  '/:id/export/html',
+  authorize('super_admin', 'faculty'),
+  asyncHandler(paperController.exportHtml)
 );
 router.get('/:id', asyncHandler(paperController.getOne));
 router.post(

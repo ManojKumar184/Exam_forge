@@ -1,17 +1,22 @@
-/**
- * AI classification service — Phase 4
- *
- * Providers: OpenAI, Gemini, Ollama (planned)
- * NOT IMPLEMENTED in Phase 1 — upload pipeline will call this module.
- */
-export class AIClassificationService {
-  static STATUS = 'NOT_IMPLEMENTED';
+import { runClassificationPipeline } from './classificationPipeline.js';
+import { getLlmProvider, getRulesProvider, listConfiguredProviders } from './providerRegistry.js';
+import { classifyQuestionMetadata } from './classifyQuestion.js';
 
-  async classifyQuestion(_extractedText, _context = {}) {
-    throw new Error(
-      'AI classification is not implemented yet. See docs/MERN_MIGRATION.md Phase 4.'
-    );
+export class AIClassificationService {
+  async classifyQuestion(question, catalog, docMeta = {}, uploadContext = {}) {
+    return classifyQuestionMetadata(question, catalog, docMeta, uploadContext);
+  }
+
+  getStatus() {
+    return {
+      rules: true,
+      llm: getLlmProvider()?.name || null,
+      configured: listConfiguredProviders(),
+    };
   }
 }
 
 export const aiClassificationService = new AIClassificationService();
+
+export { classifyQuestionMetadata } from './classifyQuestion.js';
+export { listConfiguredProviders, getLlmProvider } from './providerRegistry.js';

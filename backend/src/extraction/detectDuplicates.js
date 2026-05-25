@@ -1,28 +1,53 @@
 import { findDuplicateCandidate } from '../utils/duplicateHash.js';
+import { findSemanticDuplicate } from './semanticDuplicates.js';
 
 export async function detectDuplicatesForQuestions(Question, questions) {
   const results = [];
 
   for (const q of questions) {
-    if (!q.duplicateHash) {
-      results.push({ ...q, duplicateOf: null, isDuplicate: false });
-      continue;
+    let duplicateOf = null;
+    let isDuplicate = false;
+    const warnings = [...(q.extractionWarnings || [])];
+    let duplicateMethod = null;
+    let duplicateScore = null;
+
+    if (q.duplicateHash) {
+      const existing = await findDuplicateCandidate(Question, q.duplicateHash);
+      if (existing) {
+        duplicateOf = existing._id;
+        isDuplicate = true;
+        duplicateMethod = 'hash';
+        duplicateScore = 1;
+        warnings.push('Exact duplicate hash match with existing question');
+      }
     }
-    const existing = await findDuplicateCandidate(Question, q.duplicateHash);
-    if (existing) {
-      results.push({
-        ...q,
-        duplicateOf: existing._id,
-        isDuplicate: true,
-        status: 'needs_review',
-        extractionWarnings: [
-          ...(q.extractionWarnings || []),
-          'Possible duplicate of an existing question',
-        ],
-      });
-    } else {
-      results.push({ ...q, duplicateOf: null, isDuplicate: false });
+
+    if (!isDuplicate) {
+      const semantic = await findSemanticDuplicate(Question, q);
+      if (semantic?.existing) {
+        duplicateOf = semantic.existing._id;
+        isDuplicate = true;
+        duplicateMethod = semantic.method;
+        duplicateScore = Number(semantic.score.toFixed(3));
+        warnings.push(
+          `Probable duplicate (${semantic.method}, score ${duplicateScore}) — review before approval`
+        );
+      }
     }
+
+    results.push({
+      ...q,
+      duplicateOf,
+      isDuplicate,
+      status: isDuplicate ? 'needs_review' : q.status,
+      extractionWarnings: warnings,
+      renderingMetadata: {
+        ...(q.renderingMetadata || {}),
+        duplicateDetection: isDuplicate
+          ? { method: duplicateMethod, score: duplicateScore }
+          : null,
+      },
+    });
   }
 
   return results;

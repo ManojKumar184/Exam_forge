@@ -202,6 +202,10 @@ export interface TestAttempt {
   correct_answers: number;
   wrong_answers: number;
   skipped_answers: number;
+  grading_status?: 'not_required' | 'pending' | 'partial' | 'complete';
+  graded_at?: string | null;
+  graded_by?: string | null;
+  user?: { id: string; email: string; full_name: string | null };
   test?: OnlineTest;
   answers?: TestAnswer[];
 }
@@ -215,6 +219,10 @@ export interface TestAnswer {
   text_answer: string | null;
   is_correct: boolean | null;
   marks_obtained: number;
+  max_marks?: number | null;
+  grading_remarks?: string | null;
+  graded_at?: string | null;
+  graded_by?: string | null;
   is_skipped: boolean;
   is_marked_for_review: boolean;
   answered_at: string | null;

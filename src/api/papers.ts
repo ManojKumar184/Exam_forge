@@ -67,3 +67,21 @@ export async function selectQuestionsForPaperApi(
   return data.data;
 }
 
+export type PaperExportType = 'paper' | 'answer_key';
+
+export async function downloadPaperPdfApi(
+  paperId: string,
+  options: { type?: PaperExportType; allowDraft?: boolean; paperSet?: string } = {}
+): Promise<Blob> {
+  const { data } = await apiClient.get(`/papers/${paperId}/export/pdf`, {
+    params: {
+      type: options.type === 'answer_key' ? 'answer_key' : 'paper',
+      allow_draft: options.allowDraft ? 'true' : undefined,
+      paper_set: options.paperSet,
+    },
+    responseType: 'blob',
+    timeout: 120000,
+  });
+  return data;
+}
+

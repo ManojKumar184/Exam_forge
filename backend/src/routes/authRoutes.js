@@ -10,8 +10,11 @@ import {
   updateProfileSchema,
 } from '../validators/authValidators.js';
 import * as authController from '../controllers/authController.js';
+import { authLimiter } from '../middleware/rateLimits.js';
 
 const router = Router();
+
+router.use(authLimiter);
 
 router.post('/register', validate(registerSchema), asyncHandler(authController.register));
 router.post('/login', validate(loginSchema), asyncHandler(authController.login));

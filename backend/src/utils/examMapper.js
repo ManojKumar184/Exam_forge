@@ -110,7 +110,17 @@ export function mapTestAttempt(doc) {
     correct_answers: d.correctAnswers ?? 0,
     wrong_answers: d.wrongAnswers ?? 0,
     skipped_answers: d.skippedAnswers ?? 0,
+    grading_status: d.gradingStatus ?? 'not_required',
+    graded_at: d.gradedAt?.toISOString?.() || null,
+    graded_by: d.gradedBy ? idStr(d.gradedBy) : null,
     test: d.testId?.testCode ? mapOnlineTest(d.testId) : undefined,
+    user: d.userId?.email
+      ? {
+          id: idStr(d.userId._id || d.userId),
+          email: d.userId.email,
+          full_name: d.userId.fullName ?? null,
+        }
+      : undefined,
     answers:
       d.answers?.map((a) => ({
         id: idStr(a._id),
@@ -121,6 +131,10 @@ export function mapTestAttempt(doc) {
         text_answer: a.textAnswer ?? null,
         is_correct: a.isCorrect ?? null,
         marks_obtained: a.marksObtained ?? 0,
+        max_marks: a.maxMarks ?? null,
+        grading_remarks: a.gradingRemarks ?? null,
+        graded_at: a.gradedAt?.toISOString?.() || null,
+        graded_by: a.gradedBy ? idStr(a.gradedBy) : null,
         is_skipped: a.isSkipped ?? false,
         is_marked_for_review: a.isMarkedForReview ?? false,
         answered_at: a.answeredAt?.toISOString?.() || null,

@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Edit } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { Card, Button, Badge, Loading, EmptyState, Modal } from '../../components/ui';
-import { FileText, Plus, Eye, PlayCircle, Calendar, Clock } from 'lucide-react';
+import { FileText, Plus, PlayCircle, Calendar, Clock, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { downloadPaperPdfApi } from '../../api/papers';
+import { downloadBlob } from '../../utils/downloadBlob';
+import { getApiErrorMessage } from '../../api/client';
 import type { Paper } from '../../types';
 
 export function PapersListPage() {
@@ -11,6 +15,27 @@ export function PapersListPage() {
   const { papers, fetchPapers, createOnlineTest, isLoading } = useDataStore();
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [showCreateTestModal, setShowCreateTestModal] = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const handleExportPdf = async (
+    paper: Paper,
+    type: 'paper' | 'answer_key'
+  ) => {
+    setExportingId(paper.id);
+    try {
+      const blob = await downloadPaperPdfApi(paper.id, {
+        type,
+        allowDraft: paper.status === 'draft',
+      });
+      const suffix = type === 'answer_key' ? 'answer-key' : 'question-paper';
+      downloadBlob(blob, `${paper.paper_code}-${suffix}.pdf`);
+      toast.success('PDF downloaded');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchPapers();
@@ -102,24 +127,47 @@ export function PapersListPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Link to={`/papers/${paper.id}/edit`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full" leftIcon={<Edit className="w-4 h-4" />}>
-                    Edit
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Link to={`/papers/${paper.id}/edit`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full" leftIcon={<Edit className="w-4 h-4" />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    leftIcon={<PlayCircle className="w-4 h-4" />}
+                    onClick={() => {
+                      setSelectedPaper(paper);
+                      setShowCreateTestModal(true);
+                    }}
+                  >
+                    Create Test
                   </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  leftIcon={<PlayCircle className="w-4 h-4" />}
-                  onClick={() => {
-                    setSelectedPaper(paper);
-                    setShowCreateTestModal(true);
-                  }}
-                >
-                  Create Test
-                </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={exportingId === paper.id}
+                    leftIcon={<Download className="w-4 h-4" />}
+                    onClick={() => void handleExportPdf(paper, 'paper')}
+                  >
+                    Export PDF
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1"
+                    disabled={exportingId === paper.id}
+                    onClick={() => void handleExportPdf(paper, 'answer_key')}
+                  >
+                    Answer key
+                  </Button>
+                </div>
               </div>
             </Card>
           ))}
