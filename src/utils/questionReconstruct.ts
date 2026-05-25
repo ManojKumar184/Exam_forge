@@ -1,17 +1,18 @@
 import type { QuestionOption, QuestionType } from '../types';
-import { mergePasteSources, cleanPlainText } from './wordHtmlCleanup';
-import { detectFromPastedContent, type EditorSubtype } from './questionPasteDetect';
+import { mergePasteSources } from './wordHtmlCleanup';
+import { type EditorSubtype } from './questionPasteDetect';
+import { reconstructQuestionApi } from '../api/questionReconstruct';
+import { runStagesReconstruction, type ReconstructionDebugInfo } from './reconstructionPipeline';
 import { enrichOptionMath } from './equationAutoWrap';
-import { extractMcqOptions } from './mcqReconstruct';
-import { preprocessDocumentText, splitTextIntoBlocks } from './textBlocksParser';
-import { reconstructQuestionApi, type ReconstructApiResult } from '../api/questionReconstruct';
+import type { SemanticBlock } from './clipboardIngestion';
 
-export interface ReconstructInput {
-  html?: string;
-  plain?: string;
-  ocrText?: string;
-  images?: string[];
-  useGemini?: boolean;
+function enrichOptionMathSafe(o: any): QuestionOption {
+  const res = enrichOptionMath(o);
+  return {
+    text: res.text,
+    latex: res.latex ?? undefined,
+    image: res.image ?? undefined,
+  };
 }
 
 export interface ReconstructResult {
@@ -27,20 +28,26 @@ export interface ReconstructResult {
   correctOption: number | null;
   warnings: string[];
   sources: { parser: boolean; ocr: boolean; gemini: boolean };
+  
+  // Add temporary structured reconstruction state
+  raw_stem: string;
+  raw_options: QuestionOption[];
+  layout_blocks: Array<{ lines: string[]; options: string[]; passage: string | null; tags: string[] }>;
+  parser_confidence: number;
+  ocr_confidence: number | null;
+  debugInfo?: ReconstructionDebugInfo;
 }
 
-function pickBestBlock<T extends { lines: string[]; options: { text: string }[] }>(blocks: T[]): T | null {
-  if (!blocks.length) return null;
-  if (blocks.length === 1) return blocks[0];
-  return blocks.reduce((best, b) => {
-    const sa = b.lines.join('').length + b.options.length * 80;
-    const sb = best.lines.join('').length + best.options.length * 80;
-    return sb > sa ? b : best;
-  });
+export interface ReconstructInput {
+  html?: string;
+  plain?: string;
+  ocrText?: string;
+  images?: string[];
+  useGemini?: boolean;
+  blocks?: SemanticBlock[];
 }
 
 function localReconstruct(input: ReconstructInput): ReconstructResult {
-  const warnings: string[] = ['Parsed locally (server unavailable)'];
   const merged = mergePasteSources({
     html: input.html,
     plain: input.plain,
@@ -48,64 +55,80 @@ function localReconstruct(input: ReconstructInput): ReconstructResult {
   });
   const images = [...new Set([...(input.images || []), ...merged.images])].slice(0, 6);
 
-  let plain = cleanPlainText(merged.plain);
-  const ordered = preprocessDocumentText(plain);
-  const block = pickBestBlock(splitTextIntoBlocks(ordered));
+  // Run the new 10-stage pipeline
+  const pipeline = runStagesReconstruction(merged.plain, merged.html, input.ocrText, input.blocks);
 
-  let stem = plain;
-  let options: QuestionOption[] = [];
+  // Extract correct option if available (e.g. from answer text matching)
+  let correctOption: number | null = null;
+  const answerMatch = pipeline.stem.match(/(?:answer|ans|correct)\s*[:\-]?\s*\(?([a-dA-D])\)?/i);
+  if (answerMatch) {
+    correctOption = answerMatch[1].toUpperCase().charCodeAt(0) - 65;
+  } else if (pipeline.subtype === 'mcq_single') {
+    correctOption = 0; // Default first option for single MCQ
+  }
 
-  if (block) {
-    stem = block.passage
-      ? `${block.passage}\n\n${block.lines.join('\n')}`.trim()
-      : block.lines.join('\n').trim();
-    if (block.options.length >= 2) {
-      options = block.options.map((o) => enrichOptionMath({ text: o.text }));
+  // Extract numerical answer if numerical type
+  let numericalAnswer: number | null = null;
+  if (pipeline.questionType === 'numerical') {
+    const numMatch = pipeline.stem.match(/\b\d+(\.\d+)?\b/);
+    if (numMatch) {
+      numericalAnswer = Number(numMatch[0]);
     }
   }
 
-  const mcq = extractMcqOptions(stem);
-  if (mcq.options.length >= 2) {
-    stem = mcq.stem || stem;
-    options = mcq.options.map((o) => enrichOptionMath(o));
-  }
+  // Warnings
+  const warnings = ['Parsed locally (server unavailable)', ...pipeline.warnings];
 
-  const detected = detectFromPastedContent(stem);
-  if (detected.options.length >= 2) {
-    options = detected.options.map((o) => enrichOptionMath(o));
-    stem = detected.questionText;
-  }
-
+  // Map to ReconstructResult
   return {
-    questionText: stem,
+    questionText: pipeline.stem,
     questionHtml: merged.html.length > 10 ? merged.html : null,
-    questionLatex: null,
-    questionType: detected.questionType,
-    subtype: detected.subtype,
-    options,
-    tags: detected.tags,
+    questionLatex: pipeline.questionType !== 'mcq' ? (pipeline.stem.match(/\$([^$]+?)\$/) || [])[1] || null : null,
+    questionType: pipeline.questionType,
+    subtype: pipeline.subtype,
+    options: pipeline.options,
+    tags: [pipeline.subtype, ...(pipeline.warnings.length > 0 ? ['needs_review'] : [])],
     questionImages: images,
-    numericalAnswer: null,
-    correctOption: detected.subtype === 'mcq_single' ? 0 : null,
+    numericalAnswer,
+    correctOption,
     warnings,
     sources: { parser: true, ocr: Boolean(input.ocrText), gemini: false },
+    raw_stem: pipeline.stem,
+    raw_options: pipeline.options,
+    layout_blocks: [
+      {
+        lines: pipeline.stem.split('\n'),
+        options: pipeline.options.map(o => o.text),
+        passage: null,
+        tags: [pipeline.subtype]
+      }
+    ],
+    parser_confidence: pipeline.confidence,
+    ocr_confidence: input.ocrText ? 0.85 : null,
+    debugInfo: pipeline.debugInfo,
   };
 }
 
-function mapApiToResult(data: ReconstructApiResult): ReconstructResult {
+function mapApiToResult(data: any): ReconstructResult {
   return {
     questionText: data.questionText || '',
     questionHtml: data.questionHtml ?? null,
     questionLatex: data.questionLatex ?? null,
     questionType: data.questionType as QuestionType,
     subtype: (data.subtype || 'descriptive') as EditorSubtype,
-    options: (data.options || []).map((o) => enrichOptionMath(o)),
+    options: (data.options || []).map((o: any) => enrichOptionMathSafe(o)),
     tags: data.tags || [],
     questionImages: data.questionImages || [],
     numericalAnswer: data.numericalAnswer ?? null,
     correctOption: data.correctOption ?? null,
     warnings: data.warnings || [],
     sources: data.sources || { parser: true, ocr: false, gemini: false },
+    raw_stem: data.raw_stem || data.questionText || '',
+    raw_options: (data.raw_options || data.options || []).map((o: any) => enrichOptionMathSafe(o)),
+    layout_blocks: data.layout_blocks || [],
+    parser_confidence: data.parser_confidence ?? 1.0,
+    ocr_confidence: data.ocr_confidence ?? null,
+    debugInfo: data.debugInfo || undefined,
   };
 }
 
@@ -131,6 +154,7 @@ export async function runQuestionReconstruction(
         ocrText: input.ocrText,
         images: [...new Set([...(input.images || []), ...prepped.images])],
         useGemini: input.useGemini,
+        blocks: input.blocks,
       },
       reconstructAbort.signal
     );

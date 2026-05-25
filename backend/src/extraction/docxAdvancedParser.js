@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
 import { preprocessDocumentText } from './columnReadingOrder.js';
 import { detectSectionHeader } from './sectionParser.js';
+import { parseXml, translateOmmlNode } from './mathConverter.js';
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -14,30 +15,42 @@ function asArray(v) {
   return Array.isArray(v) ? v : [v];
 }
 
-function extractRunText(run) {
-  if (!run) return '';
-  if (typeof run === 'string') return run;
-  if (run.t) {
-    const ts = asArray(run.t);
-    return ts.map((t) => (typeof t === 'string' ? t : t['#text'] || '')).join('');
+function extractParagraphTextFromXml(pXml) {
+  const root = parseXml(pXml);
+  if (!root || !root.length) return '';
+
+  let text = '';
+
+  function walk(node) {
+    if (typeof node === 'string') {
+      text += node;
+      return;
+    }
+    const tag = node.tag.toLowerCase();
+
+    if (tag === 'omath' || tag === 'omathpara') {
+      const latex = translateOmmlNode(node);
+      text += ` $${latex.trim()}$ `;
+      return;
+    }
+
+    if (tag === 't') {
+      text += (node.children || []).join('');
+      return;
+    }
+
+    if (node.children) {
+      for (const child of node.children) {
+        walk(child);
+      }
+    }
   }
-  return '';
-}
 
-function extractParagraphText(p) {
-  const runs = asArray(p.r);
-  let text = runs.map(extractRunText).join('');
-  if (p.t) text += typeof p.t === 'string' ? p.t : p.t['#text'] || '';
+  for (const node of root) {
+    walk(node);
+  }
+
   return text.trim();
-}
-
-function getNumberingProps(p) {
-  const pPr = p.pPr;
-  if (!pPr?.numPr) return null;
-  return {
-    numId: pPr.numPr.numId?.['@_val'],
-    ilvl: pPr.numPr.ilvl?.['@_val'] ?? '0',
-  };
 }
 
 function extractTableText(tbl) {
@@ -45,7 +58,25 @@ function extractTableText(tbl) {
   return rows
     .map((row) =>
       asArray(row.tc)
-        .map((cell) => asArray(cell.p).map(extractParagraphText).filter(Boolean).join(' '))
+        .map((cell) => {
+          const cellParagraphs = asArray(cell.p);
+          return cellParagraphs
+            .map((p) => {
+              if (p.r) {
+                return asArray(p.r)
+                  .map((r) => {
+                    if (r.t) {
+                      return typeof r.t === 'string' ? r.t : r.t['#text'] || '';
+                    }
+                    return '';
+                  })
+                  .join('');
+              }
+              return '';
+            })
+            .join(' ')
+            .trim();
+        })
         .join(' | ')
     )
     .join('\n');
@@ -67,44 +98,57 @@ export async function parseDocxXmlStructure(buffer) {
   const tables = [];
   let section = 'General';
 
-  const bodyChildren = mergeBodyOrder(body);
+  // Use regex to locate all w:p and w:tbl tags in exact document XML order
+  const regex = /<(w:p|w:tbl)\b([\s\S]*?)<\/\1>/g;
+  const parsedTables = asArray(body.tbl);
+  let tblIdx = 0;
 
-  for (const item of bodyChildren) {
-    if (item.type === 'tbl') {
-      const tableText = extractTableText(item.node);
-      tables.push({ text: tableText, section });
-      paragraphs.push({ text: `[TABLE]\n${tableText}`, isTable: true, section });
-      continue;
+  let match;
+  while ((match = regex.exec(docXml)) !== null) {
+    const tagName = match[1];
+    const fullXml = match[0];
+
+    if (tagName === 'w:tbl') {
+      const tblNode = parsedTables[tblIdx++];
+      if (tblNode) {
+        const tableText = extractTableText(tblNode);
+        tables.push({ text: tableText, section });
+        paragraphs.push({ text: `[TABLE]\n${tableText}`, isTable: true, section });
+      }
+    } else {
+      const text = extractParagraphTextFromXml(fullXml);
+      if (!text) continue;
+
+      const header = detectSectionHeader(text);
+      if (header) {
+        section = header.name;
+        paragraphs.push({ text, isSection: true, section, numbering: null });
+        continue;
+      }
+
+      // Check numbering properties in paragraph XML
+      const numPrMatch = fullXml.match(/<w:numPr>([\s\S]*?)<\/w:numPr>/);
+      let num = null;
+      if (numPrMatch) {
+        const numIdM = numPrMatch[1].match(/<w:numId w:val="([^"]+)"/);
+        const ilvlM = numPrMatch[1].match(/<w:ilvl w:val="([^"]+)"/);
+        num = {
+          numId: numIdM ? numIdM[1] : null,
+          ilvl: ilvlM ? ilvlM[1] : '0',
+        };
+      }
+
+      paragraphs.push({
+        text,
+        section,
+        numbering: num,
+        isQuestionStart: /^(?:Q\s*)?\d{1,3}[\).:\-\s]/i.test(text),
+      });
     }
-
-    const text = extractParagraphText(item.node);
-    if (!text) continue;
-
-    const header = detectSectionHeader(text);
-    if (header) {
-      section = header.name;
-      paragraphs.push({ text, isSection: true, section, numbering: null });
-      continue;
-    }
-
-    const num = getNumberingProps(item.node);
-    paragraphs.push({
-      text,
-      section,
-      numbering: num,
-      isQuestionStart: /^(?:Q\s*)?\d{1,3}[\).:\-\s]/i.test(text),
-    });
   }
 
   const rawText = paragraphs.map((p) => p.text).join('\n');
   return { paragraphs, tables, rawText };
-}
-
-function mergeBodyOrder(body) {
-  const items = [];
-  for (const p of asArray(body.p)) items.push({ type: 'p', node: p });
-  for (const t of asArray(body.tbl)) items.push({ type: 'tbl', node: t });
-  return items;
 }
 
 /**

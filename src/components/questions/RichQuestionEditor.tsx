@@ -2,12 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ImagePlus, Clipboard, ScanLine } from 'lucide-react';
 import { extractImagesFromHtml, sanitizePastedHtml } from '../../utils/questionPasteDetect';
 import { cleanupWordHtml } from '../../utils/wordHtmlCleanup';
+import {
+  extractStructuredBlocks,
+  parseBlocksFromPlainText,
+  blocksToPlainText,
+  type SemanticBlock,
+} from '../../utils/clipboardIngestion';
 
 interface RichQuestionEditorProps {
   value: string;
   onChange: (html: string, plainFallback: string) => void;
   onImagesChange: (urls: string[]) => void;
-  onPastePayload?: (payload: { html: string; plain: string; images: string[] }) => void;
+  onPastePayload?: (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[] }) => void;
   images: string[];
   placeholder?: string;
   ocrText?: string;
@@ -51,10 +57,10 @@ export function RichQuestionEditor({
   }, [onChange]);
 
   const emitPaste = useCallback(
-    (html: string, plain: string, extraImages: string[] = []) => {
+    (html: string, plain: string, extraImages: string[] = [], blocks?: SemanticBlock[]) => {
       const imgs = [...new Set([...images, ...extraImages])];
       if (extraImages.length) onImagesChange(imgs);
-      onPastePayload?.({ html, plain, images: imgs });
+      onPastePayload?.({ html, plain, images: imgs, blocks });
     },
     [images, onImagesChange, onPastePayload]
   );
@@ -106,27 +112,38 @@ export function RichQuestionEditor({
 
     if (html) {
       e.preventDefault();
+      const blocks = extractStructuredBlocks(html, plain);
+      const customPlain = blocksToPlainText(blocks);
+
       const cleaned = cleanupWordHtml(html);
       const safe = cleaned.html || sanitizePastedHtml(html);
       document.execCommand('insertHTML', false, safe);
       const pastedImages = [...extractImagesFromHtml(safe), ...cleaned.images];
+
       setTimeout(() => {
         const el = editorRef.current;
         if (!el) return;
         const fullHtml = el.innerHTML;
-        const fullPlain = htmlToPlain(fullHtml);
-        onChange(fullHtml, fullPlain);
-        emitPaste(fullHtml, fullPlain, pastedImages);
+        onChange(fullHtml, customPlain);
+        emitPaste(fullHtml, customPlain, pastedImages, blocks);
       }, 0);
       return;
     }
 
     if (plain?.trim()) {
+      e.preventDefault();
+      const blocks = parseBlocksFromPlainText(plain);
+      const customPlain = blocksToPlainText(blocks);
+      document.execCommand('insertText', false, plain);
+
       setTimeout(() => {
         const el = editorRef.current;
         if (!el) return;
-        emitPaste(el.innerHTML, htmlToPlain(el.innerHTML), []);
+        const fullHtml = el.innerHTML;
+        onChange(fullHtml, customPlain);
+        emitPaste(fullHtml, customPlain, [], blocks);
       }, 0);
+      return;
     }
   };
 

@@ -1,9 +1,8 @@
-import { detectQuestionType } from './detectQuestionType.js';
 import { computeDuplicateHash } from '../utils/duplicateHash.js';
-import { enrichTextWithLatexFields, enrichOptionWithLatex } from './latexUtils.js';
 import { preprocessDocumentText } from './columnReadingOrder.js';
 import { detectSectionHeader } from './sectionParser.js';
-import { isOptionLine, parseOptionLine, extractInlineOptions, appendOptionContinuation } from './optionParser.js';
+import { isOptionLine, parseOptionLine, appendOptionContinuation } from './optionParser.js';
+import { runStagesReconstruction } from './reconstructionPipeline.js';
 
 const QUESTION_START_RE =
   /^(?:Q(?:uestion)?\s*)?(\d{1,3})[\).:\-\s]+|^\((\d{1,3})\)\s+|^(\d{1,3})\.\s+(?=[A-Za-z(\\$])/i;
@@ -126,35 +125,32 @@ export function normalizeQuestions(rawBlocks, context = {}) {
     }
     if (!questionText || questionText.length < 5) continue;
 
-    const inline = extractInlineOptions(questionText);
-    if (inline.options.length >= 2) {
-      questionText = inline.stem;
-      block.options = [...(block.options || []), ...inline.options];
-    }
+    // Use our state-of-the-art 10-stage pipeline to reconstruct!
+    const pipeline = runStagesReconstruction(questionText);
 
-    const typeResult = detectQuestionType(block);
-    const questionType = typeResult.questionType;
+    const questionType = pipeline.questionType;
+    const finalQuestionText = pipeline.stem;
+    const finalOptions = pipeline.options.map(o => ({
+      text: o.text || '',
+      latex: o.latex || null,
+      image: o.image || null,
+    }));
+
     const tags = [
-      ...new Set([...(typeResult.tags || []), ...(block.section ? [`section:${block.section}`] : [])]),
+      ...new Set([
+        pipeline.subtype,
+        ...(block.section ? [`section:${block.section}`] : []),
+        ...(block.passage ? ['comprehension'] : []),
+        ...(block.questionNumber ? [`qnum:${block.questionNumber}`] : [])
+      ])
     ];
-    if (block.passage && !tags.includes('comprehension')) tags.push('comprehension');
-    if (block.questionNumber) tags.push(`qnum:${block.questionNumber}`);
-    if (typeResult.subtype) tags.push(typeResult.subtype);
 
-    const warnings = [];
-
-    if (questionText.length < 15) warnings.push('Short question text — verify extraction');
-    if (questionType === 'mcq' && block.options.length < 2) {
-      warnings.push('MCQ detected but fewer than 2 options found — check column order');
-    }
-    if (typeResult.subtype === 'mcq_incomplete') {
-      warnings.push('Partial option markers found — verify MCQ options');
-    }
+    const warnings = [...(block.extractionWarnings || []), ...pipeline.warnings];
 
     let correctOption = null;
     let answerText = block.answerKey || null;
 
-    const answerMatch = questionText.match(
+    const answerMatch = finalQuestionText.match(
       /(?:answer|ans|correct)\s*[:\-]?\s*\(?([a-dA-D])\)?/i
     );
     if (answerMatch) {
@@ -163,13 +159,13 @@ export function normalizeQuestions(rawBlocks, context = {}) {
     }
 
     const status =
-      warnings.length > 0 || typeResult.subtype === 'mcq_incomplete' ? 'needs_review' : 'pending';
+      warnings.length > 0 ? 'needs_review' : 'pending';
 
     const base = {
-      questionText,
+      questionText: finalQuestionText,
       questionType,
-      questionLatex: block.questionLatex || null,
-      options: block.options.length ? block.options.map(enrichOptionWithLatex) : [],
+      questionLatex: block.questionLatex || (pipeline.questionType !== 'mcq' ? (finalQuestionText.match(/\$([^$]+?)\$/) || [])[1] || null : null),
+      options: finalOptions,
       correctOption,
       answerText,
       answerKey: answerText,
@@ -179,7 +175,7 @@ export function normalizeQuestions(rawBlocks, context = {}) {
       status,
       tags,
       extractionWarnings: warnings,
-      duplicateHash: computeDuplicateHash(questionText),
+      duplicateHash: computeDuplicateHash(finalQuestionText),
       questionImages: block.images || [],
       diagrams: block.diagrams || [],
       hasDiagram: Boolean(block.images?.length || block.diagrams?.length),
@@ -190,11 +186,13 @@ export function normalizeQuestions(rawBlocks, context = {}) {
       renderingMetadata: {
         section: block.section || null,
         questionNumber: block.questionNumber || null,
-        subtype: typeResult.subtype || null,
+        subtype: pipeline.subtype || null,
       },
     };
-    enrichTextWithLatexFields(questionText, base);
-    if (base.questionLatex && !base.hasEquation) base.hasEquation = true;
+
+    if (base.questionLatex) {
+      base.hasEquation = true;
+    }
     if (base.questionImages?.length) {
       base.imageMetadata = base.questionImages.map((url, order) => ({
         url,

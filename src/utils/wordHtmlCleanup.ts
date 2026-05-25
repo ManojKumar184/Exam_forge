@@ -1,6 +1,7 @@
 /**
  * Word / Office HTML cleanup — client-side (mirrors backend).
  */
+import { convertHtmlMathToLatex } from './mathConverter';
 
 const OFFICE_PLAIN_NOISE = [
   /Normal\s+0\s+false\s+false\s+false\s+[A-Z\-]+/gi,
@@ -19,6 +20,13 @@ const UNICODE_MATH_MAP: Record<string, string> = {
   '÷': '\\div ',
   '±': '\\pm ',
   '∞': '\\infty ',
+  '∫': '\\int ',
+  '∑': '\\sum ',
+  '√': '\\sqrt',
+  '²': '^2',
+  '³': '^3',
+  '⁰': '^0',
+  '¹': '^1',
 };
 
 export function decodeHtmlEntities(str: string): string {
@@ -54,13 +62,37 @@ export function cleanPlainText(text: string): string {
 }
 
 function stripTags(html: string): string {
-  return decodeHtmlEntities(html.replace(/<[^>]+>/g, ' '));
+  if (!html) return '';
+  let text = html;
+
+  // Format tables
+  text = text.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, (_, rowContent) => {
+    const cells: string[] = [];
+    const cellRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
+    let cellMatch;
+    while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+      cells.push(cellMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    }
+    return cells.length ? '\n' + cells.join(' | ') + '\n' : '';
+  });
+
+  // Format list items
+  text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, liContent) => {
+    return '\n * ' + liContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() + '\n';
+  });
+
+  // Replace other tags with spaces
+  text = text.replace(/<[^>]+>/g, ' ');
+
+  return decodeHtmlEntities(text);
 }
 
 export function cleanupWordHtml(html: string): { html: string; plain: string; images: string[] } {
   if (!html?.trim()) return { html: '', plain: '', images: [] };
 
-  let h = html;
+  // Convert OMML and MathML to LaTeX first
+  let h = convertHtmlMathToLatex(html);
+
   h = h.replace(/<!--\[if[\s\S]*?endif\]-->/gi, '');
   h = h.replace(/<!--[\s\S]*?-->/g, '');
   h = h.replace(/<\?xml[\s\S]*?\?>/gi, '');

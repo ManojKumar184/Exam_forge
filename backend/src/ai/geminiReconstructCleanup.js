@@ -25,9 +25,10 @@ Return JSON only:
 Rules:
 - Fix minor OCR spacing only
 - Keep P(A), P(B) probability notation in stem — do NOT treat as MCQ options
-- Options must be exactly the four choices if MCQ
+- Options must be exactly the choices if MCQ
 - Do not duplicate options
-- Preserve fractions as $\\frac{a}{b}$ when needed
+- Preserve fractions as $\\frac{a}{b}$ and equations in $...$
+- If the question or options seem confusing, low-confidence, or hard to structure, preserve the original structure/layout exactly as-is, avoid destructive cleanup (do not delete formulas, options, or passages), and add "needs_review" to the "tags" array.
 
 PARSED:
 ${JSON.stringify({

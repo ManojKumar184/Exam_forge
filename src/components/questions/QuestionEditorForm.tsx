@@ -13,13 +13,14 @@ import {
 } from '../../utils/questionReconstruct';
 import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAutoWrap';
 import { useDataStore } from '../../stores/dataStore';
+import type { SemanticBlock } from '../../utils/clipboardIngestion';
 
 const DRAFT_KEY = 'examforge_question_draft';
 
 interface QuestionEditorFormProps {
   initial?: Partial<Question>;
   subjects: Array<{ id: string; name: string }>;
-  chapters: Array<{ id: string; name: string; subject_id: string }>;
+  chapters: Array<{ id: string; name: string; subject_id: string; chapter_number?: number | null }>;
   examTypes: Array<{ id: string; name: string }>;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
@@ -27,21 +28,21 @@ interface QuestionEditorFormProps {
 }
 
 const SUBTYPE_OPTIONS: { value: EditorSubtype; label: string; questionType: QuestionType }[] = [
-  { value: 'mcq_single', label: 'MCQ (single correct)', questionType: 'mcq' },
-  { value: 'mcq_multiple', label: 'MCQ (multiple correct)', questionType: 'mcq' },
-  { value: 'integer', label: 'Integer answer', questionType: 'numerical' },
+  { value: 'mcq_single', label: 'MCQ (Single)', questionType: 'mcq' },
+  { value: 'mcq_multiple', label: 'MCQ (Multiple)', questionType: 'mcq' },
+  { value: 'integer', label: 'Integer', questionType: 'numerical' },
   { value: 'numerical', label: 'Numerical', questionType: 'numerical' },
   { value: 'descriptive', label: 'Descriptive', questionType: 'descriptive' },
   { value: 'comprehension', label: 'Comprehension', questionType: 'descriptive' },
-  { value: 'match_following', label: 'Match the following', questionType: 'descriptive' },
+  { value: 'match_following', label: 'Match Columns', questionType: 'descriptive' },
 ];
 
 function defaultOptions(): QuestionOption[] {
   return [
-    { text: '', latex: null },
-    { text: '', latex: null },
-    { text: '', latex: null },
-    { text: '', latex: null },
+    { text: '', latex: undefined },
+    { text: '', latex: undefined },
+    { text: '', latex: undefined },
+    { text: '', latex: undefined },
   ];
 }
 
@@ -81,14 +82,22 @@ function applyReconstructResult(
   setters.setBodyPlain(plain);
   setters.setQuestionLatex(result.questionLatex || '');
   if (result.questionImages.length) setters.setQuestionImages(result.questionImages);
-  if (result.options.length >= 2) {
-    setters.setOptions(result.options);
-  } else if (result.options.length) {
+  
+  const mappedOptions = result.options.map(o => ({
+    text: o.text,
+    latex: o.latex ?? undefined,
+    image: o.image ?? undefined
+  }));
+
+  if (mappedOptions.length >= 2) {
+    setters.setOptions(mappedOptions);
+  } else if (mappedOptions.length) {
     setters.setOptions([
-      ...result.options,
-      ...defaultOptions().slice(result.options.length),
+      ...mappedOptions,
+      ...defaultOptions().slice(mappedOptions.length),
     ]);
   }
+  
   setters.setSubtype(result.subtype);
   if (result.numericalAnswer != null) {
     setters.setNumericalAnswer(String(result.numericalAnswer));
@@ -129,6 +138,8 @@ export function QuestionEditorForm({
   const [showAdvancedMath, setShowAdvancedMath] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
+  const [pipelineState, setPipelineState] = useState<'idle' | 'parsing' | 'ocr' | 'equations' | 'gemini' | 'complete'>('idle');
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [lastReconstruct, setLastReconstruct] = useState<ReconstructResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -137,6 +148,11 @@ export function QuestionEditorForm({
 
   const isMcq = subtype === 'mcq_single' || subtype === 'mcq_multiple';
   const filteredChapters = chapters.filter((c) => c.subject_id === subjectId);
+
+  const selectSubtype = (val: EditorSubtype) => {
+    setSubtype(val);
+    setAutosaveStatus('saving');
+  };
 
   useEffect(() => {
     if (subjectId) fetchChapters(subjectId);
@@ -192,6 +208,7 @@ export function QuestionEditorForm({
 
   const persistDraft = useCallback(() => {
     if (initial?.id) return;
+    setAutosaveStatus('saving');
     localStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
@@ -205,6 +222,7 @@ export function QuestionEditorForm({
         ocrText,
       })
     );
+    setTimeout(() => setAutosaveStatus('saved'), 350);
   }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, examTypeId, ocrText]);
 
   useEffect(() => {
@@ -214,21 +232,36 @@ export function QuestionEditorForm({
   }, [persistDraft]);
 
   const triggerReconstruction = useCallback(
-    (payload: { html: string; plain: string; images: string[] }) => {
+    (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[] }) => {
       if (reconstructTimer.current) clearTimeout(reconstructTimer.current);
       reconstructTimer.current = setTimeout(async () => {
         const plainLen = (payload.plain || payload.html?.replace(/<[^>]+>/g, ' ') || '').trim().length;
         if (plainLen < 12 && !payload.images.length && !ocrText.trim()) return;
 
         setReconstructing(true);
+        setPipelineState('parsing');
+
         try {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          if (payload.images?.length > 0) {
+            setPipelineState('ocr');
+            await new Promise((resolve) => setTimeout(resolve, 350));
+          }
+          setPipelineState('equations');
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          setPipelineState('gemini');
+
           const result = await runQuestionReconstruction({
             html: payload.html,
             plain: payload.plain,
             ocrText,
             images: payload.images,
             useGemini: true,
+            blocks: payload.blocks,
           });
+          
+          setPipelineState('complete');
+          
           applyReconstructResult(result, {
             setBodyHtml,
             setBodyPlain,
@@ -241,6 +274,7 @@ export function QuestionEditorForm({
             setTagsInput,
           });
           setLastReconstruct(result);
+          
           const src = [
             result.sources.parser && 'parser',
             result.sources.ocr && 'OCR',
@@ -251,13 +285,56 @@ export function QuestionEditorForm({
           toast.success(`Reconstructed (${result.subtype.replace(/_/g, ' ')})${src ? ` · ${src}` : ''}`);
         } catch (e) {
           toast.error(e instanceof Error ? e.message : 'Reconstruction failed');
+          setPipelineState('idle');
         } finally {
           setReconstructing(false);
+          setTimeout(() => setPipelineState('idle'), 1200);
         }
       }, 600);
     },
     [ocrText]
   );
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleSubmit(true);
+        } else {
+          e.preventDefault();
+          handleSubmit(false);
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setShowPreview((prev) => !prev);
+      }
+      
+      if (e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const idx = Number(e.key) - 1;
+        if (idx < options.length) {
+          setCorrectOption(idx);
+          toast.success(`Set correct option to ${String.fromCharCode(65 + idx)}`);
+        }
+      }
+      
+      if (e.altKey && e.shiftKey && ['1', '2', '3', '4', '5', '6', '7'].includes(e.key)) {
+        e.preventDefault();
+        const idx = Number(e.key) - 1;
+        if (idx < SUBTYPE_OPTIONS.length) {
+          const newSub = SUBTYPE_OPTIONS[idx].value;
+          selectSubtype(newSub);
+          toast.success(`Switched type to ${SUBTYPE_OPTIONS[idx].label}`);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [options.length, subtype, bodyHtml, bodyPlain, subjectId, examTypeId, correctOption, numericalAnswer, explanation, classLevel, chapterId, tagsInput, difficulty]);
 
   const insertLatex = (snippet: string) => {
     const wrapped = snippet.startsWith('$$') ? snippet : autoWrapEquations(snippet);
@@ -301,7 +378,7 @@ export function QuestionEditorForm({
       difficulty,
       marks: 4,
       options: isMcq ? options.filter((o) => o.text?.trim()) : [],
-      correct_option: isMcq && subtype === 'mcq_single' ? correctOption : null,
+      correct_option: isMcq ? correctOption : null,
       numerical_answer:
         sub.questionType === 'numerical' && numericalAnswer
           ? Number(numericalAnswer)
@@ -376,11 +453,11 @@ export function QuestionEditorForm({
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(300px,380px)] gap-4 xl:gap-6">
-      <div className="space-y-3 min-w-0 order-2 xl:order-1">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 xl:gap-4">
+      <div className="space-y-2.5 min-w-0 order-2 lg:order-1">
         {errors.length > 0 && (
           <Alert variant="error" title="Fix before publishing">
-            <ul className="list-disc pl-4 text-sm">
+            <ul className="list-disc pl-4 text-xs">
               {errors.map((e) => (
                 <li key={e}>{e}</li>
               ))}
@@ -388,13 +465,31 @@ export function QuestionEditorForm({
           </Alert>
         )}
 
-        <Card className="p-3 sm:p-4 space-y-3">
+        <Card className="p-3 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Paste & reconstruct</h3>
-            <Badge variant="info">
+            <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Paste & reconstruct</h3>
+            <Badge variant="info" size="sm">
               {reconstructing ? 'Working…' : 'Auto-detect · OCR · Gemini'}
             </Badge>
           </div>
+          
+          <div className="flex flex-wrap gap-1 mb-1">
+            {SUBTYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => selectSubtype(opt.value)}
+                className={`px-2 py-0.5 text-[11px] font-medium rounded-full border transition-all ${
+                  subtype === opt.value
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <RichQuestionEditor
             value={bodyHtml}
             images={questionImages}
@@ -405,78 +500,92 @@ export function QuestionEditorForm({
               setBodyPlain(plain);
               const latex = extractPrimaryLatex(plain || html);
               if (latex) setQuestionLatex(latex);
+              setAutosaveStatus('saving');
             }}
-            onImagesChange={setQuestionImages}
+            onImagesChange={(imgs) => {
+              setQuestionImages(imgs);
+              setAutosaveStatus('saving');
+            }}
             onPastePayload={triggerReconstruction}
           />
           <details
-            className="rounded-lg border border-slate-200 dark:border-slate-600"
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/20"
             open={showAdvancedMath}
             onToggle={(e) => setShowAdvancedMath((e.target as HTMLDetailsElement).open)}
           >
-            <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+            <summary className="cursor-pointer px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 select-none">
               Advanced equation tools
             </summary>
-            <div className="px-3 pb-3 space-y-2">
+            <div className="px-2.5 pb-2.5 space-y-2">
               <LatexToolbar onInsert={insertLatex} />
               <Input
                 label="Display LaTeX override (optional)"
                 value={questionLatex}
                 onChange={(e) => setQuestionLatex(e.target.value)}
                 placeholder="Auto-detected from $...$ in content"
+                className="py-1 text-sm"
               />
             </div>
           </details>
         </Card>
 
-        <Card className="p-3 sm:p-4">
-          <Select
-            label="Question type (override)"
-            value={subtype}
-            onChange={(e) => setSubtype(e.target.value as EditorSubtype)}
-            options={SUBTYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-          />
-        </Card>
-
         {isMcq && (
-          <Card className="p-3 sm:p-4 space-y-2">
+          <Card className="p-3 space-y-2">
             <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Options</h3>
             <OptionRichFields
               options={options}
-              subtype={subtype}
+              subtype={subtype as 'mcq_single' | 'mcq_multiple'}
               correctOption={correctOption}
-              onOptionsChange={setOptions}
-              onCorrectChange={setCorrectOption}
+              onOptionsChange={(opts) => {
+                setOptions(opts);
+                setAutosaveStatus('saving');
+              }}
+              onCorrectChange={(idx) => {
+                setCorrectOption(idx);
+                setAutosaveStatus('saving');
+              }}
             />
           </Card>
         )}
 
         {(subtype === 'integer' || subtype === 'numerical') && (
-          <Card className="p-3 sm:p-4">
+          <Card className="p-3">
             <Input
               label="Answer"
               type="number"
               step="any"
               value={numericalAnswer}
-              onChange={(e) => setNumericalAnswer(e.target.value)}
+              onChange={(e) => {
+                setNumericalAnswer(e.target.value);
+                setAutosaveStatus('saving');
+              }}
+              className="py-1 text-sm"
             />
           </Card>
         )}
 
-        <Card className="p-3 sm:p-4">
+        <Card className="p-3">
           <Input
             label="Explanation (optional)"
             value={explanation}
-            onChange={(e) => setExplanation(e.target.value)}
+            onChange={(e) => {
+              setExplanation(e.target.value);
+              setAutosaveStatus('saving');
+            }}
+            className="py-1 text-sm"
           />
         </Card>
 
-        <Card className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Card className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Select
             label="Class"
             value={String(classLevel)}
-            onChange={(e) => setClassLevel(Number(e.target.value))}
+            onChange={(e) => {
+              setClassLevel(Number(e.target.value));
+              setAutosaveStatus('saving');
+            }}
             options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
+            className="py-1 text-xs"
           />
           <Select
             label="Subject"
@@ -484,13 +593,18 @@ export function QuestionEditorForm({
             onChange={(e) => {
               setSubjectId(e.target.value);
               setChapterId('');
+              setAutosaveStatus('saving');
             }}
             options={[{ value: '', label: 'Select…' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
+            className="py-1 text-xs"
           />
           <Select
             label="Chapter / topic"
             value={chapterId}
-            onChange={(e) => setChapterId(e.target.value)}
+            onChange={(e) => {
+              setChapterId(e.target.value);
+              setAutosaveStatus('saving');
+            }}
             options={[
               {
                 value: '',
@@ -505,38 +619,51 @@ export function QuestionEditorForm({
                 label: c.chapter_number != null ? `${c.chapter_number}. ${c.name}` : c.name,
               })),
             ]}
+            className="py-1 text-xs"
           />
           <Select
             label="Exam"
             value={examTypeId}
-            onChange={(e) => setExamTypeId(e.target.value)}
+            onChange={(e) => {
+              setExamTypeId(e.target.value);
+              setAutosaveStatus('saving');
+            }}
             options={[{ value: '', label: 'Select…' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
+            className="py-1 text-xs"
           />
           <Select
             label="Difficulty"
             value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
+            onChange={(e) => {
+              setDifficulty(e.target.value as 'easy' | 'medium' | 'hard');
+              setAutosaveStatus('saving');
+            }}
             options={[
               { value: 'easy', label: 'Easy' },
               { value: 'medium', label: 'Medium' },
               { value: 'hard', label: 'Hard' },
             ]}
+            className="py-1 text-xs"
           />
           <Input
             label="Tags"
             value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            className="col-span-2 sm:col-span-3"
+            onChange={(e) => {
+              setTagsInput(e.target.value);
+              setAutosaveStatus('saving');
+            }}
+            className="col-span-2 sm:col-span-3 py-1 text-sm"
             placeholder="comma-separated"
           />
         </Card>
 
-        <div className="flex flex-wrap gap-2 pb-2">
-          <Button variant="outline" onClick={onCancel}>
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          <Button variant="outline" size="sm" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             variant="ghost"
+            size="sm"
             disabled={reconstructing}
             onClick={() =>
               triggerReconstruction({
@@ -548,17 +675,26 @@ export function QuestionEditorForm({
           >
             Re-run reconstruction
           </Button>
-          <Button variant="ghost" onClick={() => handleSubmit(true)} disabled={isSaving}>
+          <Button variant="ghost" size="sm" onClick={() => handleSubmit(true)} disabled={isSaving}>
             Save draft
           </Button>
-          <Button onClick={() => handleSubmit(false)} disabled={isSaving}>
+          <Button size="sm" onClick={() => handleSubmit(false)} disabled={isSaving}>
             {isSaving ? 'Saving…' : submitLabel}
           </Button>
+
+          <div className="ml-auto flex items-center gap-1.5 px-2">
+            {autosaveStatus === 'saving' && (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 animate-pulse">Saving draft…</span>
+            )}
+            {autosaveStatus === 'saved' && (
+              <span className="text-[11px] text-green-500 dark:text-green-400 font-semibold">✓ Autosaved draft</span>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="xl:sticky xl:top-2 h-fit space-y-2 order-1 xl:order-2 max-h-[calc(100dvh-5rem)] overflow-y-auto">
-        <Card className="p-3 sm:p-4">
+      <div className="lg:sticky lg:top-2 h-fit space-y-2 order-1 lg:order-2 max-h-[calc(100dvh-5rem)] overflow-y-auto">
+        <Card className="p-3">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold text-slate-900 dark:text-white text-sm">
               Live reconstruction preview
@@ -573,6 +709,7 @@ export function QuestionEditorForm({
               subtype={subtype}
               reconstructing={reconstructing}
               lastResult={lastReconstruct}
+              pipelineState={pipelineState}
             />
           )}
         </Card>

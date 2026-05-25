@@ -1,6 +1,7 @@
 /**
  * Word / Office HTML cleanup — run BEFORE parser or Gemini.
  */
+import { convertHtmlMathToLatex } from './mathConverter.js';
 
 const OFFICE_PLAIN_NOISE = [
   /Normal\s+0\s+false\s+false\s+false\s+[A-Z\-]+/gi,
@@ -29,7 +30,7 @@ const UNICODE_MATH_MAP = {
   '¹': '^1',
 };
 
-function decodeHtmlEntities(str) {
+export function decodeHtmlEntities(str) {
   if (!str) return '';
   return str
     .replace(/&nbsp;/gi, ' ')
@@ -62,13 +63,41 @@ export function cleanPlainText(text) {
   return out;
 }
 
+function stripTags(html) {
+  if (!html) return '';
+  let text = html;
+
+  // Format tables
+  text = text.replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, (_, rowContent) => {
+    const cells = [];
+    const cellRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
+    let cellMatch;
+    while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+      cells.push(cellMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    }
+    return cells.length ? '\n' + cells.join(' | ') + '\n' : '';
+  });
+
+  // Format list items
+  text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, liContent) => {
+    return '\n * ' + liContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() + '\n';
+  });
+
+  // Replace other tags with spaces
+  text = text.replace(/<[^>]+>/g, ' ');
+
+  return decodeHtmlEntities(text);
+}
+
 /**
  * Strip Office markup while preserving structure (p, table, img, sup, sub).
  */
 export function cleanupWordHtml(html) {
   if (!html?.trim()) return { html: '', plain: '', images: [] };
 
-  let h = html;
+  // Convert OMML and MathML to LaTeX first
+  let h = convertHtmlMathToLatex(html);
+
   h = h.replace(/<!--\[if[\s\S]*?endif\]-->/gi, '');
   h = h.replace(/<!--[\s\S]*?-->/g, '');
   h = h.replace(/<\?xml[\s\S]*?\?>/gi, '');
@@ -109,10 +138,6 @@ export function cleanupWordHtml(html) {
     plain,
     images: [...new Set(images)],
   };
-}
-
-function stripTags(html) {
-  return decodeHtmlEntities(html.replace(/<[^>]+>/g, ' '));
 }
 
 export function mergePasteSources({ html, plain, ocrText }) {

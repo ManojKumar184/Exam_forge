@@ -1,11 +1,8 @@
 import { env } from '../config/env.js';
-import { splitTextIntoBlocks, preprocessDocumentText } from '../extraction/normalizeQuestions.js';
 import { recognizeImage } from '../ocr/tesseractOcr.js';
 import { geminiReconstructCleanup } from '../ai/geminiReconstructCleanup.js';
 import { mergePasteSources, cleanPlainText } from '../extraction/wordHtmlCleanup.js';
-import { extractMcqOptionsInline } from '../extraction/mcqOptionExtract.js';
-import { enrichOptionWithLatex } from '../extraction/latexUtils.js';
-import { detectQuestionType } from '../extraction/detectQuestionType.js';
+import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
 
 function dataUrlToBuffer(dataUrl) {
   const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
@@ -46,6 +43,10 @@ function mergeGemini(parserRow, gemini) {
   if (gemini.numericalAnswer != null && gemini.numericalAnswer !== '') {
     merged.numericalAnswer = Number(gemini.numericalAnswer);
   }
+  // If Gemini marks it as needing review
+  if (gemini.tags && gemini.tags.includes('needs_review')) {
+    merged.tags = [...new Set([...(merged.tags || []), 'needs_review'])];
+  }
   return merged;
 }
 
@@ -64,39 +65,59 @@ function resolveSubtype(row) {
   return tag || 'descriptive';
 }
 
-function buildFromCleanedPlain(cleanedPlain, cleanedHtml) {
-  const ordered = preprocessDocumentText(cleanedPlain);
-  const blocks = splitTextIntoBlocks(ordered);
-  const target = pickBestBlock(blocks);
-
-  let stem = cleanedPlain;
-  let options = [];
-
-  if (target?.lines?.length || target?.options?.length) {
-    stem = target.passage
-      ? `${target.passage}\n\n${target.lines.join('\n')}`.trim()
-      : target.lines.join('\n').trim();
-    if (target.options?.length >= 2) {
-      options = target.options;
+function calculateParserConfidence(row, warnings) {
+  let confidence = 1.0;
+  
+  if (warnings && warnings.length) {
+    confidence -= warnings.length * 0.15;
+  }
+  if (row.extractionWarnings && row.extractionWarnings.length) {
+    confidence -= row.extractionWarnings.length * 0.15;
+  }
+  
+  if (row.questionType === 'mcq') {
+    if (!row.options || row.options.length < 2) {
+      confidence -= 0.3;
+    } else if (row.options.length !== 4) {
+      confidence -= 0.1;
     }
   }
-
-  const inline = extractMcqOptionsInline(stem);
-  if (inline.options.length >= 2) {
-    stem = inline.stem || stem;
-    options = inline.options;
+  
+  if ((row.questionText || '').length < 15) {
+    confidence -= 0.2;
   }
+  
+  return Math.max(0.1, Math.min(1.0, confidence));
+}
 
-  const block = { lines: stem.split('\n'), options, tags: target?.tags || [] };
-  const typeResult = detectQuestionType(block);
+function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, blocks = null) {
+  const pipeline = runStagesReconstruction(cleanedPlain, cleanedHtml, ocrText, blocks);
 
   const row = {
-    questionText: stem,
-    questionType: typeResult.questionType,
-    options: options.map(enrichOptionWithLatex),
-    tags: typeResult.tags || [],
-    renderingMetadata: { subtype: typeResult.subtype },
-    extractionWarnings: [],
+    questionText: pipeline.stem,
+    questionType: pipeline.questionType,
+    options: pipeline.options.map(o => ({
+      text: o.text || '',
+      latex: o.latex || null,
+      image: o.image || null,
+    })),
+    tags: [pipeline.subtype, ...(pipeline.warnings.length > 0 ? ['needs_review'] : [])],
+    renderingMetadata: { subtype: pipeline.subtype },
+    extractionWarnings: pipeline.warnings,
+    confidence: pipeline.confidence,
+    debugInfo: pipeline.debugInfo || null,
+    
+    // Structured temporary fields
+    raw_stem: pipeline.stem,
+    raw_options: pipeline.options.map(o => ({ text: o.text || '', latex: o.latex || null })),
+    layout_blocks: [
+      {
+        lines: pipeline.stem.split('\n'),
+        options: pipeline.options.map(o => o.text),
+        passage: null,
+        tags: [pipeline.subtype]
+      }
+    ],
   };
 
   return { row, cleanedHtml };
@@ -104,6 +125,8 @@ function buildFromCleanedPlain(cleanedPlain, cleanedHtml) {
 
 function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = []) {
   const subtype = resolveSubtype(row);
+  const parser_confidence = calculateParserConfidence(row, extraWarnings);
+  const ocr_confidence = sources.ocr ? 0.85 : null;
 
   return {
     questionText: row.questionText || '',
@@ -123,11 +146,19 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
     warnings: [...(row.extractionWarnings || []), ...extraWarnings],
     sources,
     hasEquation: Boolean(row.hasEquation || row.questionLatex),
+    
+    // Add temporary structured reconstruction state
+    raw_stem: row.raw_stem || row.questionText || '',
+    raw_options: row.raw_options || (row.options || []).map(o => ({ text: o.text || '', latex: o.latex || null })),
+    layout_blocks: row.layout_blocks || [],
+    parser_confidence,
+    ocr_confidence,
+    debugInfo: row.debugInfo || null,
   };
 }
 
 export async function reconstructQuestionInput(body) {
-  const { html, plain, ocrText, images = [], useGemini = true } = body;
+  const { html, plain, ocrText, images = [], useGemini = true, blocks = null } = body;
   const sources = { parser: true, ocr: false, gemini: false };
   const warnings = [];
 
@@ -163,10 +194,16 @@ export async function reconstructQuestionInput(body) {
       questionImages: imageUrls,
       warnings: ['No text to reconstruct'],
       sources,
+      raw_stem: '',
+      raw_options: [],
+      layout_blocks: [],
+      parser_confidence: 0.1,
+      ocr_confidence: null,
+      debugInfo: null,
     };
   }
 
-  const { row, cleanedHtml } = buildFromCleanedPlain(mergedPlain, cleaned.html);
+  const { row, cleanedHtml } = buildFromCleanedPlain(mergedPlain, cleaned.html, ocrText, blocks);
 
   if (useGemini !== false && env.ai.geminiApiKey) {
     const cleanedForGemini = mergedPlain.slice(0, 4000);

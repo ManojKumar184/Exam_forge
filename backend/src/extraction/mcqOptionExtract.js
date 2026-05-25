@@ -1,23 +1,67 @@
 /**
  * MCQ option extraction — avoids P(A), P(B) false positives; dedupes labels.
+ * Protects equation regions before parsing options.
  */
 
-/** (A) not preceded by letter/digit (so P(A) is ignored). */
-const INLINE_MCQ_MARKER = /(?<![A-Za-z0-9])(\(\s*([A-D])\s*\))/gi;
+const INLINE_MCQ_MARKER = /(?<![A-Za-z0-9])(?:(\(\s*([a-dA-D])\s*\))|(\b([a-dA-D])\s*[\).]))/gi;
 
 const OPTION_LINE_START =
   /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)(.+)$/;
 
 const LABEL_ORDER = ['a', 'b', 'c', 'd'];
 
-function isValidMcqMarkerSequence(markers) {
-  if (markers.length < 2) return false;
-  const labels = markers.map((m) => m.label);
-  const unique = new Set(labels);
-  if (unique.size < 2) return false;
-  const indices = labels.map((l) => LABEL_ORDER.indexOf(l)).filter((i) => i >= 0);
-  if (indices.length < 2) return false;
-  return true;
+function protectMathRegions(text) {
+  const placeholders = new Map();
+  let count = 0;
+  let protectedText = text;
+
+  // Protect double dollar equations
+  protectedText = protectedText.replace(/\$\$([\s\S]+?)\$\$/g, (match) => {
+    const key = `__MATH_PLACEHOLDER_${count++}__`;
+    placeholders.set(key, match);
+    return key;
+  });
+
+  // Protect single dollar equations
+  protectedText = protectedText.replace(/\$([^$\n]+?)\$/g, (match) => {
+    const key = `__MATH_PLACEHOLDER_${count++}__`;
+    placeholders.set(key, match);
+    return key;
+  });
+
+  return { text: protectedText, placeholders };
+}
+
+function restoreMathRegions(text, placeholders) {
+  let restoredText = text;
+  for (const [key, original] of placeholders.entries()) {
+    restoredText = restoredText.split(key).join(original);
+  }
+  return restoredText;
+}
+
+function getValidMcqMarkers(markers) {
+  const sequences = [];
+  for (let i = 0; i < markers.length; i++) {
+    const seq = [markers[i]];
+    let lastIdx = LABEL_ORDER.indexOf(markers[i].label);
+    for (let j = i + 1; j < markers.length; j++) {
+      const idx = LABEL_ORDER.indexOf(markers[j].label);
+      if (idx === lastIdx + 1) {
+        seq.push(markers[j]);
+        lastIdx = idx;
+      }
+    }
+    sequences.push(seq);
+  }
+  
+  let longest = [];
+  for (const seq of sequences) {
+    if (seq.length > longest.length) {
+      longest = seq;
+    }
+  }
+  return longest.length >= 2 ? longest : [];
 }
 
 function dedupeByLabel(options) {
@@ -44,36 +88,42 @@ function wrapOptionFractions(text) {
 export function extractMcqOptionsInline(text) {
   if (!text) return { stem: text, options: [] };
 
-  const markers = [];
+  const { text: protectedText, placeholders } = protectMathRegions(text);
+
+  const rawMarkers = [];
   let m;
   const re = new RegExp(INLINE_MCQ_MARKER.source, 'gi');
-  while ((m = re.exec(text)) !== null) {
-    markers.push({ index: m.index, label: m[2].toLowerCase(), len: m[0].length });
+  while ((m = re.exec(protectedText)) !== null) {
+    const label = (m[2] || m[4] || '').toLowerCase();
+    rawMarkers.push({ index: m.index, label, len: m[0].length });
   }
 
-  if (isValidMcqMarkerSequence(markers)) {
+  const markers = getValidMcqMarkers(rawMarkers);
+
+  if (markers.length >= 2) {
     const options = [];
     for (let i = 0; i < markers.length; i += 1) {
       const start = markers[i].index + markers[i].len;
-      const end = i + 1 < markers.length ? markers[i + 1].index : text.length;
-      let chunk = text.slice(start, end).replace(/^[\s).:\-–—]+/, '').trim();
+      const end = i + 1 < markers.length ? markers[i + 1].index : protectedText.length;
+      let chunk = protectedText.slice(start, end).replace(/^[\s).:\-–—]+/, '').trim();
       chunk = wrapOptionFractions(chunk);
       if (chunk) {
         options.push({
           label: markers[i].label,
-          text: chunk,
+          text: restoreMathRegions(chunk, placeholders),
           image: null,
           latex: null,
         });
       }
     }
-    const stem = text.slice(0, markers[0].index).trim();
+    const stem = restoreMathRegions(protectedText.slice(0, markers[0].index).trim(), placeholders);
     return { stem, options: dedupeByLabel(options) };
   }
 
   const lineOpts = [];
   const stemLines = [];
-  for (const line of text.split('\n')) {
+  const lines = protectedText.split('\n');
+  for (const line of lines) {
     const parsed = line.trim().match(OPTION_LINE_START);
     if (parsed) {
       const label = (parsed[1] || parsed[2] || '').toLowerCase();
@@ -92,9 +142,14 @@ export function extractMcqOptionsInline(text) {
   }
 
   if (lineOpts.length >= 2) {
+    const restoredOptions = dedupeByLabel(lineOpts).map(o => ({
+      ...o,
+      text: restoreMathRegions(o.text, placeholders)
+    }));
+    const stem = restoreMathRegions(stemLines.join('\n').trim(), placeholders);
     return {
-      stem: stemLines.join('\n').trim(),
-      options: dedupeByLabel(lineOpts),
+      stem,
+      options: restoredOptions,
     };
   }
 
@@ -103,10 +158,14 @@ export function extractMcqOptionsInline(text) {
 
 export function countMcqOptionMarkers(text) {
   if (!text) return 0;
+  const { text: protectedText } = protectMathRegions(text);
   const labels = new Set();
   const re = new RegExp(INLINE_MCQ_MARKER.source, 'gi');
   let m;
-  while ((m = re.exec(text)) !== null) labels.add(m[2].toLowerCase());
+  while ((m = re.exec(protectedText)) !== null) {
+    const label = (m[2] || m[4] || '').toLowerCase();
+    labels.add(label);
+  }
   return labels.size;
 }
 

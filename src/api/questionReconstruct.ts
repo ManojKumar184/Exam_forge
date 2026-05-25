@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import type { QuestionOption, QuestionType } from '../types';
 
+import type { ReconstructionDebugInfo } from '../utils/reconstructionPipeline';
+
 export interface ReconstructApiResult {
   questionText: string;
   questionHtml: string | null;
@@ -14,7 +16,10 @@ export interface ReconstructApiResult {
   correctOption: number | null;
   warnings: string[];
   sources: { parser: boolean; ocr: boolean; gemini: boolean };
+  debugInfo?: ReconstructionDebugInfo;
 }
+
+import type { SemanticBlock } from '../utils/clipboardIngestion';
 
 export interface ReconstructApiBody {
   html?: string;
@@ -22,6 +27,7 @@ export interface ReconstructApiBody {
   ocrText?: string;
   images?: string[];
   useGemini?: boolean;
+  blocks?: SemanticBlock[];
 }
 
 export async function reconstructQuestionApi(
