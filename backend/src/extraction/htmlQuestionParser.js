@@ -50,7 +50,7 @@ export function splitHtmlIntoQuestionSegments(html) {
   if (!html?.trim()) return [];
 
   const parts = html.split(
-    /(?=<p[^>]*>\s*(?:<strong>)?\s*(?:Q(?:uestion)?\s*)?\d{1,3}[\).:\-\s])/i
+    /(?=<p[^>]*>\s*(?:<strong>)?\s*(?:(?:SECTION|PART)\s+[A-Z0-9]+|(?:Q(?:uestion)?\s*)?\d{1,3}[\).:\-\s]))/i
   );
 
   return parts

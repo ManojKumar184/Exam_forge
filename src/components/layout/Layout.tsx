@@ -26,6 +26,7 @@ interface SidebarItem {
 const sidebarItems: SidebarItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['super_admin', 'faculty', 'student'] },
   { name: 'Question Bank', path: '/questions', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
+  { name: 'Create Question', path: '/questions/new', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Upload Questions', path: '/upload', icon: <Upload className="w-5 h-5" />, roles: ['super_admin'] },
   { name: 'Generate Paper', path: '/papers/new', icon: <FileText className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'My Papers', path: '/papers', icon: <FileText className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },

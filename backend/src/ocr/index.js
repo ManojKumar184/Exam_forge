@@ -2,6 +2,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { recognizeImage } from './tesseractOcr.js';
 import { renderPdfPages } from './pdfToImages.js';
+import { reconstructOcrReadingOrder } from '../extraction/columnReadingOrder.js';
+import { preprocessDocumentText } from '../extraction/columnReadingOrder.js';
 import { logger } from '../utils/logger.js';
 import { retryAsync } from '../utils/retry.js';
 
@@ -30,7 +32,11 @@ export class OCRService {
       const result = await retryAsync(() => recognizeImage(buffer), {
         label: `tesseract-pdf-page-${pageNum}`,
       });
-      parts.push(`\n--- Page ${pageNum} ---\n${result.text}`);
+      const columnOrdered = result.words?.length
+        ? reconstructOcrReadingOrder(result.words)
+        : result.text;
+      const pageText = preprocessDocumentText(columnOrdered || result.text);
+      parts.push(`\n--- Page ${pageNum} ---\n${pageText}`);
       pageResults.push({ pageNum, ...result });
       totalConfidence += result.confidence;
     }

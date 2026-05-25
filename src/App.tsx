@@ -11,7 +11,7 @@ import { Loading } from './components/ui';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage, RegisterPage } from './pages/auth';
 import { DashboardRouter } from './pages/dashboard';
-import { QuestionBankPage, UploadQuestionsPage } from './pages/questions';
+import { QuestionBankPage, UploadQuestionsPage, QuestionEditorPage } from './pages/questions';
 import { PaperGeneratorPage, PapersListPage } from './pages/paper';
 import { TestTakingPage, TestReviewPage, TestGradingPage, TestsListPage } from './pages/test';
 import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
@@ -77,6 +77,8 @@ function AppRoutes() {
         }
       >
         <Route index element={<QuestionBankPage />} />
+        <Route path="new" element={<QuestionEditorPage />} />
+        <Route path=":questionId/edit" element={<QuestionEditorPage />} />
       </Route>
 
       <Route

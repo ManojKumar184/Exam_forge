@@ -1,7 +1,6 @@
-import { BlockMath, InlineMath } from 'react-katex';
-import 'katex/dist/katex.min.css';
 import { splitContentParts, hasRenderableMath } from '../../lib/latexParts';
 import { resolveMediaUrl } from '../../utils/mediaUrl';
+import { MathRenderer } from '../math/MathRenderer';
 import type { Question, QuestionOption } from '../../types';
 
 interface RichContentProps {
@@ -18,21 +17,20 @@ interface RichContentProps {
 function renderTextWithMath(text: string, compact?: boolean) {
   const parts = splitContentParts(text);
   if (parts.length === 1 && parts[0].type === 'text' && !hasRenderableMath(text)) {
-    return (
-      <span className="whitespace-pre-wrap">{text}</span>
-    );
+    return <span className="whitespace-pre-wrap break-words">{text}</span>;
   }
 
   return (
-    <span className="whitespace-pre-wrap">
+    <span className="whitespace-pre-wrap break-words">
       {parts.map((part, i) => {
         if (part.type === 'math') {
-          return part.display ? (
-            <div key={i} className={`my-2 overflow-x-auto ${compact ? 'text-sm' : ''}`}>
-              <BlockMath math={part.value} />
-            </div>
-          ) : (
-            <InlineMath key={i} math={part.value} />
+          return (
+            <MathRenderer
+              key={i}
+              latex={part.value}
+              display={part.display}
+              className={compact ? 'text-sm' : undefined}
+            />
           );
         }
         return <span key={i}>{part.value}</span>;
@@ -65,14 +63,12 @@ export function RichContent({
   const blockLatex = latex?.trim();
 
   return (
-    <div className={`rich-content space-y-2 ${className}`}>
+    <div className={`rich-content space-y-2 min-w-0 ${className}`}>
       {blockLatex && !primaryText.includes('$') ? (
-        <div className={`overflow-x-auto ${compact ? 'text-sm' : ''}`}>
-          <BlockMath math={blockLatex} />
-        </div>
+        <MathRenderer latex={blockLatex} display className={compact ? 'text-sm' : undefined} />
       ) : null}
       {primaryText ? (
-        <div className={compact ? 'text-sm' : 'text-base'}>
+        <div className={`${compact ? 'text-sm' : 'text-base'} overflow-x-auto`}>
           {renderTextWithMath(primaryText, compact)}
         </div>
       ) : null}
@@ -93,7 +89,7 @@ export function RichContent({
 export function RichOptionContent({ option, index }: { option: QuestionOption | string; index: number }) {
   if (typeof option === 'string') {
     return (
-      <span>
+      <span className="break-words">
         <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
         {renderTextWithMath(option, true)}
       </span>
@@ -101,7 +97,7 @@ export function RichOptionContent({ option, index }: { option: QuestionOption | 
   }
 
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-start gap-2 min-w-0">
       <span className="font-medium shrink-0">{String.fromCharCode(65 + index)}.</span>
       <div className="flex-1 min-w-0">
         <RichContent

@@ -1,15 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert
 } from '../../components/ui';
-import { Search, Eye, Check, X, Trash2, Edit } from 'lucide-react';
-import type { Question, Subject, Chapter, ExamType } from '../../types';
+import { Link } from 'react-router-dom';
+import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
+import type { Question } from '../../types';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 
+function getConfidenceVariant(confidence: number): 'success' | 'warning' | 'error' | 'default' {
+  if (confidence >= 75) return 'success';
+  if (confidence >= 50) return 'warning';
+  if (confidence > 0) return 'error';
+  return 'default';
+}
+
+function getQuestionTypeVariant(type: string): 'success' | 'warning' | 'info' | 'default' {
+  if (type === 'mcq') return 'info';
+  if (type === 'numerical') return 'warning';
+  return 'default';
+}
+
+function getSectionLabel(question: Question): string | null {
+  const tag = question.tags?.find((t) => t.startsWith('section:'));
+  if (tag) return tag.replace(/^section:/, '');
+  const meta = question.rendering_metadata as { section?: string } | undefined;
+  return meta?.section || null;
+}
+
+function getSubtypeLabel(question: Question): string | null {
+  const sub = question.tags?.find((t) =>
+    ['mcq_single', 'mcq_multiple', 'integer_type', 'match_following', 'comprehension'].includes(t)
+  );
+  return sub?.replace(/_/g, ' ') || null;
+}
+
 export function QuestionBankPage() {
-  const { canApproveQuestions, isAdmin } = useAuth();
+  const { canApproveQuestions, isAdmin, isFaculty } = useAuth();
   const {
     subjects, chapters, examTypes, questions, isLoading,
     fetchSubjects, fetchChapters, fetchExamTypes, fetchQuestions,
@@ -120,71 +148,59 @@ export function QuestionBankPage() {
   };
 
   const filteredChapters = chapters.filter(c => c.subject_id === filters.subject_id);
+  const allSelected = questions.length > 0 && selectedIds.length === questions.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedIds([]);
+    else setSelectedIds(questions.map((q) => q.id));
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-3 pb-20 -mt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Question Bank</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            {questions.length} questions found
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Question Bank</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-xs">
+            {questions.length} questions
             {selectedIds.length > 0 && ` · ${selectedIds.length} selected`}
           </p>
         </div>
-        {isAdmin && selectedIds.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
-              Bulk edit metadata
+        {(isAdmin || isFaculty) && (
+          <Link to="/questions/new">
+            <Button size="sm" leftIcon={<Plus className="w-4 h-4" />}>
+              Create question
             </Button>
-            <Button
-              size="sm"
-              onClick={async () => {
-                await bulkApproveQuestions(selectedIds);
-                setSelectedIds([]);
-                applyFilters();
-              }}
-            >
-              Approve ({selectedIds.length})
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              onClick={async () => {
-                const notes = prompt('Rejection reason for all selected?') || 'Bulk rejected';
-                await bulkRejectQuestions(selectedIds, notes);
-                setSelectedIds([]);
-                applyFilters();
-              }}
-            >
-              Reject
-            </Button>
-          </div>
+          </Link>
         )}
       </div>
 
-      {/* Filters */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          <Input
-            placeholder="Search questions..."
-            value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-            leftIcon={<Search className="w-4 h-4" />}
-          />
+      <Card className="p-2 sm:p-3 sticky top-14 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-56 min-w-[12rem] flex-1 sm:flex-none">
+            <Input
+              placeholder="Search questions..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              leftIcon={<Search className="w-4 h-4" />}
+              className="h-10"
+            />
+          </div>
           <Select
+            className="w-full sm:w-40 h-10"
             placeholder="Subject"
             options={[{ value: '', label: 'All Subjects' }, ...subjects.map(s => ({ value: s.id, label: s.name }))]}
             value={filters.subject_id}
             onChange={(e) => handleFilterChange('subject_id', e.target.value)}
           />
           <Select
+            className="w-full sm:w-40 h-10"
             placeholder="Chapter"
             options={[{ value: '', label: 'All Chapters' }, ...filteredChapters.map(c => ({ value: c.id, label: c.name }))]}
             value={filters.chapter_id}
             onChange={(e) => handleFilterChange('chapter_id', e.target.value)}
           />
           <Select
+            className="w-full sm:w-32 h-10"
             placeholder="Class"
             options={[
               { value: '', label: 'All Classes' },
@@ -194,6 +210,7 @@ export function QuestionBankPage() {
             onChange={(e) => handleFilterChange('class', e.target.value)}
           />
           <Select
+            className="w-full sm:w-36 h-10"
             placeholder="Difficulty"
             options={[
               { value: '', label: 'All Difficulties' },
@@ -205,6 +222,7 @@ export function QuestionBankPage() {
             onChange={(e) => handleFilterChange('difficulty', e.target.value)}
           />
           <Select
+            className="w-full sm:w-32 h-10"
             placeholder="Type"
             options={[
               { value: '', label: 'All Types' },
@@ -216,6 +234,7 @@ export function QuestionBankPage() {
             onChange={(e) => handleFilterChange('question_type', e.target.value)}
           />
           <Select
+            className="w-full sm:w-36 h-10"
             placeholder="Status"
             options={[
               { value: '', label: 'All Status' },
@@ -227,7 +246,7 @@ export function QuestionBankPage() {
             value={filters.status}
             onChange={(e) => handleFilterChange('status', e.target.value)}
           />
-          <Button onClick={applyFilters} className="h-10">Apply Filters</Button>
+          <Button onClick={applyFilters} className="h-10 shrink-0">Apply</Button>
         </div>
       </Card>
 
@@ -240,14 +259,31 @@ export function QuestionBankPage() {
           description="Try adjusting your filters or upload new questions"
         />
       ) : (
-        <div className="space-y-4">
-          {questions.map((question) => (
-            <Card key={question.id} className="p-4 hover:shadow-md transition-shadow">
-              <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+        <div className="space-y-3">
+          {isAdmin && (
+            <div className="flex items-center gap-3 px-1 py-2 border-b border-slate-200 dark:border-slate-700">
+              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                />
+                Select all on this page
+              </label>
+            </div>
+          )}
+          {questions.map((question) => {
+            const sectionLabel = getSectionLabel(question);
+            const subtype = getSubtypeLabel(question);
+            const warnings = question.extraction_warnings || [];
+            return (
+            <Card key={question.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                 {isAdmin && (
                   <input
                     type="checkbox"
-                    className="mt-1 rounded border-slate-300"
+                    className="mt-1 rounded border-slate-300 shrink-0"
                     checked={selectedIds.includes(question.id)}
                     onChange={(e) => {
                       if (e.target.checked) setSelectedIds((ids) => [...ids, question.id]);
@@ -255,53 +291,69 @@ export function QuestionBankPage() {
                     }}
                   />
                 )}
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
                     <Badge variant={getStatusColor(question.status)} size="sm">
                       {question.status}
                     </Badge>
+                    <Badge variant={getQuestionTypeVariant(question.question_type)} size="sm">
+                      {question.question_type.toUpperCase()}
+                    </Badge>
+                    {subtype && (
+                      <Badge variant="info" size="sm">
+                        {subtype}
+                      </Badge>
+                    )}
+                    {sectionLabel && (
+                      <Badge variant="default" size="sm">
+                        {sectionLabel}
+                      </Badge>
+                    )}
                     <Badge variant={getDifficultyColor(question.difficulty)} size="sm">
                       {question.difficulty}
                     </Badge>
-                    <Badge size="sm">Class {question.class}</Badge>
-                    <Badge size="sm">{question.question_type.toUpperCase()}</Badge>
-                    <Badge size="sm">{question.marks} marks</Badge>
-                  </div>
-                  <p className="text-slate-900 dark:text-white mb-2 line-clamp-2">
-                    <span className="line-clamp-2">{question.question_text}</span>
-                    {(question.has_equation || question.has_diagram) && (
-                      <span className="text-xs text-blue-500 mt-1 block">
-                        {question.has_equation ? 'Math ' : ''}
-                        {question.has_diagram ? 'Figures' : ''}
+                    <Badge size="sm">C{question.class}</Badge>
+                    <Badge size="sm">{question.marks}M</Badge>
+                    {question.ai_confidence > 0 && (
+                      <Badge variant={getConfidenceVariant(question.ai_confidence)} size="sm">
+                        AI {question.ai_confidence}%
+                      </Badge>
+                    )}
+                    {warnings.length > 0 && (
+                      <span
+                        className="text-xs text-amber-600 dark:text-amber-400 cursor-help underline decoration-dotted"
+                        title={warnings.join(' · ')}
+                      >
+                        ⚠ {warnings.length} note{warnings.length > 1 ? 's' : ''}
                       </span>
                     )}
-                  </p>
-                  {question.question_type === 'mcq' && question.options && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                      {(question.options as any[]).map((opt, idx) => (
+                  </div>
+                  <div className="text-slate-900 dark:text-white mb-2 max-h-24 overflow-hidden">
+                    <QuestionContentPreview question={question} compact />
+                  </div>
+                  {question.question_type === 'mcq' && question.options && question.options.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+                      {(question.options as any[]).slice(0, 4).map((opt, idx) => (
                         <div
                           key={idx}
-                          className={`text-sm px-3 py-1.5 rounded-lg ${
+                          className={`text-xs sm:text-sm px-2 py-1 rounded truncate ${
                             question.correct_option === idx
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                               : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                           }`}
+                          title={typeof opt === 'string' ? opt : opt.text}
                         >
-                          {String.fromCharCode(65 + idx)}. {opt.text || opt}
-                          {question.correct_option === idx && ' ✓'}
+                          {String.fromCharCode(65 + idx)}. {typeof opt === 'string' ? opt : opt.text}
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
                     {question.subject && <span>{question.subject.name}</span>}
-                    {question.chapter && <span>| {question.chapter.name}</span>}
-                    {question.ai_confidence > 0 && (
-                      <span>| AI Confidence: {question.ai_confidence}%</span>
-                    )}
+                    {question.chapter && <span>{question.chapter.name}</span>}
                   </div>
                 </div>
-                <div className="flex lg:flex-col gap-2">
+                <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -335,6 +387,11 @@ export function QuestionBankPage() {
                   )}
                   {isAdmin && (
                     <>
+                      <Link to={`/questions/${question.id}/edit`}>
+                        <Button variant="ghost" size="sm" leftIcon={<Edit className="w-4 h-4" />}>
+                          Edit
+                        </Button>
+                      </Link>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -345,8 +402,9 @@ export function QuestionBankPage() {
                           setShowEditModal(true);
                         }}
                         leftIcon={<Edit className="w-4 h-4" />}
+                        className="hidden lg:inline-flex"
                       >
-                        Edit
+                        Quick
                       </Button>
                       <Button
                         variant="ghost"
@@ -359,7 +417,48 @@ export function QuestionBankPage() {
                 </div>
               </div>
             </Card>
-          ))}
+          );
+          })}
+        </div>
+      )}
+
+      {isAdmin && selectedIds.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              {selectedIds.length} selected
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
+                Edit metadata
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  await bulkApproveQuestions(selectedIds);
+                  setSelectedIds([]);
+                  applyFilters();
+                }}
+              >
+                Approve all
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={async () => {
+                  const notes = prompt('Rejection reason for all selected?') || 'Bulk rejected';
+                  await bulkRejectQuestions(selectedIds, notes);
+                  setSelectedIds([]);
+                  applyFilters();
+                }}
+              >
+                Reject all
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                Clear
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -374,9 +473,22 @@ export function QuestionBankPage() {
           <div className="p-6 space-y-4">
             <div className="flex flex-wrap gap-2">
               <Badge variant={getStatusColor(selectedQuestion.status)}>{selectedQuestion.status}</Badge>
+              <Badge variant={getQuestionTypeVariant(selectedQuestion.question_type)}>
+                {selectedQuestion.question_type.toUpperCase()}
+              </Badge>
+              {getSubtypeLabel(selectedQuestion) && (
+                <Badge variant="info">{getSubtypeLabel(selectedQuestion)}</Badge>
+              )}
+              {getSectionLabel(selectedQuestion) && (
+                <Badge>{getSectionLabel(selectedQuestion)}</Badge>
+              )}
               <Badge variant={getDifficultyColor(selectedQuestion.difficulty)}>{selectedQuestion.difficulty}</Badge>
               <Badge>Class {selectedQuestion.class}</Badge>
-              <Badge>{selectedQuestion.question_type.toUpperCase()}</Badge>
+              {selectedQuestion.ai_confidence > 0 && (
+                <Badge variant={getConfidenceVariant(selectedQuestion.ai_confidence)}>
+                  AI {selectedQuestion.ai_confidence}%
+                </Badge>
+              )}
             </div>
             <div>
               <h4 className="font-medium text-slate-900 dark:text-white mb-2">Question</h4>
@@ -424,16 +536,26 @@ export function QuestionBankPage() {
                 </ul>
               </Alert>
             )}
-            {(selectedQuestion.rendering_metadata?.ocr ||
-              selectedQuestion.ai_metadata?.ocrConfidence != null) && (
+            {(() => {
+              const ocr = selectedQuestion.rendering_metadata?.ocr as
+                | {
+                    rawTextPreview?: string;
+                    confidence?: number;
+                    uncertainSpans?: unknown[];
+                  }
+                | undefined;
+              return (
+                ocr || selectedQuestion.ai_metadata?.ocrConfidence != null
+              );
+            })() && (
               <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
                 <h4 className="font-medium text-slate-900 dark:text-white">OCR review</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-slate-500 mb-1 font-medium">Raw OCR preview</p>
                     <pre className="whitespace-pre-wrap text-xs p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 max-h-48 overflow-auto">
-                      {selectedQuestion.rendering_metadata?.ocr?.rawTextPreview ||
-                        'No raw preview stored'}
+                      {(selectedQuestion.rendering_metadata?.ocr as { rawTextPreview?: string })
+                        ?.rawTextPreview || 'No raw preview stored'}
                     </pre>
                   </div>
                   <div>
@@ -441,16 +563,25 @@ export function QuestionBankPage() {
                     <div className="p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
                       <QuestionContentPreview question={selectedQuestion} compact />
                     </div>
-                    {selectedQuestion.rendering_metadata?.ocr?.confidence != null && (
+                    {(selectedQuestion.rendering_metadata?.ocr as { confidence?: number })
+                      ?.confidence != null && (
                       <p className="mt-2 text-slate-500">
                         OCR confidence:{' '}
-                        {Math.round(selectedQuestion.rendering_metadata.ocr.confidence)}%
+                        {Math.round(
+                          (selectedQuestion.rendering_metadata?.ocr as { confidence: number })
+                            .confidence
+                        )}
+                        %
                       </p>
                     )}
-                    {(selectedQuestion.rendering_metadata?.ocr?.uncertainSpans?.length ?? 0) >
-                      0 && (
+                    {((selectedQuestion.rendering_metadata?.ocr as { uncertainSpans?: unknown[] })
+                      ?.uncertainSpans?.length ?? 0) > 0 && (
                       <p className="mt-1 text-amber-700 dark:text-amber-400">
-                        {selectedQuestion.rendering_metadata.ocr.uncertainSpans.length} uncertain
+                        {
+                          (selectedQuestion.rendering_metadata?.ocr as { uncertainSpans: unknown[] })
+                            .uncertainSpans.length
+                        }{' '}
+                        uncertain
                         region(s) — edit before approval
                       </p>
                     )}

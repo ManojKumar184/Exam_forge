@@ -88,9 +88,14 @@ export async function processUpload(file, user, options = {}) {
         chapterId: classified.chapterId ?? questionFields.chapterId,
         examTypeId: classified.examTypeId ?? questionFields.examTypeId,
         difficulty: classified.difficulty ?? questionFields.difficulty,
-        tags: classified.tags?.length ? classified.tags : questionFields.tags,
+        tags: [
+          ...new Set([...(classified.tags || []), ...(questionFields.tags || [])]),
+        ],
         status: classified.status || (q.isDuplicate ? 'needs_review' : 'pending'),
-        renderingMetadata: q.renderingMetadata || questionFields.renderingMetadata || {},
+        renderingMetadata: {
+          ...(questionFields.renderingMetadata || {}),
+          ...(q.renderingMetadata || {}),
+        },
         questionImages: q.questionImages || questionFields.questionImages || [],
         imageMetadata,
         diagrams: q.diagrams || [],

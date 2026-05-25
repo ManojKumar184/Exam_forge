@@ -1,12 +1,16 @@
 import path from 'path';
 import { ocrService } from '../ocr/index.js';
-import { splitTextIntoBlocks, normalizeQuestions } from './normalizeQuestions.js';
+import { reconstructOcrReadingOrder } from './columnReadingOrder.js';
+import { splitTextIntoBlocks, normalizeQuestions, preprocessDocumentText } from './normalizeQuestions.js';
 import { logger } from '../utils/logger.js';
 
 export async function extractImageQuestions(filePath, context = {}) {
   const result = await ocrService.recognizeFile(filePath);
 
-  const blocks = splitTextIntoBlocks(result.text);
+  const ordered = preprocessDocumentText(
+    result.words?.length ? reconstructOcrReadingOrder(result.words) : result.text
+  );
+  const blocks = splitTextIntoBlocks(ordered);
   const questions = normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'image_ocr',

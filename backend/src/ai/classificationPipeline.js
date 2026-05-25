@@ -1,6 +1,7 @@
 import { estimateDifficulty } from '../extraction/metadataClassifier.js';
 import { applySemanticCatalogHints } from './semanticTagging.js';
 import { getRulesProvider, getLlmProvider } from './providerRegistry.js';
+import { resolveGeminiHints } from './geminiCatalogResolver.js';
 import { logger } from '../utils/logger.js';
 
 function resolveId(v) {
@@ -10,7 +11,7 @@ function resolveId(v) {
 /**
  * Merge rule + semantic + optional LLM classification.
  */
-export function mergeClassification(rules, semantic, llm, question) {
+export function mergeClassification(rules, semantic, llm, question, catalog = {}) {
   const warnings = [...(rules.extractionWarnings || [])];
   let classLevel = rules.class ?? semantic?.class ?? llm?.class;
   let subjectId = resolveId(rules.subjectId) || resolveId(semantic?.subjectId) || null;
@@ -19,6 +20,21 @@ export function mergeClassification(rules, semantic, llm, question) {
   let difficulty = rules.difficulty || llm?.difficulty || estimateDifficulty(question);
   let questionType = question.questionType || llm?.questionType;
 
+  if (llm?.provider === 'gemini' && llm.hints) {
+    const resolved = resolveGeminiHints(llm, catalog, question, {
+      subjectId,
+      chapterId,
+      examTypeId,
+      class: classLevel,
+    });
+    subjectId = resolved.subjectId || subjectId;
+    chapterId = resolved.chapterId || chapterId;
+    examTypeId = resolved.examTypeId || examTypeId;
+  }
+
+  if (llm?.validationOk === false && llm.validationNote) {
+    warnings.push(`Gemini validation: ${llm.validationNote}`);
+  }
   if (llm?.hints?.subject && !subjectId) {
     warnings.push(`LLM subject hint: ${llm.hints.subject}`);
   }
@@ -34,7 +50,8 @@ export function mergeClassification(rules, semantic, llm, question) {
     (confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100
   );
 
-  const tags = [...new Set([...(rules.tags || []), ...(llm?.tags || [])])];
+  const tags = [...new Set([...(rules.tags || []), ...(llm?.tags || []), ...(question.tags || [])])];
+  if (llm?.questionType === 'mcq' && !tags.includes('mcq_single')) tags.push('mcq_single');
   let status = rules.status || 'pending';
 
   if (!subjectId || !examTypeId || aiConfidence < 55) {
@@ -70,7 +87,12 @@ export function mergeClassification(rules, semantic, llm, question) {
 /**
  * Full AI-assisted classification pipeline.
  */
-export async function runClassificationPipeline(question, catalog, docMeta = {}, uploadContext = {}) {
+export async function runClassificationPipeline(
+  question,
+  catalog,
+  docMeta = {},
+  uploadContext = {}
+) {
   const rulesProvider = getRulesProvider();
   const rules = await rulesProvider.classify(question, catalog, docMeta, uploadContext);
 
@@ -92,5 +114,5 @@ export async function runClassificationPipeline(question, catalog, docMeta = {},
     }
   }
 
-  return mergeClassification(rules, semantic, llm, question);
+  return mergeClassification(rules, semantic, llm, question, catalog);
 }

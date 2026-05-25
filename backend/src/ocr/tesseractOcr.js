@@ -32,6 +32,11 @@ export async function recognizeImage(input, options = {}) {
   const confidence = data.confidence ?? 0;
   const rawText = data.text || '';
   const processed = postProcessScientificOcr(rawText, confidence);
+  const words = (data.words || []).map((w) => ({
+    text: w.text,
+    confidence: w.confidence,
+    bbox: w.bbox,
+  }));
 
   return {
     rawText,
@@ -41,11 +46,7 @@ export async function recognizeImage(input, options = {}) {
     uncertainSpans: processed.uncertainSpans,
     hasEquation: processed.hasEquation,
     questionLatex: processed.questionLatex,
-    words: (data.words || []).map((w) => ({
-      text: w.text,
-      confidence: w.confidence,
-      bbox: w.bbox,
-    })),
+    words,
   };
 }
 

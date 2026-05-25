@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { createRequire } from 'module';
-import { splitTextIntoBlocks, normalizeQuestions } from './normalizeQuestions.js';
+import { splitTextIntoBlocks, normalizeQuestions, preprocessDocumentText } from './normalizeQuestions.js';
 import { ocrService } from '../ocr/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -17,7 +17,7 @@ export async function extractPdfWithOcrFallback(filePath, context = {}) {
   logger.info('PDF OCR fallback started', { filePath });
   const ocr = await ocrService.recognizePdfPages(filePath, { maxPages: context.maxOcrPages ?? 25 });
 
-  const blocks = splitTextIntoBlocks(ocr.text);
+  const blocks = splitTextIntoBlocks(preprocessDocumentText(ocr.text));
   const questions = normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf_ocr',
@@ -76,7 +76,7 @@ export async function extractPdfQuestions(filePath, context = {}) {
     return extractPdfWithOcrFallback(filePath, context);
   }
 
-  const blocks = splitTextIntoBlocks(text);
+  const blocks = splitTextIntoBlocks(preprocessDocumentText(text));
   const questions = normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf',
