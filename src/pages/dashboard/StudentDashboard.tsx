@@ -110,7 +110,7 @@ export function StudentDashboard() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <h3 className="font-semibold text-slate-900 dark:text-white">Recent Activity</h3>
-          <Link to="/history">
+          <Link to="/tests">
             <Button variant="ghost" size="sm">View All</Button>
           </Link>
         </CardHeader>

@@ -1,5 +1,5 @@
 /**
- * Maps MongoDB User document to frontend Profile shape (Supabase-era compatibility).
+ * Maps MongoDB User document to frontend Profile shape (API contract).
  */
 export function toProfile(user) {
   if (!user) return null;

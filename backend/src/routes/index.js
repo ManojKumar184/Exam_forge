@@ -7,6 +7,7 @@ import paperRoutes from './paperRoutes.js';
 import testRoutes from './testRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import leaderboardRoutes from './leaderboardRoutes.js';
+import userRoutes from './userRoutes.js';
 import { health } from '../controllers/healthController.js';
 
 const router = Router();
@@ -19,6 +20,7 @@ router.use('/papers', paperRoutes);
 router.use('/tests', testRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/leaderboard', leaderboardRoutes);
+router.use('/users', userRoutes);
 router.use('/', catalogRoutes);
 
 export default router;

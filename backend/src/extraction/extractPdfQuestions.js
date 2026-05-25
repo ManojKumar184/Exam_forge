@@ -57,6 +57,7 @@ export async function extractPdfQuestions(filePath, context = {}) {
     questions,
     warnings,
     usedOcr: false,
+    rawText: text,
     rawTextLength: text.length,
     pageCount: data.numpages,
   };

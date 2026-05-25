@@ -44,6 +44,13 @@ export async function submitTestApi(id: string): Promise<TestAttempt> {
   return data.data;
 }
 
+export async function autoSubmitTestApi(id: string): Promise<TestAttempt> {
+  const { data } = await apiClient.post<{ success: boolean; data: TestAttempt }>(
+    `/tests/${id}/auto-submit`
+  );
+  return data.data;
+}
+
 export async function fetchTestAttemptsApi(testId?: string): Promise<TestAttempt[]> {
   if (!testId) {
     const { data } = await apiClient.get<{ success: boolean; data: TestAttempt[] }>('/tests/attempts/me');

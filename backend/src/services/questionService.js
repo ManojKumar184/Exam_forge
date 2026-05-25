@@ -4,22 +4,48 @@ import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicate
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 
+function parseListParam(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function buildListFilter(query, user) {
   const filter = {};
 
-  if (user.role === 'faculty') {
-    filter.status = 'approved';
-  } else if (user.role === 'student') {
+  if (user.role === 'faculty' || user.role === 'student') {
     filter.status = 'approved';
   }
 
   if (query.status) filter.status = query.status;
-  if (query.subject_id) filter.subjectId = query.subject_id;
-  if (query.chapter_id) filter.chapterId = query.chapter_id;
-  if (query.exam_type_id) filter.examTypeId = query.exam_type_id;
-  if (query.class) filter.class = Number(query.class);
-  if (query.difficulty) filter.difficulty = query.difficulty;
-  if (query.question_type) filter.questionType = query.question_type;
+
+  const subjectIds = parseListParam(query.subject_ids);
+  if (subjectIds.length) filter.subjectId = { $in: subjectIds };
+  else if (query.subject_id) filter.subjectId = query.subject_id;
+
+  const chapterIds = parseListParam(query.chapter_ids);
+  if (chapterIds.length) filter.chapterId = { $in: chapterIds };
+  else if (query.chapter_id) filter.chapterId = query.chapter_id;
+
+  const examTypeIds = parseListParam(query.exam_type_ids);
+  if (examTypeIds.length) filter.examTypeId = { $in: examTypeIds };
+  else if (query.exam_type_id) filter.examTypeId = query.exam_type_id;
+
+  const classes = parseListParam(query.classes).map(Number).filter((n) => n >= 6 && n <= 12);
+  if (classes.length) filter.class = { $in: classes };
+  else if (query.class) filter.class = Number(query.class);
+
+  const difficulties = parseListParam(query.difficulties);
+  if (difficulties.length) filter.difficulty = { $in: difficulties };
+  else if (query.difficulty) filter.difficulty = query.difficulty;
+
+  const questionTypes = parseListParam(query.question_types);
+  if (questionTypes.length) filter.questionType = { $in: questionTypes };
+  else if (query.question_type) filter.questionType = query.question_type;
+
   if (query.upload_id) filter.uploadId = query.upload_id;
   if (query.source) filter.source = query.source;
 
@@ -29,6 +55,21 @@ function buildListFilter(query, user) {
   }
 
   return filter;
+}
+
+export async function countQuestions(query, user) {
+  const filter = buildListFilter(query, user);
+  const total = await Question.countDocuments(filter);
+  const breakdown = await Question.aggregate([
+    { $match: filter },
+    {
+      $group: {
+        _id: { difficulty: '$difficulty', questionType: '$questionType' },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  return { total, breakdown };
 }
 
 export async function listQuestions(query, user) {
@@ -126,6 +167,16 @@ export async function deleteQuestion(id) {
 }
 
 export async function approveQuestion(id, user) {
+  const existing = await Question.findById(id);
+  if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
+  if (!existing.subjectId || !existing.examTypeId) {
+    throw new AppError(
+      'Set subject and exam type before approving',
+      400,
+      'INCOMPLETE_METADATA'
+    );
+  }
+
   const q = await Question.findByIdAndUpdate(
     id,
     {
@@ -171,4 +222,13 @@ export async function bulkReject(ids, user, notes) {
 
 export async function bulkDelete(ids) {
   await Question.deleteMany({ _id: { $in: ids } });
+}
+
+export async function bulkUpdateMetadata(ids, updates, user) {
+  const fields = bodyToQuestionFields(updates);
+  if (fields.questionText) {
+    fields.duplicateHash = computeDuplicateHash(fields.questionText);
+  }
+  const result = await Question.updateMany({ _id: { $in: ids } }, { $set: fields });
+  return { modified: result.modifiedCount };
 }

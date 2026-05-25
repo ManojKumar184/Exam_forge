@@ -1,5 +1,6 @@
 import { detectQuestionType } from './detectQuestionType.js';
 import { computeDuplicateHash } from '../utils/duplicateHash.js';
+import { enrichTextWithLatexFields, enrichOptionWithLatex } from './latexUtils.js';
 
 const OPTION_PATTERN = /^\s*(?:\(?\s*([A-Da-d])\s*\)?[\).:]\s*)(.+)$/;
 
@@ -63,10 +64,10 @@ export function normalizeQuestions(rawBlocks, context = {}) {
 
     const status = warnings.length > 0 ? 'needs_review' : 'pending';
 
-    normalized.push({
+    const base = {
       questionText,
       questionType,
-      options: block.options.length ? block.options : [],
+      options: block.options.length ? block.options.map(enrichOptionWithLatex) : [],
       correctOption,
       answerText,
       answerKey: answerText,
@@ -76,11 +77,24 @@ export function normalizeQuestions(rawBlocks, context = {}) {
       status,
       extractionWarnings: warnings,
       duplicateHash: computeDuplicateHash(questionText),
-      hasEquation: /\$|\\frac|\\sqrt|∫|∑/.test(questionText),
+      questionImages: block.images || [],
+      diagrams: block.diagrams || [],
+      hasDiagram: Boolean(block.images?.length || block.diagrams?.length),
+      hasTable: Boolean(block.hasTable),
       source: context.source || 'upload',
       sourceFile: context.sourceFile || null,
       extractedFrom: context.extractedFrom || null,
-    });
+    };
+    enrichTextWithLatexFields(questionText, base);
+    if (base.questionImages?.length) {
+      base.imageMetadata = base.questionImages.map((url, order) => ({
+        url,
+        order,
+        caption: null,
+        type: 'diagram',
+      }));
+    }
+    normalized.push(base);
   }
 
   return normalized;

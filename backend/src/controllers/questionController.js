@@ -5,6 +5,11 @@ export async function list(req, res) {
   res.json({ success: true, data });
 }
 
+export async function count(req, res) {
+  const data = await questionService.countQuestions(req.query, req.user);
+  res.json({ success: true, data });
+}
+
 export async function getOne(req, res) {
   const data = await questionService.getQuestionById(req.params.id, req.user);
   res.json({ success: true, data });
@@ -52,4 +57,13 @@ export async function bulkReject(req, res) {
 export async function bulkDelete(req, res) {
   await questionService.bulkDelete(req.body.ids);
   res.json({ success: true, message: 'Questions deleted' });
+}
+
+export async function bulkUpdateMetadata(req, res) {
+  const data = await questionService.bulkUpdateMetadata(
+    req.body.ids,
+    req.body.updates,
+    req.user
+  );
+  res.json({ success: true, data });
 }

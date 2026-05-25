@@ -9,6 +9,7 @@ import {
   updateQuestionSchema,
   listQuestionsSchema,
   bulkIdsSchema,
+  bulkUpdateMetadataSchema,
 } from '../validators/questionValidators.js';
 import * as questionController from '../controllers/questionController.js';
 
@@ -17,6 +18,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', validateQuery(listQuestionsSchema), asyncHandler(questionController.list));
+router.get('/meta/count', validateQuery(listQuestionsSchema), asyncHandler(questionController.count));
 router.get('/:id', asyncHandler(questionController.getOne));
 
 router.post(
@@ -55,6 +57,12 @@ router.post(
   authorize('super_admin'),
   validate(bulkIdsSchema),
   asyncHandler(questionController.bulkDelete)
+);
+router.post(
+  '/bulk/update-metadata',
+  authorize('super_admin'),
+  validate(bulkUpdateMetadataSchema),
+  asyncHandler(questionController.bulkUpdateMetadata)
 );
 
 export default router;

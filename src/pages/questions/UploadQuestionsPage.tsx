@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
-import { Card, Button, Alert, Badge } from '../../components/ui';
+import { useDataStore } from '../../stores/dataStore';
+import { Card, Button, Alert, Badge, Select } from '../../components/ui';
 import { uploadQuestionFileApi } from '../../api/uploads';
 import { getApiErrorMessage } from '../../api/client';
 import {
@@ -27,9 +28,18 @@ interface UploadedFile {
 }
 
 export function UploadQuestionsPage() {
+  const { subjects, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
+  const [uploadClass, setUploadClass] = useState('11');
+  const [uploadSubjectId, setUploadSubjectId] = useState('');
+  const [uploadExamTypeId, setUploadExamTypeId] = useState('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
+
+  useEffect(() => {
+    fetchSubjects();
+    fetchExamTypes();
+  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles: UploadedFile[] = acceptedFiles.map((file, index) => ({
@@ -77,7 +87,11 @@ export function UploadQuestionsPage() {
           )
         );
 
-        const result = await uploadQuestionFileApi(fileItem.file);
+        const result = await uploadQuestionFileApi(fileItem.file, {
+          class: parseInt(uploadClass, 10),
+          subject_id: uploadSubjectId || undefined,
+          exam_type_id: uploadExamTypeId || undefined,
+        });
 
         setFiles((prev) =>
           prev.map((f) =>
@@ -145,7 +159,27 @@ export function UploadQuestionsPage() {
         </p>
       </Alert>
 
-      <Card className="p-6">
+      <Card className="p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Select
+            label="Default class"
+            options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
+            value={uploadClass}
+            onChange={(e) => setUploadClass(e.target.value)}
+          />
+          <Select
+            label="Subject (recommended)"
+            options={[{ value: '', label: 'Auto-detect' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
+            value={uploadSubjectId}
+            onChange={(e) => setUploadSubjectId(e.target.value)}
+          />
+          <Select
+            label="Exam type (recommended)"
+            options={[{ value: '', label: 'Auto-detect' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
+            value={uploadExamTypeId}
+            onChange={(e) => setUploadExamTypeId(e.target.value)}
+          />
+        </div>
         <div
           {...getRootProps()}
           className={`

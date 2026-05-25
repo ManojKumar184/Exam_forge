@@ -6,13 +6,15 @@ import {
 } from '../../components/ui';
 import { Search, Eye, Check, X, Trash2, Edit } from 'lucide-react';
 import type { Question, Subject, Chapter, ExamType } from '../../types';
+import { QuestionContentPreview } from '../../components/content/RichContent';
 
 export function QuestionBankPage() {
   const { canApproveQuestions, isAdmin } = useAuth();
   const {
     subjects, chapters, examTypes, questions, isLoading,
     fetchSubjects, fetchChapters, fetchExamTypes, fetchQuestions,
-    approveQuestion, rejectQuestion, deleteQuestion, updateQuestion
+    approveQuestion, rejectQuestion, deleteQuestion, updateQuestion,
+    bulkApproveQuestions, bulkRejectQuestions, bulkDeleteQuestions, bulkUpdateQuestionsMetadata,
   } = useDataStore();
 
   const [filters, setFilters] = useState({
@@ -30,6 +32,10 @@ export function QuestionBankPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Partial<Question>>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkMetaModal, setShowBulkMetaModal] = useState(false);
+  const [bulkMeta, setBulkMeta] = useState<Partial<Question>>({});
+  const [tagsInput, setTagsInput] = useState('');
 
   useEffect(() => {
     fetchSubjects();
@@ -38,10 +44,10 @@ export function QuestionBankPage() {
   }, []);
 
   useEffect(() => {
-    if (filters.subject_id) {
-      fetchChapters(filters.subject_id);
+    if (editData.subject_id || filters.subject_id) {
+      fetchChapters((editData.subject_id || filters.subject_id) as string);
     }
-  }, [filters.subject_id]);
+  }, [filters.subject_id, editData.subject_id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -123,8 +129,38 @@ export function QuestionBankPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Question Bank</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             {questions.length} questions found
+            {selectedIds.length > 0 && ` · ${selectedIds.length} selected`}
           </p>
         </div>
+        {isAdmin && selectedIds.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
+              Bulk edit metadata
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                await bulkApproveQuestions(selectedIds);
+                setSelectedIds([]);
+                applyFilters();
+              }}
+            >
+              Approve ({selectedIds.length})
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={async () => {
+                const notes = prompt('Rejection reason for all selected?') || 'Bulk rejected';
+                await bulkRejectQuestions(selectedIds, notes);
+                setSelectedIds([]);
+                applyFilters();
+              }}
+            >
+              Reject
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -208,6 +244,17 @@ export function QuestionBankPage() {
           {questions.map((question) => (
             <Card key={question.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                {isAdmin && (
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-slate-300"
+                    checked={selectedIds.includes(question.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds((ids) => [...ids, question.id]);
+                      else setSelectedIds((ids) => ids.filter((id) => id !== question.id));
+                    }}
+                  />
+                )}
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <Badge variant={getStatusColor(question.status)} size="sm">
@@ -221,7 +268,13 @@ export function QuestionBankPage() {
                     <Badge size="sm">{question.marks} marks</Badge>
                   </div>
                   <p className="text-slate-900 dark:text-white mb-2 line-clamp-2">
-                    {question.question_text}
+                    <span className="line-clamp-2">{question.question_text}</span>
+                    {(question.has_equation || question.has_diagram) && (
+                      <span className="text-xs text-blue-500 mt-1 block">
+                        {question.has_equation ? 'Math ' : ''}
+                        {question.has_diagram ? 'Figures' : ''}
+                      </span>
+                    )}
                   </p>
                   {question.question_type === 'mcq' && question.options && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
@@ -288,6 +341,7 @@ export function QuestionBankPage() {
                         onClick={() => {
                           setSelectedQuestion(question);
                           setEditData(question);
+                          setTagsInput((question.tags || []).join(', '));
                           setShowEditModal(true);
                         }}
                         leftIcon={<Edit className="w-4 h-4" />}
@@ -326,13 +380,8 @@ export function QuestionBankPage() {
             </div>
             <div>
               <h4 className="font-medium text-slate-900 dark:text-white mb-2">Question</h4>
-              <p className="text-slate-700 dark:text-slate-300">{selectedQuestion.question_text}</p>
+              <QuestionContentPreview question={selectedQuestion} />
             </div>
-            {selectedQuestion.question_latex && (
-              <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-lg">
-                <code className="text-sm">{selectedQuestion.question_latex}</code>
-              </div>
-            )}
             {selectedQuestion.question_type === 'mcq' && selectedQuestion.options && (
               <div>
                 <h4 className="font-medium text-slate-900 dark:text-white mb-2">Options</h4>
@@ -346,7 +395,15 @@ export function QuestionBankPage() {
                           : 'bg-slate-50 dark:bg-slate-700'
                       }`}
                     >
-                      <span className="font-medium">{String.fromCharCode(65 + idx)}.</span> {opt.text || opt}
+                      <QuestionContentPreview
+                        question={{
+                          ...selectedQuestion,
+                          question_text: typeof opt === 'string' ? opt : opt.text || '',
+                          question_latex: opt.latex,
+                          question_images: opt.image ? [opt.image] : [],
+                        }}
+                        compact
+                      />
                     </div>
                   ))}
                 </div>
@@ -358,6 +415,15 @@ export function QuestionBankPage() {
                 <p className="text-slate-600 dark:text-slate-400">{selectedQuestion.explanation}</p>
               </div>
             )}
+            {(selectedQuestion.extraction_warnings?.length ?? 0) > 0 && (
+              <Alert variant="warning" title="Classification notes">
+                <ul className="list-disc pl-4 text-sm mt-1">
+                  {selectedQuestion.extraction_warnings?.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </Alert>
+            )}
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
               <div>
                 <p className="text-sm text-slate-500">Subject</p>
@@ -366,6 +432,16 @@ export function QuestionBankPage() {
               <div>
                 <p className="text-sm text-slate-500">Chapter</p>
                 <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.chapter?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Exam type</p>
+                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.exam_type?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Tags</p>
+                <p className="font-medium text-slate-900 dark:text-white">
+                  {selectedQuestion.tags?.length ? selectedQuestion.tags.join(', ') : '—'}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-slate-500">Marks</p>
@@ -424,7 +500,7 @@ export function QuestionBankPage() {
               label="Class"
               options={[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: c.toString(), label: `Class ${c}` }))}
               value={editData.class?.toString() || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, class: parseInt(e.target.value) }))}
+              onChange={(e) => setEditData(prev => ({ ...prev, class: parseInt(e.target.value, 10) }))}
             />
             <Select
               label="Difficulty"
@@ -434,7 +510,7 @@ export function QuestionBankPage() {
                 { value: 'hard', label: 'Hard' }
               ]}
               value={editData.difficulty || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, difficulty: e.target.value as any }))}
+              onChange={(e) => setEditData(prev => ({ ...prev, difficulty: e.target.value as Question['difficulty'] }))}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -442,18 +518,119 @@ export function QuestionBankPage() {
               label="Subject"
               options={subjects.map(s => ({ value: s.id, label: s.name }))}
               value={editData.subject_id || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, subject_id: e.target.value }))}
+              onChange={(e) => setEditData(prev => ({ ...prev, subject_id: e.target.value, chapter_id: '' }))}
+            />
+            <Select
+              label="Topic / Chapter"
+              options={chapters
+                .filter((c) => c.subject_id === editData.subject_id)
+                .map((c) => ({ value: c.id, label: c.name }))}
+              value={editData.chapter_id || ''}
+              onChange={(e) => setEditData(prev => ({ ...prev, chapter_id: e.target.value }))}
+              placeholder="Select chapter"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Exam type"
+              options={examTypes.map((e) => ({ value: e.id, label: e.name }))}
+              value={editData.exam_type_id || ''}
+              onChange={(e) => setEditData(prev => ({ ...prev, exam_type_id: e.target.value }))}
             />
             <Input
               label="Marks"
               type="number"
               value={editData.marks?.toString() || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, marks: parseInt(e.target.value) }))}
+              onChange={(e) => setEditData(prev => ({ ...prev, marks: parseInt(e.target.value, 10) }))}
             />
           </div>
+          <Input
+            label="Tags (comma-separated)"
+            value={tagsInput}
+            onChange={(e) => {
+              setTagsInput(e.target.value);
+              setEditData((prev) => ({
+                ...prev,
+                tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
+              }));
+            }}
+          />
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="ghost" onClick={() => setShowEditModal(false)}>Cancel</Button>
             <Button onClick={handleEdit}>Save Changes</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showBulkMetaModal}
+        onClose={() => setShowBulkMetaModal(false)}
+        title={`Bulk metadata (${selectedIds.length} questions)`}
+        size="lg"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-500">Only filled fields will be applied to all selected questions.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Class"
+              options={[{ value: '', label: '— leave —' }, ...[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: c.toString(), label: `Class ${c}` }))]}
+              value={bulkMeta.class?.toString() || ''}
+              onChange={(e) =>
+                setBulkMeta((p) => ({
+                  ...p,
+                  class: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                }))
+              }
+            />
+            <Select
+              label="Difficulty"
+              options={[
+                { value: '', label: '— leave —' },
+                { value: 'easy', label: 'Easy' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'hard', label: 'Hard' },
+              ]}
+              value={bulkMeta.difficulty || ''}
+              onChange={(e) =>
+                setBulkMeta((p) => ({
+                  ...p,
+                  difficulty: (e.target.value || undefined) as Question['difficulty'] | undefined,
+                }))
+              }
+            />
+            <Select
+              label="Subject"
+              options={[{ value: '', label: '— leave —' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
+              value={bulkMeta.subject_id || ''}
+              onChange={(e) => setBulkMeta((p) => ({ ...p, subject_id: e.target.value || undefined }))}
+            />
+            <Select
+              label="Exam type"
+              options={[{ value: '', label: '— leave —' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
+              value={bulkMeta.exam_type_id || ''}
+              onChange={(e) => setBulkMeta((p) => ({ ...p, exam_type_id: e.target.value || undefined }))}
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowBulkMetaModal(false)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                const updates: Partial<Question> = {};
+                if (bulkMeta.class) updates.class = bulkMeta.class;
+                if (bulkMeta.difficulty) updates.difficulty = bulkMeta.difficulty;
+                if (bulkMeta.subject_id) updates.subject_id = bulkMeta.subject_id;
+                if (bulkMeta.chapter_id) updates.chapter_id = bulkMeta.chapter_id;
+                if (bulkMeta.exam_type_id) updates.exam_type_id = bulkMeta.exam_type_id;
+                if (bulkMeta.tags?.length) updates.tags = bulkMeta.tags;
+                await bulkUpdateQuestionsMetadata(selectedIds, updates);
+                setShowBulkMetaModal(false);
+                setBulkMeta({});
+                setSelectedIds([]);
+                applyFilters();
+              }}
+            >
+              Apply to selected
+            </Button>
           </div>
         </div>
       </Modal>

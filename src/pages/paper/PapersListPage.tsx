@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Edit } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { Card, Button, Badge, Loading, EmptyState, Modal } from '../../components/ui';
 import { FileText, Plus, Eye, PlayCircle, Calendar, Clock } from 'lucide-react';
@@ -102,14 +103,11 @@ export function PapersListPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  leftIcon={<Eye className="w-4 h-4" />}
-                >
-                  Preview
-                </Button>
+                <Link to={`/papers/${paper.id}/edit`} className="flex-1">
+                  <Button variant="outline" size="sm" className="w-full" leftIcon={<Edit className="w-4 h-4" />}>
+                    Edit
+                  </Button>
+                </Link>
                 <Button
                   variant="outline"
                   size="sm"

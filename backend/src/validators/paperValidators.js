@@ -32,12 +32,26 @@ export const createPaperSchema = z.object({
 
 export const updatePaperSchema = createPaperSchema.partial();
 
+const sectionSpecSchema = sectionSchema.extend({
+  id: z.string().optional(),
+  question_types: z.array(z.enum(['mcq', 'descriptive', 'numerical'])).optional(),
+  question_type: z.enum(['mcq', 'descriptive', 'numerical']).optional(),
+  difficulty_distribution: z
+    .object({
+      easy: z.coerce.number().nonnegative().optional(),
+      medium: z.coerce.number().nonnegative().optional(),
+      hard: z.coerce.number().nonnegative().optional(),
+    })
+    .optional(),
+});
+
 export const generatePaperSchema = z.object({
   title: z.string().min(2),
   exam_type_id: z.string().nullable().optional(),
   subject_id: z.string().nullable().optional(),
   class: z.coerce.number().int().min(6).max(12),
-  total_questions: z.coerce.number().int().positive(),
+  total_questions: z.coerce.number().int().positive().optional(),
+  total_marks: z.coerce.number().nonnegative().optional(),
   duration_minutes: z.coerce.number().positive().optional(),
   difficulty_distribution: z
     .object({
@@ -46,7 +60,37 @@ export const generatePaperSchema = z.object({
       hard: z.coerce.number().nonnegative().optional(),
     })
     .optional(),
-  sections: z.array(sectionSchema).optional(),
+  sections: z.array(sectionSpecSchema).optional(),
   status: z.enum(['draft', 'published']).optional(),
+});
+
+export const poolFilterSchema = z.object({
+  subject_id: z.string().optional(),
+  subject_ids: z.union([z.string(), z.array(z.string())]).optional(),
+  exam_type_id: z.string().nullable().optional(),
+  exam_type_ids: z.union([z.string(), z.array(z.string())]).optional(),
+  class: z.coerce.number().int().min(6).max(12).optional(),
+  classes: z.union([z.string(), z.array(z.coerce.number())]).optional(),
+  chapter_ids: z.union([z.string(), z.array(z.string())]).optional(),
+  difficulties: z.union([z.string(), z.array(z.string())]).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  question_types: z.union([z.string(), z.array(z.string())]).optional(),
+});
+
+export const selectQuestionsSchema = poolFilterSchema.extend({
+  subject_id: z.string().min(1),
+  class: z.coerce.number().int().min(6).max(12).optional(),
+  total_questions: z.coerce.number().int().nonnegative().optional(),
+  total_marks: z.coerce.number().nonnegative().optional(),
+  chapter_ids: z.array(z.string()).optional(),
+  exclude_question_ids: z.array(z.string()).optional(),
+  difficulty_distribution: z
+    .object({
+      easy: z.coerce.number().nonnegative().optional(),
+      medium: z.coerce.number().nonnegative().optional(),
+      hard: z.coerce.number().nonnegative().optional(),
+    })
+    .optional(),
+  sections: z.array(sectionSpecSchema).min(1),
 });
 

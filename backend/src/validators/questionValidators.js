@@ -19,6 +19,7 @@ export const createQuestionSchema = z.object({
   marks: z.number().positive().optional(),
   explanation: z.string().optional().nullable(),
   question_latex: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
 });
 
@@ -30,15 +31,34 @@ export const listQuestionsSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
   subject_id: z.string().optional(),
+  subject_ids: z.union([z.string(), z.array(z.string())]).optional(),
   chapter_id: z.string().optional(),
+  chapter_ids: z.union([z.string(), z.array(z.string())]).optional(),
   exam_type_id: z.string().optional(),
+  exam_type_ids: z.union([z.string(), z.array(z.string())]).optional(),
   class: z.coerce.number().optional(),
+  classes: z.union([z.string(), z.array(z.coerce.number())]).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  difficulties: z.union([z.string(), z.array(z.string())]).optional(),
   question_type: z.enum(['mcq', 'descriptive', 'numerical']).optional(),
+  question_types: z.union([z.string(), z.array(z.string())]).optional(),
   source: z.string().optional(),
   upload_id: z.string().optional(),
   sort_by: z.string().optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
+});
+
+export const bulkUpdateMetadataSchema = z.object({
+  ids: z.array(z.string()).min(1),
+  updates: z.object({
+    class: z.coerce.number().int().min(6).max(12).optional(),
+    subject_id: z.string().nullable().optional(),
+    chapter_id: z.string().nullable().optional(),
+    exam_type_id: z.string().nullable().optional(),
+    difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+    tags: z.array(z.string()).optional(),
+    status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
+  }),
 });
 
 export const bulkIdsSchema = z.object({

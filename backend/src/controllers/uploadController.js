@@ -10,6 +10,8 @@ export async function uploadFile(req, res) {
 
   const data = await uploadService.processUpload(req.file, req.user, {
     class: req.body.class,
+    subject_id: req.body.subject_id,
+    exam_type_id: req.body.exam_type_id,
   });
 
   res.status(201).json({ success: true, data });

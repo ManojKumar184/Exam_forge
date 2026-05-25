@@ -80,13 +80,22 @@ export interface Question {
   explanation: string | null;
   explanation_latex: string | null;
   explanation_images: string[];
-  diagrams: any[];
+  diagrams: Array<{ url?: string; order?: number; type?: string; html?: string; caption?: string }>;
+  image_metadata?: Array<{
+    url: string;
+    order: number;
+    caption?: string | null;
+    type?: string;
+  }>;
   has_diagram: boolean;
   has_equation: boolean;
+  has_table?: boolean;
+  rendering_metadata?: Record<string, unknown>;
   tags: string[];
   ai_confidence: number;
   ai_metadata: Record<string, any>;
   status: QuestionStatus;
+  extraction_warnings?: string[];
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;

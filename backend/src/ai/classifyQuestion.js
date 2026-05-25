@@ -1,19 +1,35 @@
+import {
+  classifyExtractedQuestion,
+  estimateDifficulty,
+} from '../extraction/metadataClassifier.js';
+
 /**
- * AI classification stub — Phase 4 will plug OpenAI / Gemini / Ollama here.
- * Returns editable metadata without fabricating question content.
+ * Rule-based classification (Phase 4 can extend with LLM).
  */
-export async function classifyQuestionMetadata(question) {
+export async function classifyQuestionMetadata(question, catalog = null, docMeta = {}) {
+  if (catalog?.subjects?.length) {
+    const result = classifyExtractedQuestion(question, catalog, docMeta, {});
+    return {
+      aiConfidence: result.aiConfidence,
+      aiMetadata: result.aiMetadata,
+      class: result.class,
+      subjectId: result.subjectId,
+      chapterId: result.chapterId,
+      examTypeId: result.examTypeId,
+      difficulty: result.difficulty,
+      tags: result.tags,
+      status: result.status,
+      extractionWarnings: result.extractionWarnings,
+    };
+  }
+
   return {
-    aiConfidence: 0,
+    aiConfidence: 30,
     aiMetadata: {
-      provider: 'none',
-      status: 'NOT_IMPLEMENTED',
-      message: 'AI classification available in Phase 4',
-      suggested: {
-        class: question.class,
-        difficulty: question.difficulty,
-        questionType: question.questionType,
-      },
+      provider: 'rules',
+      status: 'PARTIAL',
+      message: 'Catalog not loaded — manual metadata required',
     },
+    difficulty: estimateDifficulty(question),
   };
 }

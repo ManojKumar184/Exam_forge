@@ -2,6 +2,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import mammoth from 'mammoth';
 import { splitTextIntoBlocks, normalizeQuestions } from './normalizeQuestions.js';
+import {
+  splitHtmlIntoQuestionSegments,
+  attachMediaToQuestions,
+  mapOptionImagesFromHtml,
+} from './htmlQuestionParser.js';
 
 export async function extractDocxQuestions(filePath, context = {}) {
   const buffer = await fs.readFile(filePath);
@@ -37,11 +42,26 @@ export async function extractDocxQuestions(filePath, context = {}) {
   }
 
   const blocks = splitTextIntoBlocks(text);
-  const questions = normalizeQuestions(blocks, {
+  const htmlSegments = splitHtmlIntoQuestionSegments(result.value || '');
+
+  const blocksWithMedia = blocks.map((block, idx) => {
+    const segment = htmlSegments[idx];
+    if (!segment) return block;
+    return {
+      ...block,
+      images: segment.images,
+      diagrams: segment.diagrams,
+      hasTable: segment.hasTable,
+      options: mapOptionImagesFromHtml(segment.html, block.options),
+    };
+  });
+
+  let questions = normalizeQuestions(blocksWithMedia, {
     ...context,
     extractedFrom: 'docx',
     sourceFile: path.basename(filePath),
   });
+  questions = attachMediaToQuestions(questions, htmlSegments);
 
   const warnings = [];
   if (questions.length === 0) {
@@ -52,6 +72,7 @@ export async function extractDocxQuestions(filePath, context = {}) {
     questions,
     warnings,
     images,
+    rawText: text,
     rawTextLength: text.length,
   };
 }

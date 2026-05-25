@@ -87,3 +87,24 @@ export async function bulkRejectQuestionsApi(ids: string[], notes?: string) {
 export async function bulkDeleteQuestionsApi(ids: string[]) {
   await apiClient.post('/questions/bulk/delete', { ids });
 }
+
+export async function fetchQuestionsCountApi(
+  params: QuestionsListParams = {}
+): Promise<{ total: number; breakdown: Array<{ _id: { difficulty: string; questionType: string }; count: number }> }> {
+  const { data } = await apiClient.get<{ success: boolean; data: { total: number; breakdown: unknown[] } }>(
+    '/questions/meta/count',
+    { params }
+  );
+  return data.data as { total: number; breakdown: Array<{ _id: { difficulty: string; questionType: string }; count: number }> };
+}
+
+export async function bulkUpdateQuestionsMetadataApi(
+  ids: string[],
+  updates: Record<string, unknown>
+) {
+  const { data } = await apiClient.post<{ success: boolean; data: { modified: number } }>(
+    '/questions/bulk/update-metadata',
+    { ids, updates }
+  );
+  return data.data;
+}

@@ -21,9 +21,9 @@ Supabase is **deprecated** for auth and database. Optional: Supabase Storage for
 |-------|--------|--------|
 | **1** | Backend scaffold, MongoDB models, JWT auth, frontend AuthContext + catalog API | **Done** |
 | **2** | Question CRUD, real upload pipeline, admin review | **Done** |
-| **3** | Paper builder (dnd-kit), online tests, scoring | Not started |
+| **3** | Paper builder, intelligent selection, KaTeX rendering, test lifecycle, users API | **Largely done (3B)** |
 | **4** | OCR, AI classification, KaTeX rendering | Not started |
-| **5** | Analytics, PDF export, production hardening | Not started |
+| **5** | PDF export, WebSocket autosave, production hardening | Partial (analytics API done) |
 
 ---
 
@@ -55,11 +55,19 @@ Supabase is **deprecated** for auth and database. Optional: Supabase Storage for
 - Real upload + extraction via `/api/uploads`
 - `UploadQuestionsPage`, `QuestionBankPage`, `dataStore` question methods
 
-### Still on Supabase (Phase 3+)
+### Migrated in Phase 3 (MERN)
 
-- Papers, online tests, analytics, users
-- `TestTakingPage`, `PaperGeneratorPage` direct `supabase` calls
-- `StudentDashboard` attempt queries
+- Papers CRUD + `PaperGeneratorPage` (manual builder, dnd-kit reorder)
+- Online tests: start / autosave / submit / auto-submit, `TestTakingPage`, review route
+- Leaderboard + analytics REST + frontend pages (`/leaderboard`, `/analytics`)
+- `supabase/migrations/` retained as historical reference only (no runtime dependency)
+
+### Remaining (Phase 4+)
+
+- Admin user listing API (`fetchUsers` stub)
+- OCR / AI pipelines, PDF generator, WebSocket autosave
+- PDF scanned-image OCR (Phase 4)
+- Server-side PDF paper export
 
 ---
 

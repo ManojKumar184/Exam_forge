@@ -5,6 +5,11 @@ import { env } from '../config/env.js';
 import { getFileType } from '../config/multer.js';
 import { extractionService } from '../extraction/index.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
+import {
+  loadClassificationCatalog,
+  parseDocumentMetadata,
+  classifyExtractedQuestion,
+} from '../extraction/metadataClassifier.js';
 import { mapUpload } from '../utils/questionMapper.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -26,12 +31,28 @@ export async function processUpload(file, user, options = {}) {
 
   try {
     const filePath = path.join(env.uploadDir, 'documents', file.filename);
-    const extractResult = await extractionService.processAndDeduplicate(filePath, fileType, {
+    const catalog = await loadClassificationCatalog();
+    const uploadContext = {
       imageDir: path.join(env.uploadDir, 'images'),
-      class: options.class ? Number(options.class) : 11,
+      class: options.class ? Number(options.class) : undefined,
+      subjectId: options.subject_id || options.subjectId || null,
+      examTypeId: options.exam_type_id || options.examTypeId || null,
+      filename: file.originalname,
       source: 'upload',
       sourceFile: file.originalname,
-    });
+    };
+
+    const extractResult = await extractionService.processAndDeduplicate(
+      filePath,
+      fileType,
+      uploadContext
+    );
+
+    const docMeta = parseDocumentMetadata(
+      extractResult.rawText || extractResult.questions?.map((q) => q.questionText).join('\n') || '',
+      catalog,
+      uploadContext
+    );
 
     if (!extractResult.questions?.length) {
       upload.status = 'failed';
@@ -47,13 +68,42 @@ export async function processUpload(file, user, options = {}) {
     const questionIds = [];
 
     for (const q of extractResult.questions) {
-      const ai = await classifyQuestionMetadata(q);
+      const classified = classifyExtractedQuestion(q, catalog, docMeta, uploadContext);
+      const ai = await classifyQuestionMetadata(q, catalog, docMeta);
       const { isDuplicate, ...questionFields } = q;
+      const imageMetadata =
+        q.imageMetadata ||
+        (q.questionImages || []).map((url, order) => ({
+          url,
+          order,
+          caption: null,
+          type: 'diagram',
+        }));
+
       const doc = await Question.create({
         ...questionFields,
+        class: classified.class ?? questionFields.class,
+        subjectId: classified.subjectId ?? questionFields.subjectId,
+        chapterId: classified.chapterId ?? questionFields.chapterId,
+        examTypeId: classified.examTypeId ?? questionFields.examTypeId,
+        difficulty: classified.difficulty ?? questionFields.difficulty,
+        tags: classified.tags?.length ? classified.tags : questionFields.tags,
+        status: classified.status || (q.isDuplicate ? 'needs_review' : 'pending'),
+        questionImages: q.questionImages || questionFields.questionImages || [],
+        imageMetadata,
+        diagrams: q.diagrams || [],
+        hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
+        hasTable: Boolean(q.hasTable),
+        questionLatex: q.questionLatex || questionFields.questionLatex,
+        hasEquation: Boolean(q.hasEquation || questionFields.hasEquation),
         duplicateOf: q.duplicateOf || null,
-        aiConfidence: ai.aiConfidence,
-        aiMetadata: ai.aiMetadata,
+        extractionWarnings: [
+          ...(classified.extractionWarnings || []),
+          ...(docMeta.warnings || []),
+          ...(q.extractionWarnings || []),
+        ],
+        aiConfidence: classified.aiConfidence ?? ai.aiConfidence,
+        aiMetadata: { ...ai.aiMetadata, ...classified.aiMetadata },
         uploadId: upload._id,
         createdBy: user._id,
         source: 'upload',

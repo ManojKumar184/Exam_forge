@@ -28,8 +28,16 @@ export function mapQuestion(doc) {
     explanation_latex: d.explanationLatex,
     explanation_images: d.explanationImages || [],
     diagrams: d.diagrams || [],
+    image_metadata: (d.imageMetadata || []).map((img) => ({
+      url: img.url,
+      order: img.order ?? 0,
+      caption: img.caption ?? null,
+      type: img.type || 'diagram',
+    })),
     has_diagram: d.hasDiagram,
     has_equation: d.hasEquation,
+    has_table: d.hasTable ?? false,
+    rendering_metadata: d.renderingMetadata || {},
     tags: d.tags || [],
     ai_confidence: d.aiConfidence ?? 0,
     ai_metadata: d.aiMetadata || {},
@@ -119,6 +127,9 @@ export function bodyToQuestionFields(body) {
     tags: 'tags',
     ai_confidence: 'aiConfidence',
     ai_metadata: 'aiMetadata',
+    image_metadata: 'imageMetadata',
+    has_table: 'hasTable',
+    rendering_metadata: 'renderingMetadata',
   };
 
   const out = {};

@@ -40,8 +40,25 @@ const questionSchema = new mongoose.Schema(
     explanationLatex: { type: String, default: null },
     explanationImages: { type: [String], default: [] },
     diagrams: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    imageMetadata: {
+      type: [
+        {
+          url: { type: String, required: true },
+          order: { type: Number, default: 0 },
+          caption: { type: String, default: null },
+          type: {
+            type: String,
+            enum: ['diagram', 'graph', 'table', 'biology', 'chemistry', 'geometry', 'figure'],
+            default: 'diagram',
+          },
+        },
+      ],
+      default: [],
+    },
     hasDiagram: { type: Boolean, default: false },
     hasEquation: { type: Boolean, default: false },
+    hasTable: { type: Boolean, default: false },
+    renderingMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
     tags: { type: [String], default: [] },
     aiConfidence: { type: Number, default: 0 },
     aiMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -66,6 +83,10 @@ const questionSchema = new mongoose.Schema(
 );
 
 questionSchema.index({ status: 1, subjectId: 1, class: 1, difficulty: 1 });
+questionSchema.index({ status: 1, class: 1, examTypeId: 1, difficulty: 1 });
+questionSchema.index({ status: 1, chapterId: 1, difficulty: 1 });
+questionSchema.index({ status: 1, uploadId: 1 });
+questionSchema.index({ status: 1, questionType: 1, class: 1 });
 questionSchema.index({ questionText: 'text' });
 questionSchema.index({ createdAt: -1 });
 

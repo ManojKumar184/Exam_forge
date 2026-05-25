@@ -1,4 +1,8 @@
 import * as paperService from '../services/paperService.js';
+import {
+  selectQuestionsForPaper,
+  countQuestionPool,
+} from '../services/paperSelectionService.js';
 
 export async function list(req, res) {
   const data = await paperService.listPapers(req.query, req.user);
@@ -28,5 +32,15 @@ export async function remove(req, res) {
 export async function generate(req, res) {
   const data = await paperService.generatePaper(req.body, req.user);
   res.status(201).json({ success: true, data });
+}
+
+export async function selectQuestions(req, res) {
+  const data = await selectQuestionsForPaper(req.body);
+  res.json({ success: true, data });
+}
+
+export async function poolStats(req, res) {
+  const data = await countQuestionPool(req.body);
+  res.json({ success: true, data });
 }
 

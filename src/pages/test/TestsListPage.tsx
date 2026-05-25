@@ -144,20 +144,33 @@ export function TestsListPage() {
                       Start Test
                     </Button>
                   ) : attempted ? (
-                    <Button variant="outline" className="w-full" disabled leftIcon={<CheckCircle className="w-4 h-4" />}>
-                      Completed
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button variant="outline" className="w-full" disabled leftIcon={<CheckCircle className="w-4 h-4" />}>
+                        Completed
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => navigate(`/test/${test.id}/review`)}
+                      >
+                        Review answers
+                      </Button>
+                    </div>
                   ) : (
                     <Button variant="outline" className="w-full" disabled>
                       {status === 'scheduled' ? 'Not Started' : 'Closed'}
                     </Button>
                   )
                 ) : (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      View Results
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => navigate('/leaderboard', { state: { testId: test.id } })}
+                  >
+                    View leaderboard
+                  </Button>
                 )}
               </Card>
             );

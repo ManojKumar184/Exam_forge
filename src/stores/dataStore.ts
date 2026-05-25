@@ -7,10 +7,15 @@ import {
   deleteQuestionApi,
   updateQuestionApi,
   createQuestionApi,
+  bulkApproveQuestionsApi,
+  bulkRejectQuestionsApi,
+  bulkDeleteQuestionsApi,
+  bulkUpdateQuestionsMetadataApi,
 } from '../api/questions';
 import { fetchPapersApi, createPaperApi, updatePaperApi, deletePaperApi } from '../api/papers';
 import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi } from '../api/tests';
 import { fetchAdminAnalyticsApi } from '../api/analytics';
+import { fetchUsersApi, updateUserApi } from '../api/users';
 import { getApiErrorMessage } from '../api/client';
 import type {
   Subject,
@@ -42,13 +47,18 @@ interface DataState {
   fetchPapers: () => Promise<void>;
   fetchOnlineTests: () => Promise<void>;
   fetchTestAttempts: (testId?: string) => Promise<void>;
-  fetchUsers: () => Promise<void>;
+  fetchUsers: (filters?: Record<string, unknown>) => Promise<void>;
+  updateUser: (id: string, updates: Partial<Profile>) => Promise<{ error: unknown }>;
   fetchAnalytics: () => Promise<AnalyticsData>;
   createQuestion: (question: Partial<Question>) => Promise<{ data: Question | null; error: any }>;
   updateQuestion: (id: string, updates: Partial<Question>) => Promise<{ error: any }>;
   deleteQuestion: (id: string) => Promise<{ error: any }>;
   approveQuestion: (id: string) => Promise<{ error: any }>;
   rejectQuestion: (id: string, notes: string) => Promise<{ error: any }>;
+  bulkApproveQuestions: (ids: string[]) => Promise<{ error: any }>;
+  bulkRejectQuestions: (ids: string[], notes?: string) => Promise<{ error: any }>;
+  bulkDeleteQuestions: (ids: string[]) => Promise<{ error: any }>;
+  bulkUpdateQuestionsMetadata: (ids: string[], updates: Partial<Question>) => Promise<{ error: any }>;
   createPaper: (paper: Partial<Paper>) => Promise<{ data: Paper | null; error: any }>;
   updatePaper: (id: string, updates: Partial<Paper>) => Promise<{ error: any }>;
   deletePaper: (id: string) => Promise<{ error: any }>;
@@ -139,9 +149,23 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  fetchUsers: async () => {
-    // user listing endpoint can be added in Phase 4 admin module
-    set({ users: [] });
+  fetchUsers: async (filters = {}) => {
+    try {
+      const data = await fetchUsersApi(filters);
+      set({ users: data.items });
+    } catch (error) {
+      set({ error: getApiErrorMessage(error), users: [] });
+    }
+  },
+
+  updateUser: async (id, updates) => {
+    try {
+      const data = await updateUserApi(id, updates);
+      set({ users: get().users.map((u) => (u.id === id ? data : u)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
   },
 
   fetchAnalytics: async () => {
@@ -192,6 +216,43 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const data = await rejectQuestionApi(id, notes);
       set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  bulkApproveQuestions: async (ids) => {
+    try {
+      await bulkApproveQuestionsApi(ids);
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  bulkRejectQuestions: async (ids, notes) => {
+    try {
+      await bulkRejectQuestionsApi(ids, notes);
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  bulkDeleteQuestions: async (ids) => {
+    try {
+      await bulkDeleteQuestionsApi(ids);
+      set({ questions: get().questions.filter((q) => !ids.includes(q.id)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  bulkUpdateQuestionsMetadata: async (ids, updates) => {
+    try {
+      await bulkUpdateQuestionsMetadataApi(ids, updates);
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };

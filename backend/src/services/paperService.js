@@ -3,6 +3,7 @@ import { Paper } from '../models/Paper.js';
 import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapPaper } from '../utils/examMapper.js';
+import { selectQuestionsForPaper } from './paperSelectionService.js';
 
 function toObjectIdList(items) {
   return (items || []).filter(Boolean);
@@ -119,87 +120,53 @@ export async function deletePaper(id, user) {
 }
 
 export async function generatePaper(config, user) {
-  const subjectId = config.subject_id || config.subjectId;
-  const examTypeId = config.exam_type_id || config.examTypeId;
-  const classLevel = Number(config.class || 11);
-  const totalQuestions = Number(config.total_questions || 20);
+  const sectionSpecs =
+    config.sections ||
+    [
+      {
+        id: 'A',
+        name: 'Section A - MCQ',
+        questionCount: Number(config.total_questions || 20),
+        marksPerQuestion: Number(config.marks_per_question || 4),
+        question_types: ['mcq'],
+      },
+    ];
 
-  const questionFilter = {
-    status: 'approved',
-    ...(subjectId ? { subjectId } : {}),
-    ...(examTypeId ? { examTypeId } : {}),
-    class: classLevel,
-  };
+  const selection = await selectQuestionsForPaper({
+    ...config,
+    sections: sectionSpecs.map((s) => ({
+      id: s.id || s.name,
+      name: s.name,
+      questionCount: s.questionCount ?? s.question_count,
+      marksPerQuestion: s.marksPerQuestion ?? s.marks_per_question ?? 4,
+      question_types: s.question_types || s.questionTypes,
+    })),
+  });
 
-  const pool = await Question.find(questionFilter).lean();
-  if (pool.length < totalQuestions) {
-    throw new AppError('Not enough approved questions for generation', 400, 'INSUFFICIENT_QUESTIONS');
-  }
-
-  const difficultyDist = config.difficulty_distribution || { easy: 30, medium: 50, hard: 20 };
-  const target = {
-    easy: Math.round((totalQuestions * (difficultyDist.easy || 0)) / 100),
-    medium: Math.round((totalQuestions * (difficultyDist.medium || 0)) / 100),
-    hard: Math.max(0, totalQuestions),
-  };
-  target.hard = totalQuestions - target.easy - target.medium;
-
-  const selected = [];
-  const byDifficulty = {
-    easy: pool.filter((q) => q.difficulty === 'easy'),
-    medium: pool.filter((q) => q.difficulty === 'medium'),
-    hard: pool.filter((q) => q.difficulty === 'hard'),
-  };
-
-  for (const key of ['easy', 'medium', 'hard']) {
-    const needed = target[key];
-    const candidates = [...byDifficulty[key]].sort(() => Math.random() - 0.5);
-    selected.push(...candidates.slice(0, needed));
-  }
-  if (selected.length < totalQuestions) {
-    const fallback = pool
-      .filter((q) => !selected.some((s) => s._id.toString() === q._id.toString()))
-      .sort(() => Math.random() - 0.5);
-    selected.push(...fallback.slice(0, totalQuestions - selected.length));
-  }
-
-  const sections = (config.sections || [
-    { name: 'Section A', questionCount: totalQuestions, marksPerQuestion: Number(config.marks_per_question || 4) },
-  ]).map((s) => ({
-    name: s.name,
-    questionCount: Number(s.questionCount),
-    marksPerQuestion: Number(s.marksPerQuestion),
-  }));
-
-  let cursor = 0;
   const paperQuestions = [];
-  sections.forEach((section, sectionOrder) => {
-    for (let i = 0; i < section.questionCount && cursor < selected.length; i += 1) {
-      const q = selected[cursor];
+  selection.sections.forEach((sec, sectionOrder) => {
+    sec.questions.forEach((q, questionOrder) => {
       paperQuestions.push({
-        questionId: q._id,
-        section: section.name,
-        sectionOrder,
-        questionOrder: i,
-        customMarks: section.marksPerQuestion,
+        question_id: q.id,
+        section: sec.sectionId || sec.sectionName,
+        section_order: sectionOrder,
+        question_order: questionOrder,
+        custom_marks: q.custom_marks,
       });
-      cursor += 1;
-    }
+    });
   });
 
   return createPaper(
     {
       ...config,
-      total_questions: selected.length,
-      total_marks: paperQuestions.reduce((sum, q) => sum + Number(q.customMarks || 0), 0),
-      sections,
-      questions: paperQuestions.map((q) => ({
-        question_id: q.questionId.toString(),
-        section: q.section,
-        section_order: q.sectionOrder,
-        question_order: q.questionOrder,
-        custom_marks: q.customMarks,
+      total_questions: selection.total_questions,
+      total_marks: selection.total_marks,
+      sections: sectionSpecs.map((s) => ({
+        name: s.name,
+        questionCount: s.questionCount ?? s.question_count,
+        marksPerQuestion: s.marksPerQuestion ?? s.marks_per_question ?? 4,
       })),
+      questions: paperQuestions,
       status: config.status || 'draft',
     },
     user

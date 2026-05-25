@@ -113,7 +113,31 @@
   }
 }
 
-/* MathJax styles (for when MathJax is loaded) */
+/* KaTeX rendering */
+.rich-content .katex-display {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+}
+
+.rich-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+}
+
+.rich-content table td,
+.rich-content table th {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.dark .rich-content table td,
+.dark .rich-content table th {
+  border-color: #475569;
+}
+
+/* MathJax styles (legacy) */
 .math-content {
   overflow-x: auto;
   overflow-y: hidden;

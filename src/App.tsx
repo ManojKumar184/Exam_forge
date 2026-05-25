@@ -14,6 +14,10 @@ import { DashboardRouter } from './pages/dashboard';
 import { QuestionBankPage, UploadQuestionsPage } from './pages/questions';
 import { PaperGeneratorPage, PapersListPage } from './pages/paper';
 import { TestTakingPage, TestsListPage } from './pages/test';
+import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
+import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import { UsersPage } from './pages/users/UsersPage';
 
 // Layout
 import { Layout } from './components/layout/Layout';
@@ -111,6 +115,17 @@ function AppRoutes() {
       </Route>
 
       <Route
+        path="/papers/:paperId/edit"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<PaperGeneratorPage />} />
+      </Route>
+
+      <Route
         path="/tests"
         element={
           <ProtectedRoute>
@@ -121,8 +136,68 @@ function AppRoutes() {
         <Route index element={<TestsListPage />} />
       </Route>
 
-      <Route path="/test/:testId" element={<TestTakingPage />} />
-      <Route path="/test/:testId/review" element={<TestTakingPage />} />
+      <Route
+        path="/test/:testId"
+        element={
+          <ProtectedRoute>
+            <TestTakingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test/:testId/review"
+        element={
+          <ProtectedRoute>
+            <TestTakingPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<LeaderboardPage />} />
+      </Route>
+
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AnalyticsPage />} />
+      </Route>
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<SettingsPage />} />
+      </Route>
+
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <Layout />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<UsersPage />} />
+      </Route>
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

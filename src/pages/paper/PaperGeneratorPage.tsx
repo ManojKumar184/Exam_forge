@@ -1,56 +1,76 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
-import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState } from '../../components/ui';
-import {
-  Plus, Trash2, ChevronUp, ChevronDown, Wand2, Settings, Save
-} from 'lucide-react';
+import { fetchPaperApi, fetchPaperPoolStatsApi, selectQuestionsForPaperApi, type PoolStats } from '../../api/papers';
+import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect } from '../../components/ui';
+import { Plus, Wand2, Settings, Save, Sparkles } from 'lucide-react';
 import type { Question } from '../../types';
-
-interface SelectedQuestion extends Question {
-  customMarks: number;
-  sectionId: string;
-  orderIndex: number;
-}
-
-interface Section {
-  id: string;
-  name: string;
-  marksPerQuestion: number;
-  questions: SelectedQuestion[];
-}
+import {
+  SortableSectionQuestions,
+  type SelectedQuestion,
+} from '../../components/paper/SortableSectionQuestions';
+import { QuestionContentPreview } from '../../components/content/RichContent';
+import {
+  DEFAULT_SECTIONS,
+  applySelectionToSections,
+  buildSelectPayload,
+  buildPoolStatsPayload,
+  validateSectionsLocally,
+  paperToSections,
+  type Section,
+  type PaperBuilderFilters,
+} from './paperBuilderUtils';
 
 export function PaperGeneratorPage() {
   const navigate = useNavigate();
+  const { paperId } = useParams();
+  const isEditMode = Boolean(paperId);
   const { profile, canGeneratePapers } = useAuth();
   const {
-    subjects, examTypes, questions,
-    fetchSubjects, fetchExamTypes, fetchQuestions, createPaper
+    subjects, examTypes, chapters, questions,
+    fetchSubjects, fetchExamTypes, fetchChapters, fetchQuestions, createPaper, updatePaper,
   } = useDataStore();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+  const [paperStatus, setPaperStatus] = useState<'draft' | 'published'>('draft');
 
-  // Paper configuration
   const [title, setTitle] = useState('');
   const [examTypeId, setExamTypeId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [classLevel, setClassLevel] = useState<number>(11);
   const [totalMarks, setTotalMarks] = useState<number>(100);
   const [duration, setDuration] = useState<number>(180);
+  const [difficultyDistribution, setDifficultyDistribution] = useState({ easy: 30, medium: 50, hard: 20 });
 
-  // Configuration
-  const [sections, setSections] = useState<Section[]>([
-    { id: 'A', name: 'Section A - MCQ', marksPerQuestion: 4, questions: [] },
-    { id: 'B', name: 'Section B - Short Answer', marksPerQuestion: 4, questions: [] },
-    { id: 'C', name: 'Section C - Long Answer', marksPerQuestion: 8, questions: [] },
-  ]);
+  const [sections, setSections] = useState<Section[]>(DEFAULT_SECTIONS.map((s) => ({ ...s, questions: [] })));
 
-  // Add question modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentSectionId, setCurrentSectionId] = useState<string>('A');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState('');
+  const [poolStats, setPoolStats] = useState<PoolStats | null>(null);
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [builderFilters, setBuilderFilters] = useState<PaperBuilderFilters>({
+    subjectIds: [],
+    examTypeIds: [],
+    classLevels: [],
+    chapterIds: [],
+    difficulties: [],
+  });
+
+  const filterPayload = useMemo(
+    () => ({
+      subjectId,
+      examTypeId,
+      classLevel,
+      filters: builderFilters,
+    }),
+    [subjectId, examTypeId, classLevel, builderFilters]
+  );
 
   useEffect(() => {
     fetchSubjects();
@@ -58,74 +78,186 @@ export function PaperGeneratorPage() {
     fetchQuestions({ status: 'approved' });
   }, []);
 
-  const currentSection = sections.find(s => s.id === currentSectionId);
+  useEffect(() => {
+    if (subjectId) fetchChapters(subjectId);
+  }, [subjectId]);
 
+  useEffect(() => {
+    if (!subjectId) {
+      setPoolStats(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setPoolLoading(true);
+      try {
+        const stats = await fetchPaperPoolStatsApi(buildPoolStatsPayload(filterPayload));
+        setPoolStats(stats);
+      } catch {
+        setPoolStats(null);
+      } finally {
+        setPoolLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [filterPayload]);
+
+  useEffect(() => {
+    if (!paperId) return;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const paper = await fetchPaperApi(paperId);
+        setTitle(paper.title);
+        setExamTypeId(paper.exam_type_id || '');
+        setSubjectId(paper.subject_id || '');
+        setClassLevel(paper.class);
+        setTotalMarks(paper.total_marks);
+        setDuration(paper.duration_minutes);
+        setPaperStatus(paper.status === 'published' ? 'published' : 'draft');
+        setSections(paperToSections(paper));
+      } catch {
+        navigate('/papers');
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [paperId]);
+
+  const currentSection = sections.find((s) => s.id === currentSectionId);
   const totalQuestions = sections.reduce((sum, s) => sum + s.questions.length, 0);
+  const computedMarks = sections.reduce(
+    (sum, s) => sum + s.questions.reduce((m, q) => m + Number(q.customMarks || 0), 0),
+    0
+  );
 
-  const usedQuestionIds = useMemo(() => {
-    return new Set(sections.flatMap(s => s.questions.map(q => q.id)));
-  }, [sections]);
+  const usedQuestionIds = useMemo(
+    () => new Set(sections.flatMap((s) => s.questions.map((q) => q.id))),
+    [sections]
+  );
 
   const availableQuestions = useMemo(() => {
-    return questions
-      .filter(q => {
-        if (usedQuestionIds.has(q.id)) return false;
-        if (subjectId && q.subject_id !== subjectId) return false;
-        if (classLevel && q.class !== classLevel) return false;
-        if (selectedDifficulty && q.difficulty !== selectedDifficulty) return false;
-        if (searchTerm && !q.question_text.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-        return true;
-      });
-  }, [questions, subjectId, classLevel, selectedDifficulty, searchTerm, usedQuestionIds]);
+    return questions.filter((q) => {
+      if (usedQuestionIds.has(q.id)) return false;
+      if (builderFilters.subjectIds.length && q.subject_id && !builderFilters.subjectIds.includes(q.subject_id)) return false;
+      else if (subjectId && q.subject_id !== subjectId) return false;
+      if (builderFilters.classLevels.length && !builderFilters.classLevels.includes(q.class)) return false;
+      else if (classLevel && q.class !== classLevel) return false;
+      if (builderFilters.difficulties.length && !builderFilters.difficulties.includes(q.difficulty)) return false;
+      else if (selectedDifficulty && q.difficulty !== selectedDifficulty) return false;
+      if (builderFilters.chapterIds.length && q.chapter_id && !builderFilters.chapterIds.includes(q.chapter_id)) return false;
+      if (builderFilters.examTypeIds.length && q.exam_type_id && !builderFilters.examTypeIds.includes(q.exam_type_id)) return false;
+      if (searchTerm && !q.question_text.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [questions, subjectId, classLevel, selectedDifficulty, searchTerm, usedQuestionIds, builderFilters]);
 
-  const autoSelectQuestions = () => {
+  const requiredQuestions = sections.reduce((s, sec) => s + sec.targetCount, 0);
+  const poolTooSmall = poolStats != null && poolStats.total < requiredQuestions;
+
+  const runIntelligentSelect = async (preserveOrder = false) => {
     if (!subjectId || !examTypeId) {
       alert('Please select subject and exam type first');
       return;
     }
+    setIsSelecting(true);
+    try {
+      const selection = await selectQuestionsForPaperApi(
+        buildSelectPayload(sections, {
+          subjectId,
+          examTypeId,
+          classLevel,
+          totalMarks,
+          excludeIds: [],
+          difficultyDistribution,
+          filters: builderFilters,
+        })
+      );
+      setSections(applySelectionToSections(sections, selection, preserveOrder));
+      const warnings = [...(selection.validation?.warnings || [])];
+      if (selection.pool_stats && selection.pool_stats.total < requiredQuestions) {
+        warnings.push(`Pool has only ${selection.pool_stats.total} questions; paper needs ${requiredQuestions}`);
+      }
+      setValidationWarnings(warnings);
+      if (selection.pool_stats) setPoolStats(selection.pool_stats);
+      if (!preserveOrder) {
+        setTotalMarks(selection.total_marks);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Selection failed';
+      alert(message);
+    } finally {
+      setIsSelecting(false);
+    }
+  };
 
-    const mcqQuestions = availableQuestions
-      .filter(q => q.question_type === 'mcq')
-      .slice(0, 15);
+  const replaceQuestion = async (sectionId: string, questionId: string) => {
+    if (!subjectId) return;
+    setReplacingId(questionId);
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
 
-    const descriptiveQuestions = availableQuestions
-      .filter(q => q.question_type === 'descriptive' || q.question_type === 'numerical')
-      .slice(0, 10);
+    try {
+      const selection = await selectQuestionsForPaperApi({
+        ...buildSelectPayload(sections, {
+          subjectId,
+          examTypeId,
+          classLevel,
+          totalMarks,
+          excludeIds: [...usedQuestionIds],
+          difficultyDistribution,
+          filters: builderFilters,
+        }),
+        sections: [
+          {
+            id: sectionId,
+            name: section.name,
+            questionCount: 1,
+            marksPerQuestion: section.marksPerQuestion,
+            question_types: section.questionTypes,
+          },
+        ],
+      });
+      const replacement = selection.sections[0]?.questions[0] as Question | undefined;
+      if (!replacement) {
+        alert('No replacement question available');
+        return;
+      }
 
-    const newSections = [...sections];
-    newSections[0].questions = mcqQuestions.map((q, i) => ({
-      ...q,
-      customMarks: newSections[0].marksPerQuestion,
-      sectionId: 'A',
-      orderIndex: i
-    }));
-    newSections[1].questions = descriptiveQuestions.slice(0, 5).map((q, i) => ({
-      ...q,
-      customMarks: newSections[1].marksPerQuestion,
-      sectionId: 'B',
-      orderIndex: i
-    }));
-    newSections[2].questions = descriptiveQuestions.slice(5, 10).map((q, i) => ({
-      ...q,
-      customMarks: newSections[2].marksPerQuestion,
-      sectionId: 'C',
-      orderIndex: i
-    }));
-
-    setSections(newSections);
+      setSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== sectionId) return s;
+          return {
+            ...s,
+            questions: s.questions.map((q) =>
+              q.id === questionId
+                ? {
+                    ...(replacement as Question),
+                    customMarks: q.customMarks,
+                    sectionId,
+                    orderIndex: q.orderIndex,
+                  }
+                : q
+            ),
+          };
+        })
+      );
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Could not replace question');
+    } finally {
+      setReplacingId(null);
+    }
   };
 
   const addQuestionToSection = (question: Question) => {
     if (!currentSection) return;
-
-    setSections(prev =>
-      prev.map(s => {
+    setSections((prev) =>
+      prev.map((s) => {
         if (s.id === currentSectionId) {
           const newQ: SelectedQuestion = {
             ...question,
             customMarks: s.marksPerQuestion,
             sectionId: s.id,
-            orderIndex: s.questions.length
+            orderIndex: s.questions.length,
           };
           return { ...s, questions: [...s.questions, newQ] };
         }
@@ -136,80 +268,91 @@ export function PaperGeneratorPage() {
   };
 
   const removeQuestionFromSection = (sectionId: string, questionId: string) => {
-    setSections(prev =>
-      prev.map(s => {
+    setSections((prev) =>
+      prev.map((s) => {
         if (s.id === sectionId) {
-          return { ...s, questions: s.questions.filter(q => q.id !== questionId) };
+          const filtered = s.questions.filter((q) => q.id !== questionId);
+          return { ...s, questions: filtered.map((q, i) => ({ ...q, orderIndex: i })) };
         }
         return s;
       })
     );
   };
 
-  const moveQuestion = (sectionId: string, index: number, direction: 'up' | 'down') => {
-    setSections(prev =>
-      prev.map(s => {
+  const reorderSectionQuestions = (sectionId: string, reordered: SelectedQuestion[]) => {
+    setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, questions: reordered } : s)));
+  };
+
+  const updateQuestionMarks = (sectionId: string, questionId: string, marks: number) => {
+    setSections((prev) =>
+      prev.map((s) => {
         if (s.id !== sectionId) return s;
-        const newQuestions = [...s.questions];
-        const newIndex = direction === 'up' ? index - 1 : index + 1;
-        if (newIndex < 0 || newIndex >= newQuestions.length) return s;
-        [newQuestions[index], newQuestions[newIndex]] = [newQuestions[newIndex], newQuestions[index]];
-        return { ...s, questions: newQuestions };
+        return {
+          ...s,
+          questions: s.questions.map((q) => (q.id === questionId ? { ...q, customMarks: marks } : q)),
+        };
       })
     );
   };
 
-  const handleSavePaper = async () => {
+  const handleSavePaper = async (status: 'draft' | 'published' = paperStatus) => {
     if (!title || !subjectId || !examTypeId) {
       alert('Please fill all required fields');
       return;
     }
-
     if (totalQuestions === 0) {
       alert('Please add at least one question');
       return;
     }
 
-    setIsLoading(true);
+    const localValidation = validateSectionsLocally(sections, totalMarks);
+    setValidationWarnings(localValidation.warnings);
 
+    setIsLoading(true);
     try {
-      const paperCode = `PAPER-${Date.now().toString(36).toUpperCase()}`;
-      const paperQuestions = sections.flatMap(s =>
+      const paperQuestions = sections.flatMap((s) =>
         s.questions.map((q, index) => ({
           question_id: q.id,
           section: s.id,
-          section_order: 0,
+          section_order: sections.indexOf(s),
           question_order: index,
-          custom_marks: q.customMarks
+          custom_marks: q.customMarks,
         }))
       );
 
-      const { error } = await createPaper({
+      const payload = {
         title,
-        description: `${examTypes.find(e => e.id === examTypeId)?.name} - ${subjects.find(s => s.id === subjectId)?.name}`,
-        paper_code: paperCode,
+        description: `${examTypes.find((e) => e.id === examTypeId)?.name} - ${subjects.find((s) => s.id === subjectId)?.name}`,
         exam_type_id: examTypeId,
         subject_id: subjectId,
         class: classLevel,
-        total_marks: totalMarks,
+        total_marks: computedMarks,
         total_questions: totalQuestions,
         duration_minutes: duration,
         is_online: false,
-        status: 'draft',
+        status,
         created_by: profile?.id || '',
         sections: sections.map((s) => ({
           name: s.name,
           questionCount: s.questions.length,
           marksPerQuestion: s.marksPerQuestion,
         })),
-        questions: paperQuestions as any,
-      });
-      if (error) throw error;
+        questions: paperQuestions,
+      };
+
+      if (isEditMode && paperId) {
+        const { error } = await updatePaper(paperId, payload);
+        if (error) throw error;
+      } else {
+        const paperCode = `PAPER-${Date.now().toString(36).toUpperCase()}`;
+        const { error } = await createPaper({ ...payload, paper_code: paperCode });
+        if (error) throw error;
+      }
 
       navigate('/papers');
-    } catch (error: any) {
-      console.error('Error saving paper:', error);
-      alert('Failed to save paper: ' + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Save failed';
+      alert(`Failed to save paper: ${message}`);
     } finally {
       setIsLoading(false);
     }
@@ -223,28 +366,52 @@ export function PaperGeneratorPage() {
     );
   }
 
+  if (isEditMode && isLoading && !title) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Generate Question Paper</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            {isEditMode ? 'Edit Question Paper' : 'Generate Question Paper'}
+          </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Create exam papers from approved questions
+            {isEditMode ? 'Update draft or published paper' : 'Create exam papers from approved questions'}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate('/papers')}>
-            Cancel
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button variant="ghost" onClick={() => navigate('/papers')}>Cancel</Button>
+          <Select
+            options={[
+              { value: 'draft', label: 'Draft' },
+              { value: 'published', label: 'Published' },
+            ]}
+            value={paperStatus}
+            onChange={(e) => setPaperStatus(e.target.value as 'draft' | 'published')}
+            className="w-32"
+          />
+          <Button variant="outline" onClick={() => handleSavePaper('draft')} isLoading={isLoading}>
+            Save Draft
           </Button>
-          <Button onClick={handleSavePaper} isLoading={isLoading} leftIcon={<Save className="w-4 h-4" />}>
-            Save Paper
+          <Button onClick={() => handleSavePaper(paperStatus)} isLoading={isLoading} leftIcon={<Save className="w-4 h-4" />}>
+            {isEditMode ? 'Update Paper' : 'Save Paper'}
           </Button>
         </div>
       </div>
 
+      {validationWarnings.length > 0 && (
+        <Alert variant="warning" title="Validation notes">
+          <ul className="list-disc pl-5 text-sm mt-1">
+            {validationWarnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Configuration Panel */}
         <Card className="lg:col-span-1 p-6">
           <h2 className="font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <Settings className="w-5 h-5" />
@@ -252,107 +419,204 @@ export function PaperGeneratorPage() {
           </h2>
 
           <div className="space-y-4">
-            <Input
-              label="Paper Title"
-              placeholder="e.g., Physics Final Exam 2024"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-
+            <Input label="Paper Title" value={title} onChange={(e) => setTitle(e.target.value)} />
             <Select
               label="Exam Type"
-              options={examTypes.map(e => ({ value: e.id, label: e.name }))}
+              options={examTypes.map((e) => ({ value: e.id, label: e.name }))}
               value={examTypeId}
               onChange={(e) => setExamTypeId(e.target.value)}
               placeholder="Select exam type"
             />
-
             <Select
               label="Subject"
-              options={subjects.map(s => ({ value: s.id, label: s.name }))}
+              options={subjects.map((s) => ({ value: s.id, label: s.name }))}
               value={subjectId}
               onChange={(e) => setSubjectId(e.target.value)}
               placeholder="Select subject"
             />
-
             <Select
               label="Class"
-              options={[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: c.toString(), label: `Class ${c}` }))}
+              options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: c.toString(), label: `Class ${c}` }))}
               value={classLevel.toString()}
-              onChange={(e) => setClassLevel(parseInt(e.target.value))}
+              onChange={(e) => setClassLevel(parseInt(e.target.value, 10))}
             />
-
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Total Marks"
+                label="Target Marks"
                 type="number"
                 value={totalMarks.toString()}
-                onChange={(e) => setTotalMarks(parseInt(e.target.value) || 0)}
+                onChange={(e) => setTotalMarks(parseInt(e.target.value, 10) || 0)}
+              />
+              <Input
+                label="Actual Marks"
+                type="number"
+                value={computedMarks.toString()}
+                disabled
               />
               <Input
                 label="Duration (mins)"
                 type="number"
                 value={duration.toString()}
-                onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
+                onChange={(e) => setDuration(parseInt(e.target.value, 10) || 0)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Difficulty mix (%)</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                  <Input
+                    key={d}
+                    label={d}
+                    type="number"
+                    value={String(difficultyDistribution[d])}
+                    onChange={(e) =>
+                      setDifficultyDistribution((prev) => ({
+                        ...prev,
+                        [d]: parseInt(e.target.value, 10) || 0,
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 100, medium: 0, hard: 0 })}>Easy</Button>
+                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 0, medium: 100, hard: 0 })}>Medium</Button>
+                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 0, medium: 0, hard: 100 })}>Hard</Button>
+                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 30, medium: 50, hard: 20 })}>Mixed</Button>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Question pool filters</p>
+              <MultiSelect
+                label="Classes"
+                options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
+                values={builderFilters.classLevels.map(String)}
+                onChange={(vals) =>
+                  setBuilderFilters((f) => ({ ...f, classLevels: vals.map((v) => parseInt(v, 10)) }))
+                }
+              />
+              <MultiSelect
+                label="Topics / chapters"
+                options={chapters.map((c) => ({ value: c.id, label: c.name }))}
+                values={builderFilters.chapterIds}
+                onChange={(vals) => setBuilderFilters((f) => ({ ...f, chapterIds: vals }))}
+              />
+              <MultiSelect
+                label="Difficulties"
+                options={[
+                  { value: 'easy', label: 'Easy' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'hard', label: 'Hard' },
+                ]}
+                values={builderFilters.difficulties}
+                onChange={(vals) => setBuilderFilters((f) => ({ ...f, difficulties: vals }))}
+              />
+              <MultiSelect
+                label="Exam types"
+                options={examTypes.map((e) => ({ value: e.id, label: e.name }))}
+                values={builderFilters.examTypeIds}
+                onChange={(vals) => setBuilderFilters((f) => ({ ...f, examTypeIds: vals }))}
+              />
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-700/40 p-3 text-sm">
+                {poolLoading ? (
+                  <span className="text-slate-500">Counting pool...</span>
+                ) : poolStats ? (
+                  <div className="space-y-1">
+                    <p className="font-medium text-slate-800 dark:text-slate-200">
+                      {poolStats.total} questions available
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Easy {poolStats.by_difficulty.easy} · Medium {poolStats.by_difficulty.medium} · Hard{' '}
+                      {poolStats.by_difficulty.hard}
+                    </p>
+                    {poolTooSmall && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        Pool smaller than paper size ({requiredQuestions} needed). Relax filters or reduce sections.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-slate-500">Select subject to see pool size</span>
+                )}
+              </div>
             </div>
 
             <Button
               variant="outline"
               className="w-full"
-              leftIcon={<Wand2 className="w-4 h-4" />}
-              onClick={autoSelectQuestions}
+              leftIcon={<Sparkles className="w-4 h-4" />}
+              onClick={() => runIntelligentSelect(false)}
               disabled={!subjectId || !examTypeId}
+              isLoading={isSelecting}
             >
-              Auto-Select Questions
+              Intelligent Auto-Select
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              leftIcon={<Wand2 className="w-4 h-4" />}
+              onClick={() => runIntelligentSelect(true)}
+              disabled={!subjectId || totalQuestions === 0}
+              isLoading={isSelecting}
+            >
+              Refill (keep order)
             </Button>
           </div>
 
-          {/* Section Settings */}
           <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
             <h3 className="font-medium text-slate-700 dark:text-slate-300 mb-3">Sections</h3>
             <div className="space-y-3">
               {sections.map((section) => (
-                <div
-                  key={section.id}
-                  className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg"
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white">{section.name}</p>
-                    <p className="text-xs text-slate-500">{section.questions.length} questions</p>
-                  </div>
-                  <div className="flex items-center gap-2">
+                <div key={section.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-2">
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">{section.name}</p>
+                  <div className="flex gap-2">
                     <Input
                       type="number"
-                      value={section.marksPerQuestion.toString()}
+                      label="Target Q"
+                      value={section.targetCount.toString()}
                       onChange={(e) => {
-                        const marks = parseInt(e.target.value) || 0;
-                        setSections(prev =>
-                          prev.map(s => s.id === section.id ? { ...s, marksPerQuestion: marks } : s)
+                        const count = parseInt(e.target.value, 10) || 0;
+                        setSections((prev) =>
+                          prev.map((s) => (s.id === section.id ? { ...s, targetCount: count } : s))
                         );
                       }}
-                      className="w-16 h-8 text-sm"
+                      className="flex-1 h-8 text-sm"
                     />
-                    <span className="text-xs text-slate-500">marks/Q</span>
+                    <Input
+                      type="number"
+                      label="Marks/Q"
+                      value={section.marksPerQuestion.toString()}
+                      onChange={(e) => {
+                        const marks = parseInt(e.target.value, 10) || 0;
+                        setSections((prev) =>
+                          prev.map((s) => (s.id === section.id ? { ...s, marksPerQuestion: marks } : s))
+                        );
+                      }}
+                      className="w-20 h-8 text-sm"
+                    />
                   </div>
+                  <p className="text-xs text-slate-500">
+                    {section.questions.length} / {section.targetCount} selected
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         </Card>
 
-        {/* Questions Panel */}
         <Card className="lg:col-span-2 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-slate-900 dark:text-white">
-              Questions ({totalQuestions} selected)
+              Questions ({totalQuestions} selected · {computedMarks} marks)
             </h2>
           </div>
 
-          {sections.every(s => s.questions.length === 0) ? (
+          {sections.every((s) => s.questions.length === 0) ? (
             <EmptyState
               title="No questions added"
-              description="Add questions to each section or use auto-select"
+              description="Use Intelligent Auto-Select or add questions manually"
               action={
                 <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus className="w-4 h-4" />}>
                   Add Questions
@@ -366,7 +630,10 @@ export function PaperGeneratorPage() {
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-medium text-slate-700 dark:text-slate-300">{section.name}</h3>
                     <div className="flex items-center gap-3">
-                      <Badge>{section.questions.length} Q | {section.questions.reduce((s, q) => s + q.customMarks, 0)} M</Badge>
+                      <Badge>
+                        {section.questions.length}/{section.targetCount} Q |{' '}
+                        {section.questions.reduce((s, q) => s + q.customMarks, 0)} M
+                      </Badge>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -382,73 +649,15 @@ export function PaperGeneratorPage() {
                   </div>
 
                   {section.questions.length > 0 ? (
-                    <div className="space-y-2">
-                      {section.questions.map((question, index) => (
-                        <div
-                          key={question.id}
-                          className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group"
-                        >
-                          <span className="text-sm font-medium text-slate-500 w-6">Q{index + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-900 dark:text-white line-clamp-2">
-                              {question.question_text}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge size="sm" variant={
-                                question.difficulty === 'easy' ? 'success' :
-                                question.difficulty === 'medium' ? 'warning' : 'error'
-                              }>
-                                {question.difficulty}
-                              </Badge>
-                              <Badge size="sm">{question.marks}M</Badge>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={question.customMarks.toString()}
-                              onChange={(e) => {
-                                const marks = parseInt(e.target.value) || 0;
-                                setSections(prev =>
-                                  prev.map(s => {
-                                    if (s.id === section.id) {
-                                      return {
-                                        ...s,
-                                        questions: s.questions.map(q =>
-                                          q.id === question.id ? { ...q, customMarks: marks } : q
-                                        )
-                                      };
-                                    }
-                                    return s;
-                                  })
-                                );
-                              }}
-                              className="w-16 h-8 text-sm"
-                            />
-                            <button
-                              onClick={() => moveQuestion(section.id, index, 'up')}
-                              disabled={index === 0}
-                              className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => moveQuestion(section.id, index, 'down')}
-                              disabled={index === section.questions.length - 1}
-                              className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => removeQuestionFromSection(section.id, question.id)}
-                              className="p-1 text-slate-400 hover:text-red-500"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <SortableSectionQuestions
+                      sectionId={section.id}
+                      questions={section.questions}
+                      onReorder={reorderSectionQuestions}
+                      onUpdateMarks={updateQuestionMarks}
+                      onRemove={removeQuestionFromSection}
+                      onReplace={replaceQuestion}
+                      replacingId={replacingId}
+                    />
                   ) : (
                     <div className="text-center py-6 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
                       <p className="text-sm text-slate-500">No questions in this section</p>
@@ -461,18 +670,12 @@ export function PaperGeneratorPage() {
         </Card>
       </div>
 
-      {/* Add Question Modal */}
-      <Modal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add Questions"
-        size="xl"
-      >
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Questions" size="xl">
         <div className="p-6">
           <div className="flex gap-4 mb-4">
             <Select
               label="Section"
-              options={sections.map(s => ({ value: s.id, label: s.name }))}
+              options={sections.map((s) => ({ value: s.id, label: s.name }))}
               value={currentSectionId}
               onChange={(e) => setCurrentSectionId(e.target.value)}
             />
@@ -488,7 +691,7 @@ export function PaperGeneratorPage() {
                 { value: '', label: 'All' },
                 { value: 'easy', label: 'Easy' },
                 { value: 'medium', label: 'Medium' },
-                { value: 'hard', label: 'Hard' }
+                { value: 'hard', label: 'Hard' },
               ]}
               value={selectedDifficulty}
               onChange={(e) => setSelectedDifficulty(e.target.value)}
@@ -496,10 +699,7 @@ export function PaperGeneratorPage() {
           </div>
 
           {availableQuestions.length === 0 ? (
-            <EmptyState
-              title="No questions available"
-              description="Try adjusting your filters or import more questions"
-            />
+            <EmptyState title="No questions available" description="Adjust filters or upload more questions" />
           ) : (
             <div className="max-h-96 overflow-y-auto space-y-2">
               {availableQuestions.map((question) => (
@@ -509,19 +709,16 @@ export function PaperGeneratorPage() {
                   onClick={() => addQuestionToSection(question)}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-900 dark:text-white line-clamp-2">
-                      {question.question_text}
-                    </p>
+                    <QuestionContentPreview question={question} compact />
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge size="sm" variant={
-                        question.difficulty === 'easy' ? 'success' :
-                        question.difficulty === 'medium' ? 'warning' : 'error'
-                      }>
+                      <Badge size="sm" variant={question.difficulty === 'easy' ? 'success' : question.difficulty === 'medium' ? 'warning' : 'error'}>
                         {question.difficulty}
                       </Badge>
                       <Badge size="sm">{question.question_type.toUpperCase()}</Badge>
-                      <Badge size="sm">{question.marks}M</Badge>
-                      <Badge size="sm">Class {question.class}</Badge>
+                      {(question.has_diagram || question.question_images?.length) && (
+                        <Badge size="sm" variant="info">Figures</Badge>
+                      )}
+                      {question.has_equation && <Badge size="sm" variant="info">Math</Badge>}
                     </div>
                   </div>
                   <Plus className="w-5 h-5 text-blue-500 flex-shrink-0" />

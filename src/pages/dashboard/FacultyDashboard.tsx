@@ -1,17 +1,27 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../stores/dataStore';
+import { fetchFacultyAnalyticsApi } from '../../api/analytics';
 import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading } from '../../components/ui';
 import { FileText, FileQuestion, Users, TrendingUp, Plus, Clock, Calendar } from 'lucide-react';
 
 export function FacultyDashboard() {
   const { profile } = useAuth();
   const { fetchPapers, fetchOnlineTests, papers, onlineTests, isLoading } = useDataStore();
+  const [facultyStats, setFacultyStats] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    fetchPapers();
-    fetchOnlineTests();
+    const load = async () => {
+      await Promise.all([fetchPapers(), fetchOnlineTests()]);
+      try {
+        const stats = await fetchFacultyAnalyticsApi();
+        setFacultyStats(stats);
+      } catch {
+        setFacultyStats(null);
+      }
+    };
+    load();
   }, []);
 
   if (isLoading) {
@@ -58,14 +68,14 @@ export function FacultyDashboard() {
         />
         <StatCard
           title="Total Attempts"
-          value="0"
+          value={facultyStats?.total_attempts ?? 0}
           subtitle="Student attempts"
           icon={<Users className="w-6 h-6" />}
           color="amber"
         />
         <StatCard
           title="Avg. Score"
-          value="0%"
+          value={`${facultyStats?.average_score ?? 0}%`}
           subtitle="Overall average"
           icon={<TrendingUp className="w-6 h-6" />}
           color="slate"

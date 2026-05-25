@@ -7,6 +7,8 @@ import {
   createPaperSchema,
   updatePaperSchema,
   generatePaperSchema,
+  selectQuestionsSchema,
+  poolFilterSchema,
 } from '../validators/paperValidators.js';
 import * as paperController from '../controllers/paperController.js';
 
@@ -15,6 +17,24 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', asyncHandler(paperController.list));
+router.post(
+  '/pool-stats',
+  authorize('super_admin', 'faculty'),
+  validate(poolFilterSchema),
+  asyncHandler(paperController.poolStats)
+);
+router.post(
+  '/select-questions',
+  authorize('super_admin', 'faculty'),
+  validate(selectQuestionsSchema),
+  asyncHandler(paperController.selectQuestions)
+);
+router.post(
+  '/generate',
+  authorize('super_admin', 'faculty'),
+  validate(generatePaperSchema),
+  asyncHandler(paperController.generate)
+);
 router.get('/:id', asyncHandler(paperController.getOne));
 router.post(
   '/',
@@ -29,12 +49,6 @@ router.patch(
   asyncHandler(paperController.update)
 );
 router.delete('/:id', authorize('super_admin', 'faculty'), asyncHandler(paperController.remove));
-router.post(
-  '/generate',
-  authorize('super_admin', 'faculty'),
-  validate(generatePaperSchema),
-  asyncHandler(paperController.generate)
-);
 
 export default router;
 
