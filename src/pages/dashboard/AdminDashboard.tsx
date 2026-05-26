@@ -7,13 +7,11 @@ import {
   Users,
   FileQuestion,
   FileText,
-  TrendingUp,
   Clock,
   CheckCircle,
   AlertCircle,
   BarChart3,
   Upload,
-  BookOpen,
   Plus,
 } from 'lucide-react';
 
@@ -27,7 +25,6 @@ export function AdminDashboard() {
     fetchUsers,
     questions,
     papers,
-    users,
     subjects,
     isLoading,
   } = useDataStore();

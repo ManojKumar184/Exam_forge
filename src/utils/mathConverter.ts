@@ -122,74 +122,124 @@ export function parseXml(xmlStr: string): XmlNode[] {
   return rootNodes;
 }
 
-export function translateOmmlNode(node: XmlNode | string): string {
-  if (typeof node === 'string') {
-    return node;
+export function serializeXml(node: XmlNode | string): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  const tag = node.tag;
+  const attrsStr = Object.entries(node.attrs || {})
+    .map(([k, v]) => ` ${k}="${v}"`)
+    .join('');
+  const childrenStr = (node.children || []).map(serializeXml).join('');
+  return `<${tag}${attrsStr}>${childrenStr}</${tag}>`;
+}
+
+function validateBraces(str: string): boolean {
+  let count = 0;
+  for (const char of str) {
+    if (char === '{') count++;
+    else if (char === '}') count--;
+    if (count < 0) return false;
   }
+  return count === 0;
+}
+
+export function ommlToAst(node: XmlNode | string, depth = 0): any {
+  if (!node) return null;
+  if (typeof node === 'string') {
+    return {
+      type: 'text',
+      sourceTag: '#text',
+      rawSourceContent: node,
+      nestingHierarchy: depth,
+      inlineOrBlock: 'inline',
+      value: node
+    };
+  }
+
   const tag = node.tag.toLowerCase();
   const children = node.children || [];
+  const rawSourceContent = serializeXml(node);
 
   const getChildByTag = (t: string) =>
     children.find((c) => typeof c !== 'string' && c.tag.toLowerCase() === t.toLowerCase()) as XmlNode | undefined;
 
-  const convertAll = (nodes: (XmlNode | string)[]) =>
-    nodes.map(translateOmmlNode).join('');
+  const astChildren = () => children.map(c => ommlToAst(c, depth + 1)).filter(Boolean);
+
+  const baseNode = {
+    sourceTag: node.tag,
+    rawSourceContent,
+    nestingHierarchy: depth,
+    inlineOrBlock: (tag === 'omathpara') ? 'block' : 'inline',
+  };
 
   switch (tag) {
     case 'omathpara':
-      return `\n$$${convertAll(children)}$$\n`;
+      return { ...baseNode, type: 'container', tag: 'omathpara', children: astChildren() };
     case 'omath':
-      return convertAll(children);
+      return { ...baseNode, type: 'container', tag: 'omath', children: astChildren() };
     case 'r':
-      return convertAll(children);
+      return { ...baseNode, type: 'container', tag: 'r', children: astChildren() };
     case 't':
-      return convertAll(children);
+      return { ...baseNode, type: 'text', value: children.join('') };
     case 'f': {
       const numNode = getChildByTag('num');
       const denNode = getChildByTag('den');
-      const numLatex = numNode ? convertAll(numNode.children) : '';
-      const denLatex = denNode ? convertAll(denNode.children) : '';
-      return `\\frac{${numLatex}}{${denLatex}}`;
+      return {
+        ...baseNode,
+        type: 'fraction',
+        num: numNode ? { type: 'container', sourceTag: 'num', nestingHierarchy: depth + 1, children: numNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] },
+        den: denNode ? { type: 'container', sourceTag: 'den', nestingHierarchy: depth + 1, children: denNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
-    case 'sup': {
+    case 'sup':
+    case 'ssup': {
       const eNode = getChildByTag('e');
       const supNode = getChildByTag('sup');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      const supLatex = supNode ? convertAll(supNode.children) : '';
-      return `${eLatex}^{${supLatex}}`;
+      return {
+        ...baseNode,
+        type: 'superscript',
+        base: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] },
+        sup: supNode ? { type: 'container', sourceTag: 'sup', nestingHierarchy: depth + 1, children: supNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
-    case 'sub': {
+    case 'sub':
+    case 'ssub': {
       const eNode = getChildByTag('e');
       const subNode = getChildByTag('sub');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      const subLatex = subNode ? convertAll(subNode.children) : '';
-      return `${eLatex}_{${subLatex}}`;
+      return {
+        ...baseNode,
+        type: 'subscript',
+        base: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] },
+        sub: subNode ? { type: 'container', sourceTag: 'sub', nestingHierarchy: depth + 1, children: subNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
     case 'ssubsup': {
       const eNode = getChildByTag('e');
       const subNode = getChildByTag('sub');
       const supNode = getChildByTag('sup');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      const subLatex = subNode ? convertAll(subNode.children) : '';
-      const supLatex = supNode ? convertAll(supNode.children) : '';
-      return `${eLatex}_{${subLatex}}^{${supLatex}}`;
+      return {
+        ...baseNode,
+        type: 'subsuperscript',
+        base: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] },
+        sub: subNode ? { type: 'container', sourceTag: 'sub', nestingHierarchy: depth + 1, children: subNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] },
+        sup: supNode ? { type: 'container', sourceTag: 'sup', nestingHierarchy: depth + 1, children: supNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
     case 'rad': {
       const degNode = getChildByTag('deg');
       const eNode = getChildByTag('e');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      if (degNode) {
-        const degLatex = convertAll(degNode.children);
-        return `\\sqrt[${degLatex}]{${eLatex}}`;
-      }
-      return `\\sqrt{${eLatex}}`;
+      return {
+        ...baseNode,
+        type: 'radical',
+        deg: degNode ? { type: 'container', sourceTag: 'deg', nestingHierarchy: depth + 1, children: degNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : null,
+        expr: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
     case 'nary': {
       const subNode = getChildByTag('sub');
       const supNode = getChildByTag('sup');
       const eNode = getChildByTag('e');
       const naryPrNode = getChildByTag('naryPr');
-
       let op = '\\sum';
       if (naryPrNode) {
         const chrNode = (naryPrNode.children || []).find(
@@ -203,21 +253,18 @@ export function translateOmmlNode(node: XmlNode | string): string {
           else if (val) op = val;
         }
       }
-
-      const subLatex = subNode ? convertAll(subNode.children) : '';
-      const supLatex = supNode ? convertAll(supNode.children) : '';
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-
-      let limits = '';
-      if (subLatex) limits += `_{${subLatex}}`;
-      if (supLatex) limits += `^{${supLatex}}`;
-
-      return `${op}${limits} ${eLatex}`;
+      return {
+        ...baseNode,
+        type: 'nary',
+        operator: op,
+        sub: subNode ? { type: 'container', sourceTag: 'sub', nestingHierarchy: depth + 1, children: subNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : null,
+        sup: supNode ? { type: 'container', sourceTag: 'sup', nestingHierarchy: depth + 1, children: supNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : null,
+        expr: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
     }
     case 'd': {
       const eNode = getChildByTag('e');
       const dPrNode = getChildByTag('dPr');
-
       let beg = '(';
       let end = ')';
       if (dPrNode) {
@@ -227,213 +274,420 @@ export function translateOmmlNode(node: XmlNode | string): string {
         const endChr = (dPrNode.children || []).find(
           (c) => typeof c !== 'string' && c.tag.toLowerCase() === 'endchr'
         ) as XmlNode | undefined;
-        if (begChr?.attrs) {
-          beg = begChr.attrs.val || begChr.attrs['m:val'] || '(';
-        }
-        if (endChr?.attrs) {
-          end = endChr.attrs.val || endChr.attrs['m:val'] || ')';
+        if (begChr?.attrs) beg = begChr.attrs.val || begChr.attrs['m:val'] || '(';
+        if (endChr?.attrs) end = endChr.attrs.val || endChr.attrs['m:val'] || ')';
+      }
+      return {
+        ...baseNode,
+        type: 'delimiter',
+        beg,
+        end,
+        expr: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
+      };
+    }
+    case 'm': {
+      const mrNodes = children.filter(c => typeof c !== 'string' && c.tag.toLowerCase() === 'mr') as XmlNode[];
+      const rows = mrNodes.map(mrNode => {
+        const eNodes = (mrNode.children || []).filter(c => typeof c !== 'string' && c.tag.toLowerCase() === 'e') as XmlNode[];
+        return eNodes.map(eNode => ({ type: 'container', sourceTag: 'e', nestingHierarchy: depth + 2, children: eNode.children.map(c => ommlToAst(c, depth + 3)).filter(Boolean) }));
+      });
+      return {
+        ...baseNode,
+        type: 'matrix',
+        rows
+      };
+    }
+    case 'eqarr': {
+      const eNodes = children.filter(c => typeof c !== 'string' && c.tag.toLowerCase() === 'e') as XmlNode[];
+      const rows = eNodes.map(eNode => ({ type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) }));
+      return {
+        ...baseNode,
+        type: 'aligned',
+        rows
+      };
+    }
+    case 'acc': {
+      const accPrNode = getChildByTag('accPr');
+      const eNode = getChildByTag('e');
+      let accChar = '→';
+      if (accPrNode) {
+        const chrNode = (accPrNode.children || []).find(
+          (c) => typeof c !== 'string' && c.tag.toLowerCase() === 'chr'
+        ) as XmlNode | undefined;
+        if (chrNode?.attrs) {
+          accChar = chrNode.attrs.val || chrNode.attrs['m:val'] || '→';
         }
       }
-
-      const escapeChr = (c: string) => {
-        if (c === '{') return '\\{';
-        if (c === '}') return '\\}';
-        if (c === '[') return '[';
-        if (c === ']') return ']';
-        if (c === '(') return '(';
-        if (c === ')') return ')';
-        return c;
+      return {
+        ...baseNode,
+        type: 'accent',
+        char: accChar,
+        expr: eNode ? { type: 'container', sourceTag: 'e', nestingHierarchy: depth + 1, children: eNode.children.map(c => ommlToAst(c, depth + 2)).filter(Boolean) } : { type: 'container', children: [] }
       };
-
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      return `\\left${escapeChr(beg)} ${eLatex} \\right${escapeChr(end)}`;
-    }
-    case 'limlow': {
-      const eNode = getChildByTag('e');
-      const limNode = getChildByTag('lim');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      const limLatex = limNode ? convertAll(limNode.children) : '';
-      return `\\lim_{${limLatex}} ${eLatex}`;
-    }
-    case 'limupp': {
-      const eNode = getChildByTag('e');
-      const limNode = getChildByTag('lim');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      const limLatex = limNode ? convertAll(limNode.children) : '';
-      return `\\overset{${limLatex}}{${eLatex}}`;
-    }
-    case 'bar': {
-      const eNode = getChildByTag('e');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      return `\\overline{${eLatex}}`;
-    }
-    case 'box': {
-      const eNode = getChildByTag('e');
-      const eLatex = eNode ? convertAll(eNode.children) : '';
-      return `\\boxed{${eLatex}}`;
     }
     default:
-      return convertAll(children);
+      return { ...baseNode, type: 'container', tag, children: astChildren() };
   }
+}
+
+export function mathmlToAst(node: XmlNode | string, depth = 0): any {
+  if (!node) return null;
+  if (typeof node === 'string') {
+    return {
+      type: 'text',
+      sourceTag: '#text',
+      rawSourceContent: node,
+      nestingHierarchy: depth,
+      inlineOrBlock: 'inline',
+      value: node
+    };
+  }
+
+  const tag = node.tag.toLowerCase();
+  const children = node.children || [];
+  const rawSourceContent = serializeXml(node);
+  const astChildren = () => children.map(c => mathmlToAst(c, depth + 1)).filter(Boolean);
+
+  const baseNode = {
+    sourceTag: node.tag,
+    rawSourceContent,
+    nestingHierarchy: depth,
+    inlineOrBlock: (node.attrs?.display === 'block') ? 'block' : 'inline',
+  };
+
+  switch (tag) {
+    case 'math':
+      return { ...baseNode, type: 'container', tag: 'math', display: node.attrs?.display, children: astChildren() };
+    case 'mfrac':
+      return {
+        ...baseNode,
+        type: 'fraction',
+        num: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        den: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'msup':
+      return {
+        ...baseNode,
+        type: 'superscript',
+        base: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        sup: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'msub':
+      return {
+        ...baseNode,
+        type: 'subscript',
+        base: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        sub: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'msubsup':
+      return {
+        ...baseNode,
+        type: 'subsuperscript',
+        base: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        sub: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] },
+        sup: children[2] ? mathmlToAst(children[2], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'msqrt':
+      return {
+        ...baseNode,
+        type: 'radical',
+        deg: null,
+        expr: { type: 'container', tag: 'mrow', nestingHierarchy: depth + 1, children: astChildren() }
+      };
+    case 'mroot':
+      return {
+        ...baseNode,
+        type: 'radical',
+        deg: children[1] ? mathmlToAst(children[1], depth + 1) : null,
+        expr: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'mfenced':
+      return {
+        ...baseNode,
+        type: 'delimiter',
+        beg: node.attrs?.open || '(',
+        end: node.attrs?.close || ')',
+        expr: { type: 'container', tag: 'mrow', nestingHierarchy: depth + 1, children: astChildren() }
+      };
+    case 'mi':
+      return { ...baseNode, type: 'mi', value: children.join('').trim() };
+    case 'mn':
+      return { ...baseNode, type: 'mn', value: children.join('').trim() };
+    case 'mo':
+      return { ...baseNode, type: 'mo', value: children.join('').trim() };
+    case 'mtext':
+      return { ...baseNode, type: 'mtext', value: children.join('') };
+    case 'mrow':
+      return { ...baseNode, type: 'container', tag: 'mrow', children: astChildren() };
+    case 'mtable': {
+      const rows = children.filter(c => typeof c !== 'string' && c.tag.toLowerCase() === 'mtr') as XmlNode[];
+      const astRows = rows.map(row => {
+        const cells = (row.children || []).filter(c => typeof c !== 'string' && c.tag.toLowerCase() === 'mtd') as XmlNode[];
+        return cells.map(cell => mathmlToAst(cell, depth + 2));
+      });
+      return { ...baseNode, type: 'matrix', rows: astRows };
+    }
+    case 'mtr':
+      return { ...baseNode, type: 'container', tag: 'mtr', children: astChildren() };
+    case 'mtd':
+      return { ...baseNode, type: 'container', tag: 'mtd', children: astChildren() };
+    case 'munder':
+      return {
+        ...baseNode,
+        type: 'under',
+        base: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        under: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'mover':
+      return {
+        ...baseNode,
+        type: 'accent',
+        char: children[1] ? (typeof children[1] === 'string' ? children[1] : (children[1].children || []).join('').trim()) : '',
+        expr: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] }
+      };
+    case 'munderover':
+      return {
+        ...baseNode,
+        type: 'underover',
+        base: children[0] ? mathmlToAst(children[0], depth + 1) : { type: 'container', children: [] },
+        under: children[1] ? mathmlToAst(children[1], depth + 1) : { type: 'container', children: [] },
+        over: children[2] ? mathmlToAst(children[2], depth + 1) : { type: 'container', children: [] }
+      };
+    default:
+      return { ...baseNode, type: 'container', tag, children: astChildren() };
+  }
+}
+
+export function astToLatex(node: any): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+
+  let result = '';
+
+  const compile = () => {
+    switch (node.type) {
+      case 'text':
+        return node.value;
+      case 'mi': {
+        const text = node.value;
+        if (text.length > 1 && !text.startsWith('\\')) {
+          if (['sin', 'cos', 'tan', 'log', 'ln', 'lim', 'det', 'max', 'min'].includes(text)) {
+            return `\\${text}`;
+          }
+          return `\\text{${text}}`;
+        }
+        const greek: Record<string, string> = {
+          alpha: '\\alpha', beta: '\\beta', gamma: '\\gamma', delta: '\\delta',
+          theta: '\\theta', pi: '\\pi', sigma: '\\sigma', omega: '\\omega',
+          lambda: '\\lambda', mu: '\\mu', phi: '\\phi', psi: '\\psi'
+        };
+        const greekSymbol = greek[text.toLowerCase()];
+        if (greekSymbol) return greekSymbol;
+        return text;
+      }
+      case 'mn':
+        return node.value;
+      case 'mo': {
+        const text = node.value;
+        if (text === '⋂') return '\\cap';
+        if (text === '⋃') return '\\cup';
+        if (text === '×') return '\\times';
+        if (text === '÷') return '\\div';
+        if (text === '±') return '\\pm';
+        if (text === '→') return '\\rightarrow';
+        if (text === '⇒') return '\\Rightarrow';
+        if (text === '≠') return '\\neq';
+        if (text === '≤') return '\\le';
+        if (text === '≥') return '\\ge';
+        if (text === '∞') return '\\infty';
+        if (text === '&InvisibleTimes;') return '';
+        return text;
+      }
+      case 'mtext':
+        return `\\text{${node.value}}`;
+      case 'container': {
+        const sep = (node.tag === 'math' || node.tag === 'mrow' || node.tag === 'mtr' || node.tag === 'mtd') ? ' ' : '';
+        const content = (node.children || []).map(astToLatex).filter((s: string) => s !== '').join(sep);
+        if (node.tag === 'math') {
+          const isDisplay = node.display === 'block';
+          return isDisplay ? `\n$$${content}$$\n` : `$${content}$`;
+        }
+        return content;
+      }
+      case 'fraction':
+        return `\\frac{${astToLatex(node.num)}}{${astToLatex(node.den)}}`;
+      case 'superscript':
+        return `${astToLatex(node.base)}^{${astToLatex(node.sup)}}`;
+      case 'subscript':
+        return `${astToLatex(node.base)}_${astToLatex(node.sub)}`;
+      case 'subsuperscript':
+        return `${astToLatex(node.base)}_{${astToLatex(node.sub)}}^{${astToLatex(node.sup)}}`;
+      case 'radical': {
+        const expr = astToLatex(node.expr);
+        if (node.deg) {
+          return `\\sqrt[${astToLatex(node.deg)}]{${expr}}`;
+        }
+        return `\\sqrt{${expr}}`;
+      }
+      case 'nary': {
+        const sub = node.sub ? `_{${astToLatex(node.sub)}}` : '';
+        const sup = node.sup ? `^{${astToLatex(node.sup)}}` : '';
+        return `${node.operator}${sub}${sup} ${astToLatex(node.expr)}`;
+      }
+      case 'delimiter': {
+        const escapeChr = (c: string) => {
+          if (c === '{') return '\\{';
+          if (c === '}') return '\\}';
+          return c;
+        };
+        return `\\left${escapeChr(node.beg)} ${astToLatex(node.expr)} \\right${escapeChr(node.end)}`;
+      }
+      case 'matrix': {
+        const rowsLatex = (node.rows || []).map((row: any[]) =>
+          (row || []).map(astToLatex).join(' & ')
+        ).join(' \\\\ ');
+        return `\\begin{matrix}${rowsLatex}\\end{matrix}`;
+      }
+      case 'aligned': {
+        const rowsLatex = (node.rows || []).map(astToLatex).join(' \\\\ ');
+        return `\\begin{aligned}${rowsLatex}\\end{aligned}`;
+      }
+      case 'accent': {
+        const expr = astToLatex(node.expr);
+        const cleanOver = node.char?.trim() || '';
+        if (cleanOver === '→' || cleanOver === '\\rightarrow' || cleanOver === '⃗' || cleanOver === '\u2192' || cleanOver === '\u20d7') {
+          return `\\vec{${expr}}`;
+        }
+        if (cleanOver === '^' || cleanOver === '̂' || cleanOver === '\u0302' || cleanOver === 'hat') {
+          return `\\hat{${expr}}`;
+        }
+        if (cleanOver === '¯' || cleanOver === '̄' || cleanOver === '\u0304' || cleanOver === 'bar' || cleanOver === '‾') {
+          return `\\bar{${expr}}`;
+        }
+        return `\\overset{${cleanOver}}{${expr}}`;
+      }
+      case 'under':
+        return `\\underset{${astToLatex(node.under)}}{${astToLatex(node.base)}}`;
+      case 'underover':
+        return `${astToLatex(node.base)}_{${astToLatex(node.under)}}^{${astToLatex(node.over)}}`;
+      default:
+        return '';
+    }
+  };
+
+  result = compile();
+
+  if (!validateBraces(result)) {
+    console.warn("Unbalanced braces in LaTeX node compilation fallback to plain text:", result);
+    if (node.children) {
+      return (node.children || []).map((c: any) => typeof c === 'string' ? c : c.rawSourceContent || '').join(' ');
+    }
+    return node.rawSourceContent || '';
+  }
+
+  return result;
+}
+
+export function translateOmmlNode(node: XmlNode | string): string {
+  const ast = ommlToAst(node);
+  return astToLatex(ast);
 }
 
 export function translateMathmlNode(node: XmlNode | string): string {
-  if (typeof node === 'string') {
-    return node;
-  }
-  const tag = node.tag.toLowerCase();
-  const children = node.children || [];
+  const ast = mathmlToAst(node);
+  return astToLatex(ast);
+}
 
-  const convertAll = (nodes: (XmlNode | string)[]) =>
-    nodes.map(translateMathmlNode).join('');
+export function shieldMath(html: string): { html: string; map: Record<string, string>; trace: any[] } {
+  if (!html) return { html: '', map: {}, trace: [] };
 
-  switch (tag) {
-    case 'math': {
-      const isDisplay = node.attrs && node.attrs.display === 'block';
-      return isDisplay ? `\n$$${convertAll(children)}$$\n` : `$${convertAll(children)}$`;
-    }
-    case 'mfrac': {
-      const numLatex = children[0] ? translateMathmlNode(children[0]) : '';
-      const denLatex = children[1] ? translateMathmlNode(children[1]) : '';
-      return `\\frac{${numLatex}}{${denLatex}}`;
-    }
-    case 'msup': {
-      const baseLatex = children[0] ? translateMathmlNode(children[0]) : '';
-      const supLatex = children[1] ? translateMathmlNode(children[1]) : '';
-      return `${baseLatex}^{${supLatex}}`;
-    }
-    case 'msub': {
-      const baseLatex = children[0] ? translateMathmlNode(children[0]) : '';
-      const subLatex = children[1] ? translateMathmlNode(children[1]) : '';
-      return `${baseLatex}_${subLatex}`;
-    }
-    case 'msubsup': {
-      const baseLatex = children[0] ? translateMathmlNode(children[0]) : '';
-      const subLatex = children[1] ? translateMathmlNode(children[1]) : '';
-      const supLatex = children[2] ? translateMathmlNode(children[2]) : '';
-      return `${baseLatex}_{${subLatex}}^{${supLatex}}`;
-    }
-    case 'msqrt':
-      return `\\sqrt{${convertAll(children)}}`;
-    case 'mroot': {
-      const baseLatex = children[0] ? translateMathmlNode(children[0]) : '';
-      const idxLatex = children[1] ? translateMathmlNode(children[1]) : '';
-      return `\\sqrt[${idxLatex}]{${baseLatex}}`;
-    }
-    case 'mfenced': {
-      const open = (node.attrs && node.attrs.open) || '(';
-      const close = (node.attrs && node.attrs.close) || ')';
-      return `\\left${open} ${convertAll(children)} \\right${close}`;
-    }
-    case 'mi': {
-      const text = convertAll(children).trim();
-      if (text.length > 1 && !text.startsWith('\\')) {
-        if (['sin', 'cos', 'tan', 'log', 'ln', 'lim', 'det', 'max', 'min'].includes(text)) {
-          return `\\${text}`;
+  const map: Record<string, string> = {};
+  const trace: any[] = [];
+  let counter = 1;
+  let work = html;
+
+  const processMatch = (xmlStr: string, isMathML: boolean) => {
+    const placeholder = `__MATH_PLACEHOLDER_${counter}__`;
+    try {
+      const parsed = parseXml(xmlStr);
+      if (parsed && parsed.length) {
+        const ast = isMathML ? mathmlToAst(parsed[0]) : ommlToAst(parsed[0]);
+        let latex = astToLatex(ast);
+
+        const isBlock = xmlStr.toLowerCase().includes('omathpara') || xmlStr.toLowerCase().includes('display="block"');
+        if (isBlock) {
+          latex = `\n$$${latex.trim()}$$\n`;
+        } else {
+          if (!latex.startsWith('$')) {
+            latex = `$${latex.trim()}$`;
+          }
         }
-        return `\\text{${text}}`;
+
+        map[placeholder] = latex;
+        trace.push({
+          placeholder,
+          latex,
+          success: true,
+          isBlock,
+          sourceTag: parsed[0].tag,
+          rawXml: xmlStr,
+          ast,
+        });
+        counter++;
+        return placeholder;
       }
-      const greek: Record<string, string> = {
-        alpha: '\\alpha', beta: '\\beta', gamma: '\\gamma', delta: '\\delta',
-        theta: '\\theta', pi: '\\pi', sigma: '\\sigma', omega: '\\omega',
-        lambda: '\\lambda', mu: '\\mu', phi: '\\phi', psi: '\\psi'
-      };
-      const greekSymbol = greek[text.toLowerCase()];
-      if (greekSymbol) return greekSymbol;
-      return text;
+    } catch (err: any) {
+      trace.push({
+        placeholder,
+        latex: '',
+        success: false,
+        error: err.message,
+        sourceTag: isMathML ? 'math' : 'oMath',
+        rawXml: xmlStr,
+        ast: null,
+      });
+      console.warn("Failed to parse OMML/MathML node:", err);
     }
-    case 'mn':
-      return convertAll(children).trim();
-    case 'mo': {
-      const text = convertAll(children).trim();
-      if (text === '⋂') return '\\cap';
-      if (text === '⋃') return '\\cup';
-      if (text === '×') return '\\times';
-      if (text === '÷') return '\\div';
-      if (text === '±') return '\\pm';
-      if (text === '→') return '\\rightarrow';
-      if (text === '⇒') return '\\Rightarrow';
-      if (text === '≠') return '\\neq';
-      if (text === '≤') return '\\le';
-      if (text === '≥') return '\\ge';
-      if (text === '∞') return '\\infty';
-      if (text === '&InvisibleTimes;') return '';
-      return text;
-    }
-    case 'mtext':
-      return `\\text{${convertAll(children)}}`;
-    case 'mrow':
-      return convertAll(children);
-    case 'munder': {
-      const base = children[0] ? translateMathmlNode(children[0]) : '';
-      const under = children[1] ? translateMathmlNode(children[1]) : '';
-      return `\\underset{${under}}{${base}}`;
-    }
-    case 'mover': {
-      const base = children[0] ? translateMathmlNode(children[0]) : '';
-      const over = children[1] ? translateMathmlNode(children[1]) : '';
-      return `\\overset{${over}}{${base}}`;
-    }
-    case 'munderover': {
-      const base = children[0] ? translateMathmlNode(children[0]) : '';
-      const under = children[1] ? translateMathmlNode(children[1]) : '';
-      const over = children[2] ? translateMathmlNode(children[2]) : '';
-      return `${base}_{${under}}^{${over}}`;
-    }
-    default:
-      return convertAll(children);
-  }
+    return null;
+  };
+
+  // 1. Handle conditional comment blocks that may contain OMML/MathML
+  const conditionalRegex = /<!--\[if[^>]*\]>([\s\S]*?)<!\[endif\]-->/gi;
+  work = work.replace(conditionalRegex, (match, inner) => {
+    const placeholder = processMatch(inner, false);
+    if (placeholder) return placeholder;
+    return match;
+  });
+
+  // 2. Shield OMML paragraph blocks
+  const oMathParaRegex = /<(?:m:)?oMathPara\b[^>]*>([\s\S]*?)<\/(?:m:)?oMathPara>/gi;
+  work = work.replace(oMathParaRegex, (match) => {
+    const pl = processMatch(match, false);
+    return pl !== null ? pl : match;
+  });
+
+  // 3. Shield OMML inline blocks
+  const oMathRegex = /<(?:m:)?oMath\b[^>]*>([\s\S]*?)<\/(?:m:)?oMath>/gi;
+  work = work.replace(oMathRegex, (match) => {
+    const pl = processMatch(match, false);
+    return pl !== null ? pl : match;
+  });
+
+  const mathmlRegex = /<math\b[^>]*>([\s\S]*?)<\/math>/gi;
+  work = work.replace(mathmlRegex, (match) => {
+    const pl = processMatch(match, true);
+    return pl !== null ? pl : match;
+  });
+
+  return { html: work, map, trace };
 }
 
 export function convertHtmlMathToLatex(html: string): string {
-  if (!html) return '';
-  let work = html;
-
-  // Process oMathPara
-  const oMathParaRegex = /<(?:m:)?oMathPara\b[^>]*>([\s\S]*?)<\/(?:m:)?oMathPara>/gi;
-  work = work.replace(oMathParaRegex, (match, content) => {
-    const xml = `<oMathPara>${content}</oMathPara>`;
-    try {
-      const parsed = parseXml(xml);
-      if (parsed && parsed.length) {
-        return translateOmmlNode(parsed[0]);
-      }
-    } catch {
-      // ignore
-    }
-    return match;
-  });
-
-  // Process oMath
-  const oMathRegex = /<(?:m:)?oMath\b[^>]*>([\s\S]*?)<\/(?:m:)?oMath>/gi;
-  work = work.replace(oMathRegex, (match, content) => {
-    const xml = `<oMath>${content}</oMath>`;
-    try {
-      const parsed = parseXml(xml);
-      if (parsed && parsed.length) {
-        const latex = translateOmmlNode(parsed[0]);
-        return `$${latex}$`;
-      }
-    } catch {
-      // ignore
-    }
-    return match;
-  });
-
-  // Process MathML
-  const mathmlRegex = /<math\b[^>]*>([\s\S]*?)<\/math>/gi;
-  work = work.replace(mathmlRegex, (match, content) => {
-    const xml = `<math>${content}</math>`;
-    try {
-      const parsed = parseXml(xml);
-      if (parsed && parsed.length) {
-        return translateMathmlNode(parsed[0]);
-      }
-    } catch {
-      // ignore
-    }
-    return match;
-  });
-
-  return work;
+  const { html: shielded, map } = shieldMath(html);
+  let restored = shielded;
+  const keys = Object.keys(map).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    restored = restored.split(key).join(map[key]);
+  }
+  return restored;
 }

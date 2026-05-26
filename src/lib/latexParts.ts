@@ -2,8 +2,6 @@ export type ContentPart =
   | { type: 'text'; value: string }
   | { type: 'math'; value: string; display: boolean };
 
-const DISPLAY_REGEX = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]/g;
-const INLINE_REGEX = /\$([^$\n]+?)\$|\\\(([^)]+?)\\\)/g;
 
 export function splitContentParts(raw: string): ContentPart[] {
   if (!raw?.trim()) return [];

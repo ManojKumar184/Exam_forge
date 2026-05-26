@@ -6,7 +6,7 @@ import { FacultyDashboard } from './FacultyDashboard';
 import { StudentDashboard } from './StudentDashboard';
 
 export function DashboardRouter() {
-  const { profile, isAdmin, isFaculty, isStudent, isInitialized } = useAuth();
+  const { profile, isAdmin, isFaculty, isInitialized } = useAuth();
 
   if (!isInitialized) {
     return <Loading fullScreen text="Loading..." />;

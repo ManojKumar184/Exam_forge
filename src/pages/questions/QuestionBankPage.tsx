@@ -42,7 +42,7 @@ export function QuestionBankPage() {
     subjects, chapters, examTypes, questions, isLoading,
     fetchSubjects, fetchChapters, fetchExamTypes, fetchQuestions,
     approveQuestion, rejectQuestion, deleteQuestion, updateQuestion,
-    bulkApproveQuestions, bulkRejectQuestions, bulkDeleteQuestions, bulkUpdateQuestionsMetadata,
+    bulkApproveQuestions, bulkRejectQuestions, bulkUpdateQuestionsMetadata,
   } = useDataStore();
 
   const [filters, setFilters] = useState({

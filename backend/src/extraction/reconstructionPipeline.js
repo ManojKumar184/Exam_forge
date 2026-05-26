@@ -1,6 +1,36 @@
 import { preNormalizeMathText, normalizeLatexSyntax } from './mathNormalizer.js';
+import { shieldMath } from './mathConverter.js';
+import { DOMParser } from 'linkedom';
+import { ollamaReconstructCleanup } from '../ai/ollamaReconstructCleanup.js';
+import { env } from '../config/env.js';
+import { logger } from '../utils/logger.js';
 
-// Unicode math mappings for Stage 9 LaTeX Normalization
+function getParentBlockType(html, xmlMatch) {
+  if (!html || !xmlMatch) return 'paragraph';
+  const idx = html.indexOf(xmlMatch);
+  if (idx === -1) return 'paragraph';
+  
+  const before = html.slice(0, idx);
+  const openTable = before.lastIndexOf('<table');
+  const closeTable = before.lastIndexOf('</table>');
+  if (openTable > closeTable) return 'table';
+  
+  const openLi = before.lastIndexOf('<li');
+  const closeLi = before.lastIndexOf('</li>');
+  if (openLi > closeLi) return 'list_item';
+  
+  const openP = before.lastIndexOf('<p');
+  const closeP = before.lastIndexOf('</p>');
+  if (openP > closeP) {
+    const pContent = before.slice(openP);
+    if (/(?:^[a-dA-D]\s*[\).:\-–—]|\(?\s*[a-dA-D]\s*\)\s*[\).:\-–—])/i.test(pContent.replace(/<[^>]+>/g, '').trim())) {
+      return 'option';
+    }
+  }
+  
+  return 'paragraph';
+}
+
 const UNICODE_TO_LATEX = {
   '∩': ' \\cap ',
   '∪': ' \\cup ',
@@ -30,7 +60,6 @@ const UNICODE_TO_LATEX = {
   'omega': ' \\omega ',
 };
 
-// Safe mathematical characters that should NOT be stripped during Stage 2 Unicode Cleanup
 const SAFE_MATH_CHARS = /[a-zA-Z0-9\s.,;:!?@#&%"'~$()\[\]{}=+\-*/\^_\u2229\u222a\u2282\u2286\u221a\u03c0\u2211\u222b\u2264\u2265\u2260−\u00d7\u00f7|\\{}]/;
 
 const QUESTION_START_RE =
@@ -51,7 +80,6 @@ const OFFICE_PLAIN_NOISE = [
   /\bMsoNormal\b/gi,
 ];
 
-// Helper to decode HTML entities
 export function decodeHtmlEntities(str) {
   if (!str) return '';
   return str
@@ -65,9 +93,75 @@ export function decodeHtmlEntities(str) {
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
-/**
- * Stage 1: OCR Normalization
- */
+export function normalizeOptionPrefixes(text) {
+  if (!text) return '';
+  let result = text;
+  
+  result = result.replace(/(?<![a-zA-Z0-9_\$])[\(\[]\s*([a-dA-D])\s*[\)\]]/gi, (match, letter) => {
+    return `OPTION_${letter.toUpperCase()}`;
+  });
+  
+  result = result.replace(/(?<![\(\[a-zA-Z0-9_\$])\b([a-dA-D])\s*[\).:\-–—](?=\s|$)/gi, (match, letter) => {
+    return `OPTION_${letter.toUpperCase()}`;
+  });
+  
+  return result;
+}
+
+export function splitOptionsByMarkers(text) {
+  if (!text) return { stem: '', options: [], success: false };
+  
+  const markerRegex = /\bOPTION_([A-D])\b/g;
+  const matches = [];
+  let match;
+  while ((match = markerRegex.exec(text)) !== null) {
+    matches.push({
+      label: match[1].toLowerCase(),
+      index: match.index,
+      length: match[0].length
+    });
+  }
+  
+  const LABEL_ORDER = ['a', 'b', 'c', 'd'];
+  const sequences = [];
+  for (let i = 0; i < matches.length; i++) {
+    const seq = [matches[i]];
+    let lastIdx = LABEL_ORDER.indexOf(matches[i].label);
+    for (let j = i + 1; j < matches.length; j++) {
+      const idx = LABEL_ORDER.indexOf(matches[j].label);
+      if (idx === lastIdx + 1) {
+        seq.push(matches[j]);
+        lastIdx = idx;
+      }
+    }
+    sequences.push(seq);
+  }
+  
+  let longest = [];
+  for (const seq of sequences) {
+    if (seq.length > longest.length) {
+      longest = seq;
+    }
+  }
+  
+  if (longest.length >= 2) {
+    const stem = text.slice(0, longest[0].index).trim();
+    const options = [];
+    for (let i = 0; i < longest.length; i++) {
+      const start = longest[i].index + longest[i].length;
+      const end = i + 1 < longest.length ? longest[i + 1].index : text.length;
+      const optionText = text.slice(start, end).replace(/^[\s).:\-–—]+/, '').trim();
+      options.push({
+        label: longest[i].label,
+        text: optionText
+      });
+    }
+    return { stem, options, success: true };
+  }
+  
+  return { stem: text, options: [], success: false };
+}
+
 export function normalizeOcrText(text) {
   if (!text) return '';
   return decodeHtmlEntities(text)
@@ -76,9 +170,6 @@ export function normalizeOcrText(text) {
     .trim();
 }
 
-/**
- * Stage 2: Unicode Cleanup
- */
 export function cleanUnicodeText(text) {
   if (!text) return '';
   let out = text;
@@ -101,9 +192,6 @@ export function cleanUnicodeText(text) {
     .trim();
 }
 
-/**
- * Stage 3: Math Shielding
- */
 export function shieldMathRegions(text) {
   const placeholders = new Map();
   let count = 0;
@@ -115,40 +203,22 @@ export function shieldMathRegions(text) {
     return key;
   };
 
-  // 1. Double Dollar block LaTeX
   work = work.replace(/\$\$([\s\S]+?)\$\$/g, addPlaceholder);
-
-  // 2. Display Bracket LaTeX
   work = work.replace(/\\\[([\s\S]+?)\\\]/g, addPlaceholder);
-
-  // 3. Single Dollar inline LaTeX
   work = work.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
-
-  // 4. Inline Bracket LaTeX
   work = work.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-  // 5. Mathematical equations & relations (with explicit operators including +, -, *, /, =, <, >, etc.)
   const eqRegex = /[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+)+/g;
   work = work.replace(eqRegex, addPlaceholder);
 
-  // 6. Probability notation (e.g. P(A))
   work = work.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
-
-  // 7. Subscripts & Superscripts
   work = work.replace(/\b[a-zA-Z0-9_]+[\^_][-+a-zA-Z0-9_\(\)]+/g, addPlaceholder);
-
-  // 8. Fractions (e.g. 3/4)
   work = work.replace(/\b\d+\s*\/\s*\d+\b/g, addPlaceholder);
-
-  // 9. Greek letters and other unicode math symbols
   work = work.replace(/[√π∑∫αβγδθλμσφω∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
 
   return { shielded: work, placeholders };
 }
 
-/**
- * Stage 4: Semantic Line Merging
- */
 export function mergeLinesSemantically(text) {
   const lines = text.split('\n').map((l) => l.trimEnd());
   const merged = [];
@@ -191,9 +261,6 @@ export function mergeLinesSemantically(text) {
   return merged.join('\n');
 }
 
-/**
- * Stage 8: Math Restoration
- */
 export function restoreMathRegions(text, placeholders) {
   let restored = text;
   const keys = Array.from(placeholders.keys()).sort((a, b) => {
@@ -210,9 +277,70 @@ export function restoreMathRegions(text, placeholders) {
   return restored;
 }
 
-/**
- * Stage 9: LaTeX Normalization
- */
+export function sanitizeFinalOutput(html) {
+  if (!html) return '';
+  let out = html;
+
+  out = out.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+
+  out = out.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+
+  out = out.replace(/<!--[\s\S]*?-->/g, '');
+
+  const vmlTags = [
+    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
+    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
+    'shapetype'
+  ];
+  for (const tag of vmlTags) {
+    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:v|o):${tag}>`, 'gi'), '');
+    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
+  }
+
+  out = out.replace(/<\/?(?:v|o|w|m|x):[^>]*>/gi, '');
+
+  for (let i = 0; i < 3; i++) {
+    out = out.replace(/<span[^>]*>\s*<\/span>/gi, '');
+    out = out.replace(/<p[^>]*>\s*<\/p>/gi, '');
+    out = out.replace(/<div[^>]*>\s*<\/div>/gi, '');
+  }
+
+  out = out.replace(/[ \t]{2,}/g, ' ');
+
+  return out.trim();
+}
+
+export function balanceTags(html) {
+  if (!html) return '';
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<html><body>${html}</body></html>`, 'text/html');
+    
+    const stripEmpty = (el) => {
+      const children = Array.from(el.childNodes);
+      for (const child of children) {
+        if (child.nodeType === 1) {
+          stripEmpty(child);
+        }
+      }
+      const tag = el.tagName.toLowerCase();
+      const isInlineWrapper = ['span', 'font', 'b', 'i', 'u', 'strong', 'em', 'sup', 'sub'].includes(tag);
+      if (isInlineWrapper && !el.textContent?.trim() && !el.querySelector('img, table, iframe')) {
+        el.parentNode?.removeChild(el);
+      }
+    };
+    stripEmpty(doc.body);
+    
+    return doc.body.innerHTML.trim();
+  } catch (err) {
+    console.warn("balanceTags DOMParser failed, using raw:", err);
+    return html;
+  }
+}
+
 export function normalizeLatexRegion(mathText) {
   let trimmed = mathText.trim();
   if (!trimmed) return trimmed;
@@ -231,29 +359,22 @@ export function normalizeLatexRegion(mathText) {
     delimiter = '$';
     trimmed = trimmed.slice(2, -2).trim();
   } else {
-    // If it's a simple hyphenated word or slash word without math context, don't wrap in math delimiters
     const hasMathContext = /[=<>+\*\\^_\u2229\u222a\u221a\u2264\u2265\u2260−±×÷]/.test(trimmed) || 
                            /\b[PQR]\s*\(/.test(trimmed) ||
                            /\d+/.test(trimmed);
     
     if (!hasMathContext && /^[a-zA-Z]+[-/][a-zA-Z]+$/.test(trimmed)) {
-      return trimmed; // Return raw, e.g. "co-ordinate"
+      return trimmed;
     }
     delimiter = '$';
   }
 
-  // Convert unicode characters to latex commands
   for (const [uni, lat] of Object.entries(UNICODE_TO_LATEX)) {
     trimmed = trimmed.split(uni).join(lat);
   }
 
-  // Run Pass 2 Math Normalizer (standardize operators, fix braces, sanitize unknown commands)
   trimmed = normalizeLatexSyntax(trimmed);
-
-  // Fractions inside LaTeX region
   trimmed = trimmed.replace(/(?<![\d\\])(\d+)\s*\/\s*(\d+)(?!\d)/g, '\\frac{$1}{$2}');
-
-  // Normalization cleanup
   trimmed = trimmed.replace(/\s+/g, ' ').trim();
 
   return `${delimiter}${trimmed}${delimiter}`;
@@ -262,7 +383,6 @@ export function normalizeLatexRegion(mathText) {
 export function normalizeAllMathPlaceholders(placeholders) {
   const rawResolved = new Map();
   
-  // 1. Resolve nesting in ascending order of placeholder creation
   const keys = Array.from(placeholders.keys()).sort((a, b) => {
     const numA = parseInt(a.replace(/[^\d]/g, ''), 10);
     const numB = parseInt(b.replace(/[^\d]/g, ''), 10);
@@ -277,7 +397,6 @@ export function normalizeAllMathPlaceholders(placeholders) {
     rawResolved.set(key, val);
   }
 
-  // 2. Normalize raw expressions to LaTeX
   const normalized = new Map();
   for (const [key, rawVal] of rawResolved.entries()) {
     normalized.set(key, normalizeLatexRegion(rawVal));
@@ -285,20 +404,15 @@ export function normalizeAllMathPlaceholders(placeholders) {
   return { normalized, rawResolved };
 }
 
-/**
- * Stage 10: Validation Engine
- */
 export function validateReconstruction(stem, options) {
   const warnings = [];
   let confidence = 1.0;
 
-  // 1. Missing or unreplaced placeholders
   if (/MATHPLACEHOLDER\d+/.test(stem) || options.some(o => /MATHPLACEHOLDER\d+/.test(o.text))) {
     warnings.push('Mathematical equations failed to restore properly');
     confidence -= 0.3;
   }
 
-  // 2. Empty options in MCQ
   if (options.length > 0) {
     if (options.length < 2) {
       warnings.push('MCQ has fewer than 2 options');
@@ -312,7 +426,6 @@ export function validateReconstruction(stem, options) {
     }
   }
 
-  // 3. Unbalanced brackets
   const checkBrackets = (t) => {
     const stack = [];
     const open = ['(', '[', '{'];
@@ -335,14 +448,12 @@ export function validateReconstruction(stem, options) {
     confidence -= 0.15;
   }
 
-  // 4. Unbalanced math delimiters
   const countDollars = (stem.match(/\$/g) || []).length + options.reduce((acc, o) => acc + (o.text.match(/\$/g) || []).length, 0);
   if (countDollars % 2 !== 0) {
     warnings.push('Mathematical KaTeX delimiters are unbalanced');
     confidence -= 0.2;
   }
 
-  // 5. Incomplete reconstruction
   if (stem.length < 15) {
     warnings.push('Extracted question stem is unusually short');
     confidence -= 0.2;
@@ -358,314 +469,553 @@ export function validateReconstruction(stem, options) {
   };
 }
 
-const mapToRecord = (map) => {
+function mapToRecord(map) {
   const rec = {};
   for (const [k, v] of map.entries()) {
     rec[k] = v;
   }
   return rec;
-};
+}
+
+function cleanRenderingArtifacts(html) {
+  if (!html) return { cleaned: '', removedCount: 0 };
+  let removedCount = 0;
+  let cleaned = html;
+
+  const beforeMsEq = cleaned;
+  cleaned = cleaned.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  if (cleaned !== beforeMsEq) removedCount++;
+
+  const beforeVml = cleaned;
+  cleaned = cleaned.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  cleaned = cleaned.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  if (cleaned !== beforeVml) removedCount++;
+
+  cleaned = cleaned.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
+  cleaned = cleaned.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+
+  const vmlTags = [
+    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
+    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
+    'shapetype'
+  ];
+  for (const tag of vmlTags) {
+    const vmlRegex = new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:v|o):${tag}>`, 'gi');
+    if (vmlRegex.test(cleaned)) {
+      cleaned = cleaned.replace(vmlRegex, '');
+      removedCount++;
+    }
+    cleaned = cleaned.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
+  }
+
+  cleaned = cleaned.replace(/<\/?(?:v|o|w|m|x):[^>]*>/gi, '');
+
+  for (let i = 0; i < 3; i++) {
+    cleaned = cleaned.replace(/<span[^>]*>\s*<\/span>/gi, '');
+    cleaned = cleaned.replace(/<p[^>]*>\s*<\/p>/gi, '');
+    cleaned = cleaned.replace(/<div[^>]*>\s*<\/div>/gi, '');
+  }
+
+  cleaned = cleaned.replace(/[ \t]{2,}/g, ' ');
+
+  return { cleaned: cleaned.trim(), removedCount };
+}
+
+function checkMalformedExpressions(text) {
+  const malformed = [];
+  const allFrac = text.match(/\\frac/g) || [];
+  const validFracCount = (text.match(/\\frac\s*\{[^{}]*\}\s*\{[^{}]*\}/g) || []).length;
+  if (validFracCount < allFrac.length) {
+    malformed.push("Malformed fraction: missing numerator or denominator braces");
+  }
+  
+  if (/\b[PQR]\s*\([^)]*$/.test(text)) {
+    malformed.push("Malformed probability expression: missing closing parenthesis");
+  }
+  
+  const dollarCount = (text.match(/\$/g) || []).length;
+  if (dollarCount % 2 !== 0) {
+    malformed.push("Malformed KaTeX delimiters: odd number of dollar signs ($)");
+  }
+  
+  return malformed;
+}
 
 /**
- * Execute the full 10-stage parser pipeline.
+ * Isolate figures by base64 or inline images.
  */
-export function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null) {
-  // If structured blocks are provided, parse directly from blocks
-  if (blocks && blocks.length > 0) {
-    const placeholders = new Map();
-    let count = 0;
+function isolateFigures(html, plain) {
+  const figures = [];
+  let count = 1;
+  let isolatedHtml = html || '';
+  let isolatedPlain = plain || '';
+
+  const imgRegex = /<img[^>]+src=["'](data:image\/[^"']+)["'][^>]*>/gi;
+  isolatedHtml = isolatedHtml.replace(imgRegex, (match, dataUrl) => {
+    const figId = `[FIGURE_${count++}]`;
+    figures.push({
+      id: figId,
+      url: dataUrl,
+      caption: null,
+      type: 'figure',
+    });
+    return figId;
+  });
+
+  const base64Regex = /data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+/gi;
+  isolatedPlain = isolatedPlain.replace(base64Regex, (match) => {
+    const figId = `[FIGURE_${count++}]`;
+    figures.push({
+      id: figId,
+      url: match,
+      caption: null,
+      type: 'figure',
+    });
+    return figId;
+  });
+
+  return { isolatedHtml, isolatedPlain, figures };
+}
+
+/**
+ * Classify question structure.
+ */
+function semanticClassify(stemText, optionsCount) {
+  const lower = stemText.toLowerCase();
+  
+  if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lower)) {
+    return 'COMPREHENSION';
+  }
+  if (/case\s*study|read\s+the\s+following\s+case/i.test(lower)) {
+    return 'CASE_STUDY';
+  }
+  if (/assertion\s*[:\-–—]?\s*(?:reason|reasoning)?/i.test(lower) && /reason\s*[:\-–—]?\s*/i.test(lower)) {
+    return 'ASSERTION_REASON';
+  }
+  if (/match\s+(?:the\s+)?following|column\s+i\b|list-?\s*i\b/i.test(lower)) {
+    return 'MATCH_COLUMNS';
+  }
+  if (/matrix\s*match/i.test(lower)) {
+    return 'MATRIX_MATCH';
+  }
+  if (/true\s+or\s+false|true\s*\/\s*false/i.test(lower)) {
+    return 'TRUE_FALSE';
+  }
+  
+  if (optionsCount >= 2) {
+    const hasStatementLayer = /\b(statement|i|ii|iii|iv|a|b|c)\b/i.test(lower) && 
+                              /(?:only\s+[a-d]\s+and\s+[a-d]|[a-d]\s*,\s*[a-d]\s*only)/i.test(lower);
+    if (hasStatementLayer) {
+      return 'NESTED_OPTION_MCQ';
+    }
+    
+    if (/one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(lower)) {
+      return 'MCQ_MULTI';
+    }
+    return 'MCQ_SINGLE';
+  }
+  
+  if (/[iI]nteger/i.test(lower)) {
+    return 'INTEGER';
+  }
+  if (/numerical/i.test(lower) || /numeric/i.test(lower)) {
+    return 'NUMERICAL';
+  }
+  
+  return 'DESCRIPTIVE';
+}
+
+/**
+ * Extract nested statements from question stem.
+ */
+function extractStatements(text) {
+  const statements = [];
+  const lines = text.split('\n');
+  const statementRegex = /^\s*(?:\(?\s*(?:[iI]+|[0-9]+|[a-zA-Z])\s*\)?\s*[\.:\-–—]\s+|(?:\bStatement\s+[0-9]+)\s*[\.:\-–—]\s+)(.+)$/i;
+  for (const line of lines) {
+    const match = line.trim().match(statementRegex);
+    if (match) {
+      statements.push(match[1].trim());
+    }
+  }
+  return statements;
+}
+
+/**
+ * Execute the 13-stage Unified Ingestion Engine.
+ */
+export async function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null, rawHtml = null) {
+  // 13 Stages container
+  const stages = {
+    stage0: {
+      title: "Stage 0 — Clipboard / DOCX Ingest",
+      mime_types: [],
+      payload_sizes: {},
+      preview_snippets: {},
+      raw_clipboard_html: rawHtml || htmlText || null,
+    },
+    stage1: {
+      title: "Stage 1 — Word Nuclear Cleaner",
+      before_html: rawHtml || htmlText || null,
+      after_html: null,
+      removed_tags: [],
+      removed_attributes: [],
+      math_containing_nodes: [],
+    },
+    stage2: {
+      title: "Stage 2 — Structural HTML Normalization",
+      normalization_log: [],
+    },
+    stage3: {
+      title: "Stage 3 — Figure/Image Isolation",
+      figures_extracted: [],
+      isolated_html: null,
+    },
+    stage4: {
+      title: "Stage 4 — Semantic Math Shielding",
+      equations_detected: [],
+      equations_detail: [],
+      shield_map: {},
+      failed_math_detections: [],
+      total_math_count: 0,
+      preserved_math_count: 0,
+      dropped_math_count: 0,
+    },
+    stage5: {
+      title: "Stage 5 — DOM Block Extraction",
+      blocks: [],
+    },
+    stage6: {
+      title: "Stage 6 — Semantic Question Typing",
+      classified_type: "",
+      evidence: [],
+    },
+    stage7: {
+      title: "Stage 7 — Adaptive Parser Selection",
+      selected_parser: "",
+    },
+    stage8: {
+      title: "Stage 8 — MCQ / Statement / Comprehension Reconstruction",
+      reconstructed_stem: "",
+      reconstructed_options: [],
+      statement_groups: [],
+    },
+    stage9: {
+      title: "Stage 9 — Ollama Semantic Refinement",
+      refined: false,
+      response: null,
+      warnings: [],
+    },
+    stage10: {
+      title: "Stage 10 — Final Validation",
+      warnings: [],
+      parser_confidence: 1.0,
+      unresolved_placeholders: [],
+    },
+    stage11: {
+      title: "Stage 11 — KaTeX Verification",
+      final_katex_source: "",
+      malformed_expressions: [],
+    },
+    stage12: {
+      title: "Stage 12 — Metadata Classification",
+      class: 11,
+      difficulty: "medium",
+      tags: [],
+    },
+    stage13: {
+      title: "Stage 13 — Database-ready Semantic Object Generation",
+      db_object: null,
+    },
+  };
+
+  // Populate Stage 0
+  if (plainText !== null && plainText !== undefined) {
+    stages.stage0.mime_types.push("text/plain");
+    stages.stage0.payload_sizes["text/plain"] = plainText.length;
+    stages.stage0.preview_snippets["text/plain"] = plainText.slice(0, 150) + (plainText.length > 150 ? "..." : "");
+  }
+  const srcHtml = rawHtml || htmlText;
+  if (srcHtml) {
+    stages.stage0.mime_types.push("text/html");
+    stages.stage0.payload_sizes["text/html"] = srcHtml.length;
+    stages.stage0.preview_snippets["text/html"] = srcHtml.slice(0, 150) + (srcHtml.length > 150 ? "..." : "");
+  }
+
+  // Stage 1: Word Nuclear Cleaner
+  let cleanedHtml = srcHtml || '';
+  if (cleanedHtml) {
+    const styleCount = (cleanedHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).length;
+    if (styleCount) stages.stage1.removed_tags.push("style");
+    const xmlCount = (cleanedHtml.match(/<\?xml[\s\S]*?\?>/gi) || []).length;
+    if (xmlCount) stages.stage1.removed_tags.push("xml");
+
+    const ommlMatch = cleanedHtml.match(/<m:oMath>/g) || [];
+    if (ommlMatch.length) stages.stage1.math_containing_nodes.push("OMML (OfficeMath)");
+
+    stages.stage1.removed_attributes = ["class", "style", "mso-*", "lang", "width", "height"];
+    
+    // Clean legacy noise, comments and VML
+    const cleanedRes = cleanRenderingArtifacts(cleanedHtml);
+    cleanedHtml = cleanedRes.cleaned;
+    stages.stage1.after_html = cleanedHtml;
+  }
+
+  // Stage 2: Structural HTML Normalization
+  let normalizedHtml = cleanedHtml;
+  if (normalizedHtml) {
+    normalizedHtml = balanceTags(normalizedHtml);
+    stages.stage2.normalization_log.push({ action: "balanced_tags", details: "Balanced document nodes" });
+  }
+
+  // Stage 3: Figure/Image Isolation
+  const { isolatedHtml, isolatedPlain, figures } = isolateFigures(normalizedHtml, plainText || '');
+  stages.stage3.figures_extracted = figures;
+  stages.stage3.isolated_html = isolatedHtml;
+
+  // Stage 4: Semantic Math Shielding
+  const placeholders = new Map();
+  let count = 0;
+  const addPlaceholder = (match) => {
+    const key = `MATHPLACEHOLDER${count++}`;
+    placeholders.set(key, match);
+    const parentType = getParentBlockType(isolatedHtml || '', match);
+    stages.stage4.equations_detail.push({ key, raw: match, parentBlockType: parentType });
+    stages.stage4.equations_detected.push(match);
+    return key;
+  };
+
+  let shieldedPlain = isolatedPlain;
+  if (shieldedPlain) {
+    shieldedPlain = preNormalizeMathText(shieldedPlain);
+    shieldedPlain = cleanUnicodeText(shieldedPlain);
+    
+    // Protect HTML tags from math shielding regexes
     const htmlPlaceholders = new Map();
     let htmlCount = 0;
-
-    const addPlaceholder = (match) => {
-      const key = `MATHPLACEHOLDER${count++}`;
-      placeholders.set(key, match);
-      return key;
-    };
-
     const addHtmlPlaceholder = (match) => {
       const key = `HTMLTAGPLACEHOLDER${htmlCount++}`;
       htmlPlaceholders.set(key, match);
       return key;
     };
+    shieldedPlain = shieldedPlain.replace(/<[^>]+>/g, addHtmlPlaceholder);
 
-    const cleanUnicodeTextForHtml = (out) => {
-      let work = out;
-      for (const re of OFFICE_PLAIN_NOISE) {
-        work = work.replace(re, ' ');
-      }
-      return work
-        .replace(/\u00a0/g, ' ')
-        .replace(/[\u200b-\u200d\ufeff]/g, '');
-    };
+    shieldedPlain = shieldedPlain.replace(/\$\$([\s\S]+?)\$\$/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\\\[([\s\S]+?)\\\]/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-    // Shield a single string using shared placeholders
-    const shieldBlockContent = (txt) => {
-      let work = normalizeOcrText(txt);
-      // Run preNormalizeMathText on raw block content
-      work = preNormalizeMathText(work);
-      work = cleanUnicodeTextForHtml(work);
-      
-      // Protect HTML tags from math shielding regexes
-      work = work.replace(/<[^>]+>/g, addHtmlPlaceholder);
-      
-      work = work.replace(/\$\$([\s\S]+?)\$\$/g, addPlaceholder);
-      work = work.replace(/\\\[([\s\S]+?)\\\]/g, addPlaceholder);
-      work = work.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
-      work = work.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
-      
-      const eqRegex = /[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+)+/g;
-      work = work.replace(eqRegex, addPlaceholder);
-      
-      work = work.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
-      work = work.replace(/\b[a-zA-Z0-9_]+[\^_][-+a-zA-Z0-9_\(\)]+/g, addPlaceholder);
-      work = work.replace(/\b\d+\s*\/\s*\d+\b/g, addPlaceholder);
-      work = work.replace(/[√π∑∫αβγδθλμσφω∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
-      
-      return work;
-    };
+    const eqRegex = /[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+)+/g;
+    shieldedPlain = shieldedPlain.replace(eqRegex, addPlaceholder);
 
-    const shieldedBlocks = blocks.map(b => ({
-      ...b,
-      content: shieldBlockContent(b.content)
-    }));
+    shieldedPlain = shieldedPlain.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\b[a-zA-Z0-9_]+[\^_][-+a-zA-Z0-9_\(\)]+/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\b\d+\s*\/\s*\d+\b/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/[√π∑∫αβγδθλμσφω∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
 
-    const optionBlocks = shieldedBlocks.filter(b => b.type === 'option');
-    const stemBlocks = shieldedBlocks.filter(b => b.type !== 'option');
-
-    let finalShieldedStem = stemBlocks
-      .map(b => b.content)
-      .join('\n')
-      .trim();
-
-    finalShieldedStem = finalShieldedStem.replace(QUESTION_START_RE, '').trim();
-
-    const isMcq = optionBlocks.length >= 2;
-    let finalOptions = [];
-    let stem = finalShieldedStem;
-    let questionType = 'descriptive';
-    let subtype = 'descriptive';
-
-    if (isMcq) {
-      const order = ['A', 'B', 'C', 'D'];
-      const map = new Map();
-      for (const o of optionBlocks) {
-        if (o.label) map.set(o.label.toUpperCase(), o.content);
-      }
-      
-      const deduplicated = order
-        .map(label => ({ label, text: map.get(label) || '' }))
-        .filter(o => o.text !== '');
-
-      finalOptions = deduplicated.map(o => ({ text: o.text }));
-      questionType = 'mcq';
-      subtype = 'mcq_single';
-
-      const lowerStem = stem.toLowerCase();
-      if (/one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(lowerStem)) {
-        subtype = 'mcq_multiple';
-      }
-    } else {
-      stem = shieldedBlocks.map(b => b.content).join('\n').trim().replace(QUESTION_START_RE, '').trim();
-      questionType = 'descriptive';
-      subtype = 'descriptive';
-
-      const lowerStem = stem.toLowerCase();
-      if (/integer\s+(?:value|answer|type)|answer\s+in\s+integer/i.test(lowerStem)) {
-        questionType = 'numerical';
-        subtype = 'integer';
-      } else if (/numerical\s+(?:value|answer|type)|numeric\s+answer|decimal\s+places/i.test(lowerStem)) {
-        questionType = 'numerical';
-        subtype = 'numerical';
-      } else if (/match\s+(?:the\s+)?following|column\s+i\b|list-?\s*i\b/i.test(lowerStem)) {
-        subtype = 'match_following';
-      } else if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lowerStem)) {
-        subtype = 'comprehension';
-      }
-    }
-
-    const { normalized: normalizedPlaceholders, rawResolved } = normalizeAllMathPlaceholders(placeholders);
-    let restoredStem = restoreMathRegions(stem, normalizedPlaceholders);
-    
+    // Restore HTML tags
     const htmlKeys = Array.from(htmlPlaceholders.keys()).sort((a, b) => b.length - a.length);
-
-    // Restore HTML tags for stem
     for (const key of htmlKeys) {
-      restoredStem = restoredStem.split(key).join(htmlPlaceholders.get(key));
+      shieldedPlain = shieldedPlain.split(key).join(htmlPlaceholders.get(key));
     }
+  }
 
-    const restoredOptions = finalOptions.map(o => {
-      let txt = restoreMathRegions(o.text, normalizedPlaceholders);
-      for (const key of htmlKeys) {
-        txt = txt.split(key).join(htmlPlaceholders.get(key));
+  stages.stage4.shield_map = mapToRecord(placeholders);
+  stages.stage4.total_math_count = count;
+  stages.stage4.preserved_math_count = count;
+
+  // Stage 5: DOM Block Extraction
+  let extractedBlocks = [];
+  if (blocks && blocks.length > 0) {
+    extractedBlocks = JSON.parse(JSON.stringify(blocks));
+  } else {
+    const lines = mergeLinesSemantically(shieldedPlain).split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const optMatch = trimmed.match(OPTION_LINE_START);
+      if (optMatch) {
+        const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
+        const content = trimmed.replace(OPTION_LINE_START, '').trim();
+        extractedBlocks.push({ type: 'option', label, content });
+      } else {
+        extractedBlocks.push({ type: 'paragraph', content: trimmed });
       }
-      return {
-        ...o,
-        text: txt,
-      };
-    });
-
-    const validation = validateReconstruction(restoredStem, restoredOptions);
-
-    const debugInfo = {
-      rawClipboardHtml: htmlText,
-      extractedSemanticBlocks: blocks.map(b => `[${b.type}${b.label ? `:${b.label}` : ''}]: ${b.content}`),
-      shieldedMathPlaceholders: mapToRecord(placeholders),
-      preNormalizedMath: mapToRecord(rawResolved),
-      postNormalizedMath: mapToRecord(normalizedPlaceholders),
-      finalReconstructedOutput: {
-        stem: restoredStem,
-        options: restoredOptions,
-      },
-    };
-
-    return {
-      stem: restoredStem,
-      options: restoredOptions,
-      questionType,
-      subtype,
-      warnings: validation.warnings,
-      confidence: validation.confidence,
-      debugInfo,
-    };
-  }
-
-  // Fallback to normal text parse if no structured blocks provided
-  // Run preNormalizeMathText on raw text first
-  let text = plainText || ocrText || '';
-  text = preNormalizeMathText(text);
-
-  // Stage 1: OCR Normalization
-  text = normalizeOcrText(text);
-
-  // Stage 2: Unicode Cleanup
-  text = cleanUnicodeText(text);
-
-  // Stage 3: Math Shielding
-  const { shielded, placeholders } = shieldMathRegions(text);
-
-  // Stage 4: Semantic Line Merging
-  const merged = mergeLinesSemantically(shielded);
-
-  // Stage 5 & 6: Question Boundary & Option Detection
-  const lines = merged.split('\n');
-  const optionLines = [];
-  const stemLines = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const optMatch = trimmed.match(OPTION_LINE_START);
-    if (optMatch) {
-      const label = (optMatch[1] || optMatch[2] || '').toLowerCase();
-      optionLines.push({
-        label,
-        text: trimmed.replace(OPTION_LINE_START, '').trim(),
-      });
-    } else if (optionLines.length > 0 && trimmed && !QUESTION_START_RE.test(trimmed)) {
-      const last = optionLines[optionLines.length - 1];
-      last.text = `${last.text} ${trimmed}`.trim();
-    } else {
-      stemLines.push(line);
     }
   }
+  stages.stage5.blocks = extractedBlocks;
 
-  let finalShieldedStem = stemLines.join('\n').trim();
-  let finalShieldedOptions = optionLines;
+  // Stage 6: Semantic Question Typing
+  const stemBlocks = extractedBlocks.filter(b => b.type !== 'option');
+  const optionBlocks = extractedBlocks.filter(b => b.type === 'option');
+  const rawStemText = stemBlocks.map(b => b.content).join('\n');
+  const questionType = semanticClassify(rawStemText, optionBlocks.length);
+  stages.stage6.classified_type = questionType;
+  stages.stage6.evidence = [
+    `Stem Length: ${rawStemText.length} chars`,
+    `Options Count: ${optionBlocks.length}`,
+  ];
 
-  // Enforce Option Detection rule: classify as MCQ only if >=2 valid options exist
-  const validateOptionContent = (optText) => {
-    const t = optText.trim();
-    if (!t) return false;
-    return t.length >= 2 || /^\d+$/.test(t) || /MATHPLACEHOLDER/.test(t);
-  };
+  // Stage 7: Adaptive Parser Selection
+  let parserName = "General Parser";
+  if (questionType === "COMPREHENSION") parserName = "Comprehension Parser";
+  else if (questionType === "MATCH_COLUMNS") parserName = "Column Match Parser";
+  else if (questionType === "NESTED_OPTION_MCQ") parserName = "Nested MCQ Parser";
+  stages.stage7.selected_parser = parserName;
 
-  const validOptionsCount = finalShieldedOptions.filter(o => validateOptionContent(o.text)).length;
-  const isMcq = finalShieldedOptions.length >= 2 && validOptionsCount >= 2;
-
+  // Stage 8: MCQ / Statement / Comprehension Reconstruction
+  let stem = rawStemText.replace(QUESTION_START_RE, '').trim();
   let options = [];
-  let stem = '';
-  let questionType = 'descriptive';
-  let subtype = 'descriptive';
+  let statementGroups = extractStatements(stem);
 
-  // Stage 7: Structural Reconstruction
-  if (isMcq) {
-    const order = ['a', 'b', 'c', 'd'];
-    const map = new Map();
-    for (const o of finalShieldedOptions) {
-      if (o.label) map.set(o.label, o.text);
+  if (optionBlocks.length >= 2) {
+    options = optionBlocks.map(o => ({ text: o.content }));
+  } else {
+    // Attempt fallback split
+    const splitResult = splitOptionsByMarkers(normalizeOptionPrefixes(stem));
+    if (splitResult.success) {
+      stem = splitResult.stem.replace(QUESTION_START_RE, '').trim();
+      options = splitResult.options.map(o => ({ text: o.text }));
     }
-    const deduplicated = order
-      .map(label => ({ label, text: map.get(label) || '' }))
-      .filter(o => o.text !== '');
+  }
 
-    options = deduplicated.map(o => ({ text: o.text }));
-    stem = finalShieldedStem;
-    questionType = 'mcq';
-    subtype = 'mcq_single';
+  // Restore Math regions in stem and options
+  const { normalized: normalizedPlaceholders } = normalizeAllMathPlaceholders(placeholders);
+  stem = restoreMathRegions(stem, normalizedPlaceholders);
+  options = options.map(o => ({
+    ...o,
+    text: restoreMathRegions(o.text, normalizedPlaceholders)
+  }));
+  statementGroups = statementGroups.map(s => restoreMathRegions(s, normalizedPlaceholders));
 
-    const lowerStem = stem.toLowerCase();
-    if (
-      /one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(
-        lowerStem
-      )
-    ) {
-      subtype = 'mcq_multiple';
+  stages.stage8.reconstructed_stem = stem;
+  stages.stage8.reconstructed_options = options;
+  stages.stage8.statement_groups = statementGroups;
+
+  // Stage 9: Ollama Semantic Refinement (Local Inference)
+  let correctAnswers = [];
+  let explanation = "";
+  let formulas = Array.from(normalizedPlaceholders.values());
+  let tags = [questionType.toLowerCase()];
+
+  const ollamaModel = env.ai.ollamaModel || 'llama3.2';
+  if (env.ai.provider === 'ollama') {
+    try {
+      const refined = await ollamaReconstructCleanup(
+        { questionText: stem, questionType, options },
+        plainText
+      );
+      if (refined) {
+        stages.stage9.refined = true;
+        stages.stage9.response = refined;
+        if (refined.stem) stem = refined.stem;
+        if (refined.questionType) stages.stage6.classified_type = refined.questionType;
+        if (Array.isArray(refined.options)) {
+          options = refined.options.map(o => ({ text: o.text || o || '' }));
+        }
+        if (Array.isArray(refined.correctAnswers)) {
+          correctAnswers = refined.correctAnswers;
+        }
+        if (refined.explanation) explanation = refined.explanation;
+        if (Array.isArray(refined.statementGroups)) {
+          statementGroups = refined.statementGroups;
+        }
+        if (Array.isArray(refined.formulas)) {
+          formulas = refined.formulas;
+        }
+        if (Array.isArray(refined.tags)) {
+          tags = [...new Set([...tags, ...refined.tags])];
+        }
+      } else {
+        stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
+      }
+    } catch (err) {
+      stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
     }
   } else {
-    options = [];
-    stem = merged;
-    questionType = 'descriptive';
-    subtype = 'descriptive';
-
-    const lowerStem = stem.toLowerCase();
-    if (/integer\s+(?:value|answer|type)|answer\s+in\s+integer/i.test(lowerStem)) {
-      questionType = 'numerical';
-      subtype = 'integer';
-    } else if (/numerical\s+(?:value|answer|type)|numeric\s+answer|decimal\s+places/i.test(lowerStem)) {
-      questionType = 'numerical';
-      subtype = 'numerical';
-    } else if (/match\s+(?:the\s+)?following|column\s+i\b|list-?\s*i\b/i.test(lowerStem)) {
-      subtype = 'match_following';
-    } else if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lowerStem)) {
-      subtype = 'comprehension';
-    }
+    stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
   }
 
-  // Strip question number prefixes
-  stem = stem.replace(QUESTION_START_RE, '').trim();
+  // Stage 10: Final Validation
+  const validation = validateReconstruction(stem, options);
+  stages.stage10.warnings = [...validation.warnings, ...stages.stage9.warnings];
+  stages.stage10.parser_confidence = validation.confidence;
+  
+  const unresolved = stem.match(/MATHPLACEHOLDER\d+/g) || [];
+  options.forEach(o => {
+    const match = o.text.match(/MATHPLACEHOLDER\d+/g);
+    if (match) unresolved.push(...match);
+  });
+  stages.stage10.unresolved_placeholders = [...new Set(unresolved)];
 
-  // Stage 9: LaTeX Normalization
-  const { normalized: normalizedPlaceholders, rawResolved } = normalizeAllMathPlaceholders(placeholders);
+  // Stage 11: KaTeX Verification
+  stages.stage11.final_katex_source = stem;
+  stages.stage11.malformed_expressions = checkMalformedExpressions(stem);
+  options.forEach(o => {
+    const mal = checkMalformedExpressions(o.text);
+    if (mal.length) stages.stage11.malformed_expressions.push(...mal);
+  });
 
-  // Stage 8: Math Restoration
-  const finalStem = restoreMathRegions(stem, normalizedPlaceholders);
-  const finalOptions = options.map(o => ({
-    ...o,
-    text: restoreMathRegions(o.text, normalizedPlaceholders),
-  }));
+  // Stage 12: Metadata Classification
+  stages.stage12.class = 11;
+  stages.stage12.difficulty = "medium";
+  stages.stage12.tags = tags;
 
-  // Stage 10: Validation Pass
-  const validation = validateReconstruction(finalStem, finalOptions);
+  // Stage 13: Database-ready Semantic Object Generation
+  const dbObject = {
+    questionType: stages.stage6.classified_type,
+    stem,
+    options,
+    correctAnswers,
+    explanation,
+    figures,
+    metadata: {
+      class: stages.stage12.class,
+      difficulty: stages.stage12.difficulty,
+      tags: stages.stage12.tags,
+    },
+    formulas,
+    difficulty: stages.stage12.difficulty,
+    tags,
+    source: rawHtml ? 'paste' : 'docx',
+    semanticBlocks: extractedBlocks,
+    statementGroups,
+    comprehensionLinks: [],
+    parserConfidence: stages.stage10.parser_confidence,
+    reconstructionFidelity: Math.max(0.2, 1 - (stages.stage11.malformed_expressions.length * 0.1) - (unresolved.length * 0.15)),
+  };
+  stages.stage13.db_object = dbObject;
 
+  // Build the final result mapping for backward compatibility
   const debugInfo = {
     rawClipboardHtml: htmlText,
-    extractedSemanticBlocks: null,
+    extractedSemanticBlocks: extractedBlocks.map(b => `[${b.type}]: ${b.content || b.text || ''}`),
     shieldedMathPlaceholders: mapToRecord(placeholders),
-    preNormalizedMath: mapToRecord(rawResolved),
+    preNormalizedMath: mapToRecord(normalizedPlaceholders),
     postNormalizedMath: mapToRecord(normalizedPlaceholders),
     finalReconstructedOutput: {
-      stem: finalStem,
-      options: finalOptions,
+      stem,
+      options,
     },
+    stages,
   };
 
   return {
-    stem: finalStem,
-    options: finalOptions,
-    questionType,
-    subtype,
-    warnings: validation.warnings,
-    confidence: validation.confidence,
+    stem,
+    options,
+    questionType: (questionType === "MCQ_SINGLE" || questionType === "MCQ_MULTI") ? "mcq" : questionType.toLowerCase(),
+    subtype: questionType.toLowerCase(),
+    warnings: stages.stage10.warnings,
+    confidence: stages.stage10.parser_confidence,
+    correctAnswers,
+    figures,
+    formulas,
+    semanticBlocks: extractedBlocks,
+    statementGroups,
+    comprehensionLinks: [],
+    reconstructionFidelity: dbObject.reconstructionFidelity,
     debugInfo,
   };
 }

@@ -17,7 +17,12 @@ const questionSchema = new mongoose.Schema(
     questionText: { type: String, required: true },
     questionType: {
       type: String,
-      enum: ['mcq', 'descriptive', 'numerical'],
+      enum: [
+        'mcq', 'descriptive', 'numerical',
+        'MCQ_SINGLE', 'MCQ_MULTI', 'INTEGER', 'NUMERICAL', 'ASSERTION_REASON',
+        'MATCH_COLUMNS', 'COMPREHENSION', 'PARAGRAPH_BASED', 'STATEMENT_SET',
+        'MATRIX_MATCH', 'TRUE_FALSE', 'NESTED_OPTION_MCQ', 'DESCRIPTIVE', 'CASE_STUDY'
+      ],
       required: true,
     },
     questionLatex: { type: String, default: null },
@@ -34,7 +39,7 @@ const questionSchema = new mongoose.Schema(
       enum: ['easy', 'medium', 'hard'],
       default: 'medium',
     },
-    marks: { type: Number, default: 4 },
+    marks: { type: Number, default: null },
     class: { type: Number, required: true, min: 6, max: 12 },
     explanation: { type: String, default: null },
     explanationLatex: { type: String, default: null },
@@ -78,6 +83,17 @@ const questionSchema = new mongoose.Schema(
     extractedFrom: { type: String, default: null },
     uploadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Upload', default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    debugInfo: { type: mongoose.Schema.Types.Mixed, default: null },
+    
+    // SaaS semantic metadata fields
+    correctAnswers: { type: [String], default: [] },
+    figures: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    formulas: { type: [String], default: [] },
+    semanticBlocks: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    statementGroups: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    comprehensionLinks: { type: [mongoose.Schema.Types.ObjectId], ref: 'Question', default: [] },
+    parserConfidence: { type: Number, default: 0 },
+    reconstructionFidelity: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

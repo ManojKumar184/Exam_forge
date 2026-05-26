@@ -14,9 +14,31 @@ export class OllamaProvider extends BaseAIProvider {
   async classify(question, catalog, docMeta = {}) {
     if (!this.isConfigured()) return null;
 
-    const prompt = `Return JSON only: class (6-12), difficulty, questionType, subjectHint, topicHint, examTypeHint, confidence 0-1.
-Subjects: ${(catalog.subjects || []).map((s) => s.name).join(', ')}
-Question: ${(question.questionText || '').slice(0, 1200)}`;
+    const subjectsList = (catalog?.subjects || []).map((s) => s.name).join(', ') || 'Physics, Chemistry, Mathematics, Biology';
+    
+    const systemInstruction = `You are a professional educational document parser and question classifier.
+You MUST analyze the input question and classify it according to standard Indian educational curricula (JEE, NEET, CBSE).
+You MUST return a raw JSON object matching this schema exactly:
+{
+  "class": number, // an integer from 6 to 12
+  "difficulty": string, // "easy", "medium", or "hard"
+  "questionType": string, // "mcq", "numerical", or "descriptive"
+  "subjectHint": string, // One of the allowed subjects: ${subjectsList}
+  "topicHint": string, // Specific chapter or topic name (e.g. "Probability", "Electrostatics")
+  "examTypeHint": string, // "JEE", "NEET", "CBSE", or "School Exam"
+  "confidence": number // float between 0.0 and 1.0
+}
+DO NOT wrap the response in markdown blocks or include any extra commentary. Output ONLY valid JSON.`;
+
+    const prompt = `Classify this question:
+Question Text:
+${question.questionText || ''}
+
+Options:
+${(question.options || []).map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o.text}`).join('\n')}
+
+Additional Context:
+${JSON.stringify(docMeta)}`;
 
     try {
       const res = await fetch(`${env.ai.ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
@@ -24,6 +46,7 @@ Question: ${(question.questionText || '').slice(0, 1200)}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: env.ai.ollamaModel,
+          system: systemInstruction,
           prompt,
           stream: false,
           format: 'json',
@@ -31,7 +54,11 @@ Question: ${(question.questionText || '').slice(0, 1200)}`;
         signal: AbortSignal.timeout(env.ai.requestTimeoutMs),
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        logger.warn(`Ollama classification failed with status ${res.status}`);
+        return null;
+      }
+      
       const body = await res.json();
       const parsed = JSON.parse(body.response || '{}');
       return {
@@ -46,7 +73,7 @@ Question: ${(question.questionText || '').slice(0, 1200)}`;
         },
       };
     } catch (err) {
-      logger.warn('Ollama provider error', { error: err.message });
+      logger.warn('Ollama provider classification error', { error: err.message });
       return null;
     }
   }

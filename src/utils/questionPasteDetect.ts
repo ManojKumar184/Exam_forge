@@ -28,6 +28,17 @@ export interface PasteDetectResult {
   tags: string[];
 }
 
+export function detectVmlEquationImages(html: string): boolean {
+  if (!html) return false;
+  return (
+    /<v:shape\b/i.test(html) ||
+    /<v:imagedata\b/i.test(html) ||
+    /o:OLEObject/i.test(html) ||
+    /clip_image\d+\.png/i.test(html) ||
+    /clip_image\d+/i.test(html)
+  );
+}
+
 export function detectFromPastedContent(raw: string): PasteDetectResult {
   const cleaned = raw.includes('<') ? cleanupWordHtml(raw) : { html: '', plain: cleanPlainText(raw), images: [] };
   const text = autoWrapEquations(cleaned.plain);

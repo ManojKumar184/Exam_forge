@@ -18,7 +18,7 @@ export async function extractPdfWithOcrFallback(filePath, context = {}) {
   const ocr = await ocrService.recognizePdfPages(filePath, { maxPages: context.maxOcrPages ?? 25 });
 
   const blocks = splitTextIntoBlocks(preprocessDocumentText(ocr.text));
-  const questions = normalizeQuestions(blocks, {
+  const questions = await normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf_ocr',
     sourceFile: path.basename(filePath),
@@ -77,7 +77,7 @@ export async function extractPdfQuestions(filePath, context = {}) {
   }
 
   const blocks = splitTextIntoBlocks(preprocessDocumentText(text));
-  const questions = normalizeQuestions(blocks, {
+  const questions = await normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf',
     sourceFile: path.basename(filePath),

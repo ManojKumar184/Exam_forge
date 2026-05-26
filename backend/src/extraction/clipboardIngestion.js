@@ -1,4 +1,5 @@
-import { convertHtmlMathToLatex } from './mathConverter.js';
+import { convertHtmlMathToLatex, shieldMath } from './mathConverter.js';
+import { DOMParser } from 'linkedom';
 
 const OPTION_START = /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)/i;
 const OPTION_LINE_START = /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)(.+)$/i;
@@ -16,45 +17,209 @@ function removeOptionPrefix(html, prefixText) {
 }
 
 /**
- * Strip XML/Mso noise and clean HTML tags.
+ * Walk a DOM tree and clean all class, style, and Microsoft-specific attributes.
  */
-function cleanHtmlSnippet(html) {
-  if (!html) return '';
-  let out = html
-    .replace(/<!--\[if[\s\S]*?endif\]-->/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<\?xml[\s\S]*?\?>/gi, '')
-    .replace(/<o:p>\s*<\/o:p>/gi, '')
-    .replace(/<o:p[^>]*>[\s\S]*?<\/o:p>/gi, '')
-    .replace(/<\/?o:[^>]+>/gi, '')
-    .replace(/<\/?w:[^>]+>/gi, '')
-    .replace(/<\/?m:[^>]+>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/\s*(?:class|style|id|lang|onclick|onload|onerror|onmouseover|mso-[^=]+)\s*=\s*"[^"]*"/gi, '')
-    .replace(/\s*(?:class|style|id|lang|onclick|onload|onerror|onmouseover|mso-[^=]+)\s*=\s*'[^']*'/gi, '');
+function cleanElementDom(el) {
+  // Remove junk nodes (XML tags, scripts, styles)
+  const junkTags = [
+    'o:p', 'xml', 'script', 'style', 'meta', 'link',
+    'officedocumentsettings', 'worddocument', 'latentstyles', 
+    'themedata', 'colorschememapping', 'background', 'formulas',
+    'path', 'stroke', 'shadow', 'fill', 'shape', 'imagedata',
+    'textbox', 'oleobject', 'rect', 'line', 'oval', 'arc',
+    'curve', 'polyline', 'group', 'image', 'shapetype'
+  ];
+  for (const tag of junkTags) {
+    const junkElements = Array.from(el.getElementsByTagName(tag));
+    for (const junk of junkElements) {
+      junk.parentNode?.removeChild(junk);
+    }
+  }
 
-  return out.trim();
+  // Also remove elements starting with o:, w:, m:, v:, x: (except math)
+  const allElements = Array.from(el.getElementsByTagName('*'));
+  for (const node of allElements) {
+    const tag = node.tagName.toLowerCase();
+    if (
+      tag.startsWith('o:') ||
+      tag.startsWith('w:') ||
+      tag.startsWith('v:') ||
+      tag.startsWith('x:') ||
+      (tag.startsWith('m:') && tag !== 'm:omath' && tag !== 'm:omathpara')
+    ) {
+      node.parentNode?.removeChild(node);
+      continue;
+    }
+  }
+
+  // Strip attributes for all remaining elements
+  const remainingElements = Array.from(el.getElementsByTagName('*'));
+  remainingElements.push(el);
+
+  for (const node of remainingElements) {
+    if (!node.parentNode && node !== el) continue;
+
+    const tagName = node.tagName.toLowerCase();
+    const attrs = Array.from(node.attributes);
+    for (const attr of attrs) {
+      const name = attr.name.toLowerCase();
+      let allowed = false;
+      if (tagName === 'img' && name === 'src') allowed = true;
+      if (tagName === 'a' && name === 'href') allowed = true;
+      if ((tagName === 'td' || tagName === 'th') && (name === 'colspan' || name === 'rowspan' || name === 'align' || name === 'valign')) allowed = true;
+
+      if (!allowed) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
 }
 
 /**
- * Extract clean inner text from HTML snippet.
+ * Perform structured DOM normalization passes on the body element.
  */
-function htmlToText(html) {
-  if (!html) return '';
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/div>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\u00a0/g, ' ')
-    .trim();
+function normalizeBodyDom(body) {
+  // 1. Pass 3 & 5: List / Numbering / Option Prefix Collapsing
+  // We run this first so prefix fragments can be collapsed into text nodes before empty nodes/spans are flattened.
+  const prefixRegex = /^\s*(?:\(?\s*\d+\s*\)?\s*[\).:\-–—]|(?:\(?\s*[a-zA-Z]\s*\)?\s*[\).:\-–—])|(?:\(?\s*[ivxIVX]+\s*\)?\s*[\).:\-–—])|(?:\(?\s*[·•\-*▪o]\s*\)?\s*))/i;
+  const allParagraphs = Array.from(body.querySelectorAll('p, div, li, td, th'));
+  for (const p of allParagraphs) {
+    const textContent = p.textContent || '';
+    const trimmed = textContent.trim();
+    
+    const hasPrefix = prefixRegex.test(trimmed);
+    if (hasPrefix) {
+      const prefixMatch = trimmed.match(prefixRegex);
+      if (prefixMatch) {
+        const cleanPrefix = prefixMatch[0].replace(/\s+/g, ' ');
+        const prefixLen = prefixMatch[0].length;
+        let currentLen = 0;
+        
+        const textNodes = [];
+        const findTextNodes = (node) => {
+          if (node.nodeType === 3) { // TEXT_NODE
+            textNodes.push(node);
+          } else {
+            for (const child of Array.from(node.childNodes)) {
+              findTextNodes(child);
+            }
+          }
+        };
+        findTextNodes(p);
+
+        for (const node of textNodes) {
+          const val = node.nodeValue || '';
+          if (currentLen < prefixLen) {
+            const need = prefixLen - currentLen;
+            if (val.length <= need) {
+              currentLen += val.length;
+              node.nodeValue = '';
+            } else {
+              node.nodeValue = val.slice(need);
+              currentLen = prefixLen;
+            }
+          } else {
+            break;
+          }
+        }
+        
+        const prefixNode = p.ownerDocument.createTextNode(cleanPrefix);
+        p.insertBefore(prefixNode, p.firstChild);
+      }
+    }
+  }
+
+  // 2. Pass 2: Empty Node Elimination
+  const stripEmptyNodes = (node) => {
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      stripEmptyNodes(child);
+    }
+
+    if (node.nodeType === 1) { // ELEMENT_NODE
+      const tag = node.tagName.toLowerCase();
+      const isContainer = ['span', 'div', 'p', 'font', 'b', 'i', 'u', 'strong', 'em', 'sup', 'sub'].includes(tag);
+      
+      if (isContainer) {
+        const text = (node.textContent || '').replace(/[\s\u00a0\t\r\n]+/g, ' ').trim();
+        const hasSemanticChildren = node.querySelector('img, table, ol, ul, li') !== null;
+        const hasMath = /MATHPLACEHOLDER/i.test(node.innerHTML) || 
+                        /HTMLTAGPLACEHOLDER/i.test(node.innerHTML) ||
+                        /__MATH_PLACEHOLDER_/i.test(node.innerHTML);
+
+        if (!text && !hasSemanticChildren && !hasMath) {
+          node.parentNode?.removeChild(node);
+        }
+      }
+    }
+  };
+  stripEmptyNodes(body);
+
+  // 3. Pass 1: Semantic Inline Normalization (merge adjacent text nodes and identical inline tags, flatten redundant spans)
+  const normalizeInlineNodes = (el) => {
+    const children = Array.from(el.childNodes);
+    for (const child of children) {
+      normalizeInlineNodes(child);
+    }
+
+    if (el.nodeType === 1) { // ELEMENT_NODE
+      const tag = el.tagName.toLowerCase();
+
+      // Flatten span/font with no attributes
+      if (tag === 'span' || tag === 'font') {
+        if (el.attributes.length === 0) {
+          const parent = el.parentNode;
+          if (parent) {
+            while (el.firstChild) {
+              parent.insertBefore(el.firstChild, el);
+            }
+            parent.removeChild(el);
+          }
+          return;
+        }
+      }
+
+      // Merge adjacent identical inline tags
+      const inlineTags = ['span', 'b', 'i', 'u', 'strong', 'em', 'sup', 'sub'];
+      if (inlineTags.includes(tag)) {
+        const next = el.nextSibling;
+        if (next && next.nodeType === 1) { // ELEMENT_NODE
+          const nextEl = next;
+          if (nextEl.tagName.toLowerCase() === tag) {
+            let attrsMatch = el.attributes.length === nextEl.attributes.length;
+            if (attrsMatch) {
+              for (let i = 0; i < el.attributes.length; i++) {
+                const attr = el.attributes[i];
+                if (nextEl.getAttribute(attr.name) !== attr.value) {
+                  attrsMatch = false;
+                  break;
+                }
+              }
+            }
+            if (attrsMatch) {
+              while (nextEl.firstChild) {
+                el.appendChild(nextEl.firstChild);
+              }
+              nextEl.parentNode?.removeChild(nextEl);
+              normalizeInlineNodes(el);
+            }
+          }
+        }
+      }
+    }
+  };
+  normalizeInlineNodes(body);
+
+  // Merge remaining adjacent text nodes
+  body.normalize();
+}
+
+/**
+ * Clean a single table element recursively.
+ */
+function cleanTableElement(table) {
+  cleanElementDom(table);
+  return table.outerHTML;
 }
 
 /**
@@ -122,7 +287,7 @@ export function parseBlocksFromPlainText(plainText) {
 }
 
 /**
- * Parse HTML into structured semantic blocks using RegExp fallback.
+ * Parse Word HTML into structured semantic blocks using DOMParser.
  */
 export function extractStructuredBlocks(html, plainText) {
   if (!html?.trim()) {
@@ -130,105 +295,139 @@ export function extractStructuredBlocks(html, plainText) {
   }
 
   try {
-    // 1. Convert Math tags (OMML/MathML) inside HTML to clean LaTeX
-    const htmlWithMath = convertHtmlMathToLatex(html);
+    // 1. EARLY PRE-PARSER NORMALIZATION
+    const cleanHtml = preParseNormalizeHtml(html);
 
-    // 2. Clean Office/Style noise
-    const cleanHtml = cleanHtmlSnippet(htmlWithMath);
+    // 2. Shield raw OMML/MathML tags
+    const { html: shieldedHtml, map: mathMap } = shieldMath(cleanHtml);
 
-    // 3. Extract tables, lists, and paragraphs sequentially using regex tokenization
+    // 3. Parse into DOM tree
+    const parser = new DOMParser();
+    // Wrap to guarantee body node is created consistently in linkedom
+    const doc = parser.parseFromString(`<html><body>${shieldedHtml}</body></html>`, 'text/html');
+    const body = doc.body;
+
+    // Apply deterministic DOM-based normalization passes
+    normalizeBodyDom(body);
+
     const blocks = [];
-    const blockRegex = /<(table|ul|ol|p|div|h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi;
-    let match;
-    let lastIndex = 0;
+    const children = Array.from(body.children);
 
-    const handleTextChunk = (text) => {
-      const trimmedText = text.replace(/<[^>]+>/g, '').trim();
-      if (!trimmedText) return;
-      const lines = text.split(/<br\s*\/?>|<\/p>|<\/div>/i);
-      for (const line of lines) {
-        const t = line.replace(/<[^>]+>/g, '').trim();
-        if (!t) continue;
-        const optMatch = t.match(OPTION_START);
-        if (optMatch) {
-          const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
-          const content = removeOptionPrefix(line.trim(), optMatch[0]);
-          blocks.push({
-            type: 'option',
-            content: cleanHtmlSnippet(content),
-            label,
-          });
-        } else {
-          blocks.push({
-            type: 'paragraph',
-            content: cleanHtmlSnippet(line.trim()),
-          });
-        }
+    for (const child of children) {
+      const tag = child.tagName.toLowerCase();
+
+      // Discard junk/non-semantic nodes at root level
+      const junkTags = [
+        'style', 'xml', 'script', 'meta', 'link', 'title', 'head',
+        'officedocumentsettings', 'worddocument', 'latentstyles',
+        'themedata', 'colorschememapping', 'background', 'formulas',
+        'path', 'stroke', 'shadow', 'fill'
+      ];
+      if (
+        junkTags.includes(tag) ||
+        tag.startsWith('o:') ||
+        tag.startsWith('w:') ||
+        tag.startsWith('m:') ||
+        tag.startsWith('v:') ||
+        tag.startsWith('x:')
+      ) {
+        continue;
       }
-    };
-
-    while ((match = blockRegex.exec(cleanHtml)) !== null) {
-      const prefix = cleanHtml.slice(lastIndex, match.index).trim();
-      if (prefix) {
-        handleTextChunk(prefix);
-      }
-
-      const tag = match[1].toLowerCase();
-      const content = match[2].trim();
 
       if (tag === 'table') {
+        // Pass 5: Table-based option structure detection & normalization
+        const cells = Array.from(child.querySelectorAll('td, th'));
+        const optionCells = cells.filter(cell => {
+          const txt = (cell.textContent || '').trim();
+          return OPTION_START.test(txt);
+        });
+        
+        if (optionCells.length >= 2) {
+          // Yes, this table is used to layout options! Extract them as individual option blocks
+          for (const cell of cells) {
+            const txt = (cell.textContent || '').trim();
+            const cellHtml = cell.innerHTML.trim();
+            const optMatch = txt.match(OPTION_START);
+            if (optMatch) {
+              const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
+              const content = removeOptionPrefix(cellHtml, optMatch[0]);
+              blocks.push({
+                type: 'option',
+                content,
+                label,
+              });
+            }
+          }
+          continue;
+        }
+
+        const cleanTableHtml = cleanTableElement(child);
         blocks.push({
           type: 'table',
-          content: `<table border="1">${cleanHtmlSnippet(content)}</table>`,
+          content: cleanTableHtml,
         });
-      } else if (tag === 'ul' || tag === 'ol') {
-        const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-        let liMatch;
-        while ((liMatch = liRegex.exec(content)) !== null) {
-          const liContent = liMatch[1].trim();
-          const liText = htmlToText(liContent);
-          const optMatch = liText.match(OPTION_START);
+        continue;
+      }
+
+      if (tag === 'ul' || tag === 'ol') {
+        const lis = Array.from(child.getElementsByTagName('li'));
+        for (const li of lis) {
+          cleanElementDom(li);
+          const liHtml = li.innerHTML.trim();
+          const liText = li.textContent || '';
+          
+          const optMatch = liText.trim().match(OPTION_START);
           if (optMatch) {
             const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
-            const optionContent = removeOptionPrefix(liContent, optMatch[0]);
+            const content = removeOptionPrefix(liHtml, optMatch[0]);
             blocks.push({
               type: 'option',
-              content: cleanHtmlSnippet(optionContent),
+              content,
               label,
             });
           } else {
             blocks.push({
               type: 'list_item',
-              content: cleanHtmlSnippet(liContent),
+              content: liHtml,
             });
           }
         }
-      } else {
-        // paragraph/heading
-        const textVal = htmlToText(content);
-        const optMatch = textVal.match(OPTION_START);
-        if (optMatch) {
-          const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
-          const optionContent = removeOptionPrefix(content, optMatch[0]);
-          blocks.push({
-            type: 'option',
-            content: cleanHtmlSnippet(optionContent),
-            label,
-          });
-        } else {
-          blocks.push({
-            type: 'paragraph',
-            content: cleanHtmlSnippet(content),
-          });
-        }
+        continue;
       }
 
-      lastIndex = blockRegex.lastIndex;
+      // For p, div, heading elements
+      cleanElementDom(child);
+      const innerHtml = child.innerHTML.trim();
+      const textContent = child.textContent || '';
+      const trimmedText = textContent.trim();
+
+      if (!trimmedText) continue;
+
+      const optMatch = trimmedText.match(OPTION_START);
+      if (optMatch) {
+        const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
+        const content = removeOptionPrefix(innerHtml, optMatch[0]);
+        blocks.push({
+          type: 'option',
+          content,
+          label,
+        });
+      } else {
+        blocks.push({
+          type: 'paragraph',
+          content: innerHtml,
+        });
+      }
     }
 
-    const suffix = cleanHtml.slice(lastIndex).trim();
-    if (suffix) {
-      handleTextChunk(suffix);
+    // Restore math placeholders in all blocks
+    const keys = Object.keys(mathMap).sort((a, b) => b.length - a.length);
+    for (const block of blocks) {
+      for (const key of keys) {
+        if (block.content.includes(key)) {
+          block.content = block.content.split(key).join(mathMap[key]);
+        }
+      }
     }
 
     if (blocks.length === 0 && plainText) {
@@ -237,7 +436,7 @@ export function extractStructuredBlocks(html, plainText) {
 
     return normalizeBlocks(blocks);
   } catch (err) {
-    console.warn('Backend blocks parsing failed, falling back to plain text:', err);
+    console.warn('DOM parsing failed during rich paste cleanup, falling back to plain text:', err);
     return parseBlocksFromPlainText(plainText);
   }
 }
@@ -245,25 +444,28 @@ export function extractStructuredBlocks(html, plainText) {
 function cleanHtmlText(html) {
   let txt = html.replace(/<br\s*\/?>/gi, '\n');
   txt = txt.replace(/<[^>]+>/g, ' ');
-  return htmlToText(txt);
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<html><body>${txt}</body></html>`, 'text/html');
+    return (doc.body.textContent || txt).replace(/\u00a0/g, ' ').trim();
+  } catch {
+    return txt.replace(/\s+/g, ' ').trim();
+  }
 }
 
 function tableToPlainText(tableHtml) {
   try {
-    const rows = [];
-    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let trMatch;
-    while ((trMatch = trRegex.exec(tableHtml)) !== null) {
-      const rowContent = trMatch[1];
-      const cells = [];
-      const cellRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
-      let cellMatch;
-      while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
-        cells.push(cleanHtmlText(cellMatch[1]));
-      }
-      rows.push(cells.join('\t'));
-    }
-    return rows.join('\n');
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<html><body>${tableHtml}</body></html>`, 'text/html');
+    const table = doc.querySelector('table');
+    if (!table) return '';
+    const rows = Array.from(table.querySelectorAll('tr'));
+    return rows
+      .map(row => {
+        const cells = Array.from(row.querySelectorAll('td, th'));
+        return cells.map(cell => cleanHtmlText(cell.innerHTML)).join('\t');
+      })
+      .join('\n');
   } catch {
     return cleanHtmlText(tableHtml);
   }
@@ -287,4 +489,78 @@ export function blocksToPlainText(blocks) {
     .filter(Boolean)
     .join('\n\n')
     .trim();
+}
+
+/**
+ * Deterministically isolate semantic body content and strip all document-level noise,
+ * conditional comments, VML graphics, and Office metadata BEFORE parsing begins.
+ */
+export function preParseNormalizeHtml(html) {
+  if (!html) return '';
+
+  let out = html;
+
+  // 1. Isolate <body> inner content if it exists
+  const bodyMatch = out.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch) {
+    out = bodyMatch[1];
+  } else {
+    // If no body exists, strip html/head/meta/style tags if present
+    out = out
+      .replace(/<html[^>]*>/gi, '')
+      .replace(/<\/html>/gi, '')
+      .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<meta[^>]*>/gi, '')
+      .replace(/<link[^>]*>/gi, '');
+  }
+
+  // 2. Remove conditional comments completely if they are fallback branches
+  // Handles: <!--[if !msEquation]--> ... <![endif]--> AND <![if !msEquation]> ... <![endif]>
+  out = out.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+
+  // 3. Remove conditional comment tags but preserve their inner contents for supportLists/other logic
+  out = out.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
+  out = out.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+
+  // 4. Remove all standard HTML comments
+  out = out.replace(/<!--[\s\S]*?-->/g, '');
+
+  // 5. Remove VML shape/graphics nodes and tags completely (both start/end tags and content)
+  const vmlTags = [
+    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
+    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
+    'shapetype'
+  ];
+  for (const tag of vmlTags) {
+    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/` + `(?:v|o):${tag}>`, 'gi'), '');
+    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
+  }
+
+  // 6. Strip any other namespaced tags from w:, o:, v:, x: namespace, preserving contents
+  // Crucial: we do NOT touch m: (Office Math)
+  out = out.replace(/<\/?(?:w|o|v|x):[^>]*>/gi, '');
+
+  // 7. Strip Office XML/metadata attributes and CSS styles
+  out = out.replace(/behavior\s*:\s*url\([^)]*\);?/gi, '');
+  out = out.replace(/mso-[^:;"]+:[^;"]+;?/gi, '');
+  out = out.replace(/\s*class="Mso[^"]*"/gi, '');
+  out = out.replace(/\s*class='Mso[^']*'/gi, '');
+  out = out.replace(/\s*style="[^"]*mso[^"]*"/gi, '');
+  out = out.replace(/\s*style='[^']*mso[^']*'/gi, '');
+
+  // 8. Clean up any empty paragraphs, divs, or spans recursively (up to 3 levels)
+  for (let i = 0; i < 3; i++) {
+    out = out.replace(/<span[^>]*>\s*<\/span>/gi, '');
+    out = out.replace(/<p[^>]*>\s*<\/p>/gi, '');
+    out = out.replace(/<div[^>]*>\s*<\/div>/gi, '');
+  }
+
+  // 9. Normalize multiple spaces
+  out = out.replace(/[ \t]{2,}/g, ' ');
+
+  return out.trim();
 }

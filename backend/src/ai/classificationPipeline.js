@@ -1,6 +1,6 @@
 import { estimateDifficulty } from '../extraction/metadataClassifier.js';
 import { applySemanticCatalogHints } from './semanticTagging.js';
-import { getRulesProvider, getLlmProvider } from './providerRegistry.js';
+import { getRulesProvider, getLlmProvider, getOllamaProvider } from './providerRegistry.js';
 import { resolveGeminiHints } from './geminiCatalogResolver.js';
 import { logger } from '../utils/logger.js';
 
@@ -8,9 +8,7 @@ function resolveId(v) {
   return v?.toString?.() || v || null;
 }
 
-/**
- * Merge rule + semantic + optional LLM classification.
- */
+// ... (keep the mergeClassification helper unchanged)
 export function mergeClassification(rules, semantic, llm, question, catalog = {}) {
   const warnings = [...(rules.extractionWarnings || [])];
   let classLevel = rules.class ?? semantic?.class ?? llm?.class;
@@ -105,12 +103,36 @@ export async function runClassificationPipeline(
 
   let llm = null;
   const llmProvider = getLlmProvider();
+  let primaryFailed = false;
+
   if (llmProvider) {
     try {
       llm = await llmProvider.classify(question, catalog, docMeta);
-      if (llm) llm.provider = llmProvider.name;
+      if (llm) {
+        llm.provider = llmProvider.name;
+      } else {
+        primaryFailed = true;
+      }
     } catch (err) {
-      logger.warn('LLM classification skipped', { error: err.message });
+      logger.warn('Primary LLM classification failed, attempting fallback', { error: err.message });
+      primaryFailed = true;
+    }
+  } else {
+    primaryFailed = true;
+  }
+
+  if (primaryFailed && llmProvider?.name !== 'ollama') {
+    const ollama = getOllamaProvider();
+    if (ollama && ollama.isConfigured()) {
+      try {
+        logger.info('Executing Ollama local fallback classification...');
+        llm = await ollama.classify(question, catalog, docMeta);
+        if (llm) {
+          llm.provider = 'ollama';
+        }
+      } catch (err) {
+        logger.warn('Ollama fallback classification failed', { error: err.message });
+      }
     }
   }
 

@@ -43,6 +43,7 @@ export function mapQuestion(doc) {
     ai_metadata: d.aiMetadata || {},
     status: d.status,
     extraction_warnings: d.extractionWarnings || [],
+    debug_info: d.debugInfo || null,
     duplicate_hash: d.duplicateHash,
     reviewed_by: d.reviewedBy ? idStr(d.reviewedBy) : null,
     reviewed_at: d.reviewedAt?.toISOString?.() || null,
@@ -53,6 +54,16 @@ export function mapQuestion(doc) {
     created_by: d.createdBy ? idStr(d.createdBy) : null,
     created_at: d.createdAt?.toISOString?.(),
     updated_at: d.updatedAt?.toISOString?.(),
+    
+    // SaaS semantic metadata fields mapping
+    correct_answers: d.correctAnswers || [],
+    figures: d.figures || [],
+    formulas: d.formulas || [],
+    semantic_blocks: d.semanticBlocks || [],
+    statement_groups: d.statementGroups || [],
+    comprehension_links: (d.comprehensionLinks || []).map(idStr),
+    parser_confidence: d.parserConfidence ?? 0,
+    reconstruction_fidelity: d.reconstructionFidelity ?? 0,
     subject: d.subjectId?.name
       ? {
           id: idStr(d.subjectId._id || d.subjectId),
@@ -95,8 +106,10 @@ export function mapUpload(doc) {
     questions_approved: d.questionsApproved,
     processing_error: d.processingError,
     processing_stage: d.processingStage,
+    progress: d.progress ?? 0,
     extraction_warnings: d.extractionWarnings || [],
     uploaded_by: idStr(d.uploadedBy),
+    stage_logs: d.stageLogs || [],
     created_at: d.createdAt?.toISOString?.(),
     processed_at: d.processedAt?.toISOString?.() || null,
   };
@@ -130,6 +143,24 @@ export function bodyToQuestionFields(body) {
     image_metadata: 'imageMetadata',
     has_table: 'hasTable',
     rendering_metadata: 'renderingMetadata',
+    debug_info: 'debugInfo',
+    debugInfo: 'debugInfo',
+    
+    // SaaS fields mapping
+    correct_answers: 'correctAnswers',
+    correctAnswers: 'correctAnswers',
+    figures: 'figures',
+    formulas: 'formulas',
+    semantic_blocks: 'semanticBlocks',
+    semanticBlocks: 'semanticBlocks',
+    statement_groups: 'statementGroups',
+    statementGroups: 'statementGroups',
+    comprehension_links: 'comprehensionLinks',
+    comprehensionLinks: 'comprehensionLinks',
+    parser_confidence: 'parserConfidence',
+    parserConfidence: 'parserConfidence',
+    reconstruction_fidelity: 'reconstructionFidelity',
+    reconstructionFidelity: 'reconstructionFidelity',
   };
 
   const out = {};

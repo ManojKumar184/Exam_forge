@@ -227,7 +227,7 @@ export function PaperGeneratorPage() {
           },
         ],
       });
-      const replacement = selection.sections[0]?.questions[0] as Question | undefined;
+      const replacement = selection.sections[0]?.questions[0] as unknown as Question | undefined;
       if (!replacement) {
         alert('No replacement question available');
         return;

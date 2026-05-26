@@ -4,7 +4,7 @@ import { Check, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 interface AlertProps {
   variant?: 'success' | 'error' | 'warning' | 'info';
   title?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }
 

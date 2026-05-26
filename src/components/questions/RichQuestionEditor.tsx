@@ -13,7 +13,7 @@ interface RichQuestionEditorProps {
   value: string;
   onChange: (html: string, plainFallback: string) => void;
   onImagesChange: (urls: string[]) => void;
-  onPastePayload?: (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[] }) => void;
+  onPastePayload?: (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[]; rawClipboardHtml?: string }) => void;
   images: string[];
   placeholder?: string;
   ocrText?: string;
@@ -57,10 +57,10 @@ export function RichQuestionEditor({
   }, [onChange]);
 
   const emitPaste = useCallback(
-    (html: string, plain: string, extraImages: string[] = [], blocks?: SemanticBlock[]) => {
+    (html: string, plain: string, extraImages: string[] = [], blocks?: SemanticBlock[], rawClipboardHtml?: string) => {
       const imgs = [...new Set([...images, ...extraImages])];
       if (extraImages.length) onImagesChange(imgs);
-      onPastePayload?.({ html, plain, images: imgs, blocks });
+      onPastePayload?.({ html, plain, images: imgs, blocks, rawClipboardHtml });
     },
     [images, onImagesChange, onPastePayload]
   );
@@ -125,7 +125,7 @@ export function RichQuestionEditor({
         if (!el) return;
         const fullHtml = el.innerHTML;
         onChange(fullHtml, customPlain);
-        emitPaste(fullHtml, customPlain, pastedImages, blocks);
+        emitPaste(fullHtml, customPlain, pastedImages, blocks, html);
       }, 0);
       return;
     }

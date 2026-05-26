@@ -38,7 +38,7 @@ const sidebarItems: SidebarItem[] = [
 ];
 
 export function Layout() {
-  const { profile, signOut, isAdmin, isFaculty, isStudent } = useAuth();
+  const { profile, signOut, isAdmin, isFaculty } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 

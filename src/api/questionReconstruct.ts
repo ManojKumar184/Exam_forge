@@ -15,7 +15,7 @@ export interface ReconstructApiResult {
   numericalAnswer: number | null;
   correctOption: number | null;
   warnings: string[];
-  sources: { parser: boolean; ocr: boolean; gemini: boolean };
+  sources: { parser: boolean; ocr: boolean; gemini: boolean; ollama?: boolean };
   debugInfo?: ReconstructionDebugInfo;
 }
 
@@ -24,6 +24,7 @@ import type { SemanticBlock } from '../utils/clipboardIngestion';
 export interface ReconstructApiBody {
   html?: string;
   plain?: string;
+  rawHtml?: string;
   ocrText?: string;
   images?: string[];
   useGemini?: boolean;

@@ -146,14 +146,14 @@ export interface Paper {
 }
 
 export interface PaperQuestion {
-  id: string;
-  paper_id: string;
+  id?: string;
+  paper_id?: string;
   question_id: string;
   section: string;
   section_order: number;
   question_order: number;
   custom_marks: number | null;
-  created_at: string;
+  created_at?: string;
   question?: Question;
 }
 
@@ -242,10 +242,14 @@ export interface Upload {
   file_type: UploadFileType;
   file_size: number | null;
   status: UploadStatus;
+  processing_stage?: string;
+  progress?: number;
   questions_extracted: number;
   questions_approved: number;
   processing_error: string | null;
+  extraction_warnings?: string[];
   uploaded_by: string;
+  stage_logs?: string[];
   created_at: string;
   processed_at: string | null;
 }

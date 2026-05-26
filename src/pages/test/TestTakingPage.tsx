@@ -20,7 +20,7 @@ import { QuestionContentPreview, RichOptionContent } from '../../components/cont
 import {
   Clock, ChevronLeft, ChevronRight, Flag, Trophy
 } from 'lucide-react';
-import type { Question, TestAttempt, OnlineTest } from '../../types';
+import type { Question, TestAttempt, OnlineTest, QuestionOption } from '../../types';
 
 interface QuestionWithOrder {
   id: string;
@@ -436,7 +436,7 @@ export function TestTakingPage() {
   }
 
   const currentQuestion = questions[currentIndex];
-  const options = currentQuestion.question.options as { text?: string }[];
+  const options = currentQuestion.question.options as QuestionOption[];
   const displayOptions = currentQuestion.shuffled_options
     ? currentQuestion.shuffled_options.map((i) => ({ originalIndex: i, option: options[i] }))
     : options.map((opt, i) => ({ originalIndex: i, option: opt }));

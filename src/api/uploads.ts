@@ -3,8 +3,8 @@ import type { Upload } from '../types';
 
 export interface UploadProcessResult {
   upload: Upload;
-  questionsExtracted: number;
-  warnings: string[];
+  questionsExtracted?: number;
+  warnings?: string[];
 }
 
 export async function uploadQuestionFileApi(
@@ -17,7 +17,7 @@ export async function uploadQuestionFileApi(
   if (options?.subject_id) formData.append('subject_id', options.subject_id);
   if (options?.exam_type_id) formData.append('exam_type_id', options.exam_type_id);
 
-  const { data } = await apiClient.post<{ success: boolean; data: UploadProcessResult }>(
+  const { data } = await apiClient.post<{ success: boolean; data: any }>(
     '/uploads',
     formData,
     {
@@ -25,6 +25,16 @@ export async function uploadQuestionFileApi(
       timeout: 120000,
     }
   );
+  
+  // Accept both synchronous (old) and asynchronous response payload structures
+  if (data.data && data.data.upload) {
+    return data.data;
+  }
+  return { upload: data.data };
+}
+
+export async function getUploadStatusApi(id: string): Promise<Upload> {
+  const { data } = await apiClient.get<{ success: boolean; data: Upload }>(`/uploads/${id}`);
   return data.data;
 }
 

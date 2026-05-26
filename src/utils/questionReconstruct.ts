@@ -27,7 +27,7 @@ export interface ReconstructResult {
   numericalAnswer: number | null;
   correctOption: number | null;
   warnings: string[];
-  sources: { parser: boolean; ocr: boolean; gemini: boolean };
+  sources: { parser: boolean; ocr: boolean; gemini: boolean; ollama?: boolean };
   
   // Add temporary structured reconstruction state
   raw_stem: string;
@@ -56,7 +56,7 @@ function localReconstruct(input: ReconstructInput): ReconstructResult {
   const images = [...new Set([...(input.images || []), ...merged.images])].slice(0, 6);
 
   // Run the new 10-stage pipeline
-  const pipeline = runStagesReconstruction(merged.plain, merged.html, input.ocrText, input.blocks);
+  const pipeline = runStagesReconstruction(merged.plain, merged.html, input.ocrText, input.blocks, input.html);
 
   // Extract correct option if available (e.g. from answer text matching)
   let correctOption: number | null = null;
@@ -151,6 +151,7 @@ export async function runQuestionReconstruction(
       {
         html: prepped.html || input.html,
         plain: prepped.plain || input.plain,
+        rawHtml: input.html,
         ocrText: input.ocrText,
         images: [...new Set([...(input.images || []), ...prepped.images])],
         useGemini: input.useGemini,

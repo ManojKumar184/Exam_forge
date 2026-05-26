@@ -29,6 +29,10 @@ export function getLlmProvider() {
   return p?.isConfigured() ? p : null;
 }
 
+export function getOllamaProvider() {
+  return ollama;
+}
+
 export function listConfiguredProviders() {
   const list = ['rules'];
   for (const [name, p] of Object.entries(LLM_PROVIDERS)) {

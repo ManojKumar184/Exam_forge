@@ -156,13 +156,38 @@ export async function parseDocxXmlStructure(buffer) {
  */
 export function buildTextFromDocxStructure(structure) {
   const lines = [];
+  const listCounters = {};
+
   for (const p of structure.paragraphs || []) {
     if (p.isSection) {
       lines.push('');
       lines.push(p.text);
       continue;
     }
-    lines.push(p.text);
+
+    let prefix = '';
+    if (p.numbering && p.numbering.numId) {
+      const numId = p.numbering.numId;
+      const ilvl = p.numbering.ilvl || '0';
+
+      if (!listCounters[numId]) {
+        listCounters[numId] = {};
+      }
+      if (listCounters[numId][ilvl] === undefined) {
+        listCounters[numId][ilvl] = 0;
+      }
+      listCounters[numId][ilvl]++;
+
+      const currentCount = listCounters[numId][ilvl];
+      const numPattern = new RegExp(`^(?:Q(?:uestion)?\\s*)?${currentCount}\\b`, 'i');
+      const generalNumPattern = /^(?:Q(?:uestion)?\\s*)?\d{1,3}[\).:\-\s]/i;
+      
+      if (!numPattern.test(p.text) && !generalNumPattern.test(p.text)) {
+        prefix = `${currentCount}. `;
+      }
+    }
+
+    lines.push(prefix + p.text);
   }
   return preprocessDocumentText(lines.join('\n'));
 }

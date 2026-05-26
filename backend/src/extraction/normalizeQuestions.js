@@ -68,7 +68,7 @@ export function splitTextIntoBlocks(rawText) {
       const opt = parseOptionLine(trimmed);
       if (opt) {
         inComprehensionPassage = false;
-        current.options.push({ text: opt.text, image: null, latex: null });
+        current.options.push({ text: opt.text, label: opt.label, image: null, latex: null });
         continue;
       }
     }
@@ -96,6 +96,7 @@ export function splitTextIntoBlocks(rawText) {
       if (merged !== current.options) {
         current.options = merged.map((o) => ({
           text: o.text,
+          label: o.label || null,
           image: o.image ?? null,
           latex: o.latex ?? null,
         }));
@@ -115,7 +116,7 @@ export function splitTextIntoBlocks(rawText) {
   return blocks;
 }
 
-export function normalizeQuestions(rawBlocks, context = {}) {
+export async function normalizeQuestions(rawBlocks, context = {}) {
   const normalized = [];
 
   for (const block of rawBlocks) {
@@ -125,8 +126,21 @@ export function normalizeQuestions(rawBlocks, context = {}) {
     }
     if (!questionText || questionText.length < 5) continue;
 
-    // Use our state-of-the-art 10-stage pipeline to reconstruct!
-    const pipeline = runStagesReconstruction(questionText);
+    // Build the list of SemanticBlock structures (stem + parsed options)
+    const blocksList = [];
+    if (block.passage) {
+      blocksList.push({ type: 'passage', content: block.passage });
+    }
+    blocksList.push({ type: 'text', content: block.lines.join('\n').trim() });
+    if (block.options && block.options.length > 0) {
+      block.options.forEach((opt, idx) => {
+        const label = opt.label || ['A', 'B', 'C', 'D'][idx] || String.fromCharCode(65 + idx);
+        blocksList.push({ type: 'option', label: label.toUpperCase(), content: opt.text });
+      });
+    }
+
+    // Use our state-of-the-art 13-stage pipeline to reconstruct!
+    const pipeline = await runStagesReconstruction(questionText, block.html || null, null, blocksList, block.html || null);
 
     const questionType = pipeline.questionType;
     const finalQuestionText = pipeline.stem;
@@ -171,7 +185,7 @@ export function normalizeQuestions(rawBlocks, context = {}) {
       answerKey: answerText,
       class: context.class || 11,
       difficulty: context.difficulty || 'medium',
-      marks: context.marks || 4,
+      marks: null, // Detached marks during ingestion
       status,
       tags,
       extractionWarnings: warnings,
@@ -188,6 +202,16 @@ export function normalizeQuestions(rawBlocks, context = {}) {
         questionNumber: block.questionNumber || null,
         subtype: pipeline.subtype || null,
       },
+      
+      // SaaS semantic fields
+      correctAnswers: pipeline.correctAnswers || [],
+      figures: pipeline.figures || [],
+      formulas: pipeline.formulas || [],
+      semanticBlocks: pipeline.semanticBlocks || [],
+      statementGroups: pipeline.statementGroups || [],
+      comprehensionLinks: pipeline.comprehensionLinks || [],
+      parserConfidence: pipeline.confidence || 0.8,
+      reconstructionFidelity: pipeline.reconstructionFidelity || 0.8,
     };
 
     if (base.questionLatex) {

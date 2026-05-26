@@ -33,7 +33,7 @@ export function applySelectionToSections(
       return {
         ...section,
         questions: section.questions.map((existing, i) => {
-          const replacement = newQs[i] as Question & { custom_marks?: number };
+          const replacement = newQs[i] as unknown as Question & { custom_marks?: number };
           if (!replacement) return existing;
           return {
             ...replacement,
@@ -46,7 +46,7 @@ export function applySelectionToSections(
     }
 
     const questions = match.questions.map((q, orderIndex) => {
-      const question = q as Question & { custom_marks?: number; section_id?: string };
+      const question = q as unknown as Question & { custom_marks?: number; section_id?: string };
       return {
         ...question,
         customMarks: Number(question.custom_marks ?? section.marksPerQuestion),

@@ -3,6 +3,9 @@ import { recognizeImage } from '../ocr/tesseractOcr.js';
 import { geminiReconstructCleanup } from '../ai/geminiReconstructCleanup.js';
 import { mergePasteSources, cleanPlainText } from '../extraction/wordHtmlCleanup.js';
 import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
+import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
+import { logger } from '../utils/logger.js';
+import { performance } from 'perf_hooks';
 
 function dataUrlToBuffer(dataUrl) {
   const m = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/);
@@ -90,8 +93,8 @@ function calculateParserConfidence(row, warnings) {
   return Math.max(0.1, Math.min(1.0, confidence));
 }
 
-function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, blocks = null) {
-  const pipeline = runStagesReconstruction(cleanedPlain, cleanedHtml, ocrText, blocks);
+async function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, blocks = null, rawHtml = null) {
+  const pipeline = await runStagesReconstruction(cleanedPlain, cleanedHtml, ocrText, blocks, rawHtml);
 
   const row = {
     questionText: pipeline.stem,
@@ -106,6 +109,16 @@ function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, blocks
     extractionWarnings: pipeline.warnings,
     confidence: pipeline.confidence,
     debugInfo: pipeline.debugInfo || null,
+    
+    // SaaS semantic fields mapping
+    correctAnswers: pipeline.correctAnswers || [],
+    figures: pipeline.figures || [],
+    formulas: pipeline.formulas || [],
+    semanticBlocks: pipeline.semanticBlocks || [],
+    statementGroups: pipeline.statementGroups || [],
+    comprehensionLinks: pipeline.comprehensionLinks || [],
+    parserConfidence: pipeline.confidence,
+    reconstructionFidelity: pipeline.reconstructionFidelity || 0.8,
     
     // Structured temporary fields
     raw_stem: pipeline.stem,
@@ -147,6 +160,16 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
     sources,
     hasEquation: Boolean(row.hasEquation || row.questionLatex),
     
+    // SaaS fields mapping
+    correctAnswers: row.correctAnswers || [],
+    figures: row.figures || [],
+    formulas: row.formulas || [],
+    semanticBlocks: row.semanticBlocks || [],
+    statementGroups: row.statementGroups || [],
+    comprehensionLinks: row.comprehensionLinks || [],
+    parserConfidence: row.parserConfidence || parser_confidence,
+    reconstructionFidelity: row.reconstructionFidelity || 0.8,
+
     // Add temporary structured reconstruction state
     raw_stem: row.raw_stem || row.questionText || '',
     raw_options: row.raw_options || (row.options || []).map(o => ({ text: o.text || '', latex: o.latex || null })),
@@ -158,10 +181,11 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
 }
 
 export async function reconstructQuestionInput(body) {
-  const { html, plain, ocrText, images = [], useGemini = true, blocks = null } = body;
-  const sources = { parser: true, ocr: false, gemini: false };
+  const { html, plain, ocrText, images = [], blocks = null, rawHtml = null } = body;
+  const sources = { parser: true, ocr: false, ollama: false };
   const warnings = [];
 
+  const tIngestStart = performance.now();
   const cleaned = mergePasteSources({ html, plain, ocrText });
   const imageUrls = [...new Set([...(images || []), ...cleaned.images])].slice(0, 6);
 
@@ -182,6 +206,7 @@ export async function reconstructQuestionInput(body) {
       }
     }
   }
+  const ingestionMs = Math.round(performance.now() - tIngestStart);
 
   if (!mergedPlain?.trim()) {
     return {
@@ -200,20 +225,47 @@ export async function reconstructQuestionInput(body) {
       parser_confidence: 0.1,
       ocr_confidence: null,
       debugInfo: null,
+      correctAnswers: [],
+      figures: [],
+      formulas: [],
+      semanticBlocks: [],
+      statementGroups: [],
+      comprehensionLinks: [],
+      parserConfidence: 0.1,
+      reconstructionFidelity: 0.1,
     };
   }
 
-  const { row, cleanedHtml } = buildFromCleanedPlain(mergedPlain, cleaned.html, ocrText, blocks);
+  const tReconstructStart = performance.now();
+  const { row, cleanedHtml } = await buildFromCleanedPlain(mergedPlain, cleaned.html, ocrText, blocks, rawHtml || html);
 
-  if (useGemini !== false && env.ai.geminiApiKey) {
-    const cleanedForGemini = mergedPlain.slice(0, 4000);
-    const refined = await geminiReconstructCleanup(row, cleanedForGemini);
-    if (refined) {
-      const merged = mergeGemini(row, refined);
-      Object.assign(row, merged);
-      sources.gemini = true;
-    }
+  const reconstructionMs = Math.round(performance.now() - tReconstructStart);
+
+  if (row.debugInfo?.stages?.stage9?.refined) {
+    sources.ollama = true;
   }
+  if (row.debugInfo?.stages?.stage9?.warnings) {
+    warnings.push(...row.debugInfo.stages.stage9.warnings);
+  }
+
+  const tClassifyStart = performance.now();
+  let classificationResult = null;
+  try {
+    classificationResult = await classifyQuestionMetadata(row, null);
+  } catch (err) {
+    logger.warn('Failed to run classification in reconstruct service', { error: err.message });
+  }
+  const classificationMs = Math.round(performance.now() - tClassifyStart);
+
+  row.debugInfo = {
+    ...(row.debugInfo || {}),
+    timings: {
+      ingestionMs,
+      reconstructionMs,
+      classificationMs,
+    },
+    classification: classificationResult,
+  };
 
   return toEditorPayload(row, cleanedHtml, imageUrls, sources, warnings);
 }

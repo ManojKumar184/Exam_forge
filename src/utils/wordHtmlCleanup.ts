@@ -3,6 +3,17 @@
  */
 import { convertHtmlMathToLatex } from './mathConverter';
 
+export function detectVmlEquationImages(html: string): boolean {
+  if (!html) return false;
+  return (
+    /<v:shape\b/i.test(html) ||
+    /<v:imagedata\b/i.test(html) ||
+    /o:OLEObject/i.test(html) ||
+    /clip_image\d+\.png/i.test(html) ||
+    /clip_image\d+/i.test(html)
+  );
+}
+
 const OFFICE_PLAIN_NOISE = [
   /Normal\s+0\s+false\s+false\s+false\s+[A-Z\-]+/gi,
   /false\s+false\s+false\s+EN-US\s+JH\s+K[0-9]+/gi,
@@ -10,6 +21,7 @@ const OFFICE_PLAIN_NOISE = [
   /\bNormal\s+0\b/gi,
   /^\s*[\u00a0\f\v]+\s*$/gm,
   /\bMsoNormal\b/gi,
+  /Calibri\b;\s*/gi,
 ];
 
 const UNICODE_MATH_MAP: Record<string, string> = {
@@ -90,23 +102,58 @@ function stripTags(html: string): string {
 export function cleanupWordHtml(html: string): { html: string; plain: string; images: string[] } {
   if (!html?.trim()) return { html: '', plain: '', images: [] };
 
-  // Convert OMML and MathML to LaTeX first
-  let h = convertHtmlMathToLatex(html);
+  // 1. Isolate <body> content first
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  let h = bodyMatch ? bodyMatch[1] : html;
 
+  // 2. Convert OMML/MathML tags to LaTeX
+  h = convertHtmlMathToLatex(h);
+
+  // 3. Word Nuclear Clean Regexes
+  
+  // Strip conditional comments (standard and downlevel-revealed)
+  h = h.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  h = h.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  h = h.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
   h = h.replace(/<!--\[if[\s\S]*?endif\]-->/gi, '');
+  h = h.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
+  h = h.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
   h = h.replace(/<!--[\s\S]*?-->/g, '');
-  h = h.replace(/<\?xml[\s\S]*?\?>/gi, '');
-  h = h.replace(/<o:p>\s*<\/o:p>/gi, '');
-  h = h.replace(/<o:p[^>]*>[\s\S]*?<\/o:p>/gi, '');
-  h = h.replace(/<\/?o:[^>]+>/gi, '');
-  h = h.replace(/<\/?w:[^>]+>/gi, '');
-  h = h.replace(/<\/?m:[^>]+>/gi, '');
-  h = h.replace(/<script[\s\S]*?<\/script>/gi, '');
-  h = h.replace(/<style[\s\S]*?<\/style>/gi, '');
-  h = h.replace(/\s*mso-[^:;"]+:[^;"]+;?/gi, '');
-  h = h.replace(/\s*class="Mso[^"]*"/gi, '');
-  h = h.replace(/\s*style="[^"]*mso[^"]*"/gi, '');
 
+  // Strip XML islands
+  h = h.replace(/<xml>[\s\S]*?<\/xml>/gi, '');
+
+  // Strip style blocks
+  h = h.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+  // Strip link/meta tags
+  h = h.replace(/<link[^>]*>/gi, '');
+  h = h.replace(/<meta[^>]*>/gi, '');
+
+  // Strip Office placeholders
+  h = h.replace(/<o:p>[\s\S]*?<\/o:p>/gi, '');
+
+  // Strip triple dollar garbage
+  h = h.replace(/\$\$\$/g, '');
+
+  // Strip VML elements completely (both tags and content)
+  const vmlTags = [
+    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
+    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
+    'shapetype'
+  ];
+  for (const tag of vmlTags) {
+    h = h.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:v|o):${tag}>`, 'gi'), '');
+    h = h.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
+  }
+
+  // Strip leftover Office namespace tags
+  h = h.replace(/<\/?(?:o|w|m|x):[^>]*>/gi, '');
+
+  // Strip equation fallback images (clip_image)
+  h = h.replace(/<img[^>]+src=["'][^"']*clip_image[^"']*["'][^>]*>/gi, '');
+
+  // Capture real images
   const images: string[] = [];
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let imgMatch;
@@ -117,14 +164,44 @@ export function cleanupWordHtml(html: string): { html: string; plain: string; im
     }
   }
 
-  h = h.replace(/<sup[^>]*>([\s\S]*?)<\/sup>/gi, (_, t) => `^{${stripTags(t)}}`);
-  h = h.replace(/<sub[^>]*>([\s\S]*?)<\/sub>/gi, (_, t) => `_{${stripTags(t)}}`);
+  // Strip attributes: style, class, lang, width, height, mso-*, face, align
+  h = h.replace(/<([a-zA-Z0-9]+)(?:\s+[^>]*?)>/g, (match, tag) => {
+    const lowerTag = tag.toLowerCase();
+    const allowedTags = ['p', 'span', 'b', 'i', 'u', 'strong', 'em', 'sup', 'sub', 'table', 'tr', 'td', 'th', 'ul', 'ol', 'li', 'br', 'img', 'a', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    if (!allowedTags.includes(lowerTag)) {
+      return ''; // Strip non-allowed tags
+    }
+    
+    let attrs = '';
+    if (lowerTag === 'img') {
+      const srcMatch = match.match(/\bsrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      if (srcMatch) attrs += ' ' + srcMatch[0];
+    } else if (lowerTag === 'a') {
+      const hrefMatch = match.match(/\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      if (hrefMatch) attrs += ' ' + hrefMatch[0];
+    } else if (lowerTag === 'td' || lowerTag === 'th') {
+      const colspan = match.match(/\bcolspan\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      const rowspan = match.match(/\browspan\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      if (colspan) attrs += ' ' + colspan[0];
+      if (rowspan) attrs += ' ' + rowspan[0];
+    }
+    return `<${lowerTag}${attrs}>`;
+  });
+
+  // Convert paragraph structures
   h = h.replace(/<br\s*\/?>/gi, '\n');
   h = h.replace(/<\/p>/gi, '\n');
   h = h.replace(/<\/div>/gi, '\n');
+  h = h.replace(/<\/tr>/gi, '\n');
+  h = h.replace(/<\/li>/gi, '\n');
 
   const plain = cleanPlainText(stripTags(h));
-  return { html: h.trim(), plain, images: [...new Set(images)] };
+
+  return {
+    html: h.trim(),
+    plain,
+    images: [...new Set(images)],
+  };
 }
 
 export function mergePasteSources(input: {
@@ -134,11 +211,12 @@ export function mergePasteSources(input: {
 }): { html: string; plain: string; images: string[] } {
   const cleaned = input.html ? cleanupWordHtml(input.html) : { html: '', plain: '', images: [] };
   const parts = [cleaned.plain, input.plain, input.ocrText]
-    .map((p) => cleanPlainText(p || ''))
-    .filter(Boolean);
+    .filter((p) => p && p.trim().length > 0)
+    .map((p) => p!.trim());
+
   return {
-    html: cleaned.html,
-    plain: parts.join('\n\n').trim() || cleaned.plain,
-    images: cleaned.images,
+    html: cleaned.html || '',
+    plain: parts.length > 0 ? parts[0] : '', // Prioritize HTML text to avoid duplicates
+    images: cleaned.images || [],
   };
 }

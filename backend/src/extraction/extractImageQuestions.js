@@ -11,7 +11,7 @@ export async function extractImageQuestions(filePath, context = {}) {
     result.words?.length ? reconstructOcrReadingOrder(result.words) : result.text
   );
   const blocks = splitTextIntoBlocks(ordered);
-  const questions = normalizeQuestions(blocks, {
+  const questions = await normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'image_ocr',
     sourceFile: path.basename(filePath),

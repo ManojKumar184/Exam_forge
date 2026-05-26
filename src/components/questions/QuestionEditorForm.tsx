@@ -6,7 +6,7 @@ import { RichQuestionEditor } from './RichQuestionEditor';
 import { ReconstructionPreview } from './ReconstructionPreview';
 import { OptionRichFields } from './OptionRichFields';
 import type { Question, QuestionOption, QuestionType } from '../../types';
-import type { EditorSubtype } from '../../utils/questionPasteDetect';
+import { detectVmlEquationImages, type EditorSubtype } from '../../utils/questionPasteDetect';
 import {
   runQuestionReconstruction,
   type ReconstructResult,
@@ -139,6 +139,7 @@ export function QuestionEditorForm({
   const [isSaving, setIsSaving] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
   const [pipelineState, setPipelineState] = useState<'idle' | 'parsing' | 'ocr' | 'equations' | 'gemini' | 'complete'>('idle');
+  const [clipboardFidelity, setClipboardFidelity] = useState<'high' | 'medium' | 'ocr' | 'low_vml' | 'low' | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [lastReconstruct, setLastReconstruct] = useState<ReconstructResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -232,11 +233,22 @@ export function QuestionEditorForm({
   }, [persistDraft]);
 
   const triggerReconstruction = useCallback(
-    (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[] }) => {
+    (payload: { html: string; plain: string; images: string[]; blocks?: SemanticBlock[]; rawClipboardHtml?: string }) => {
       if (reconstructTimer.current) clearTimeout(reconstructTimer.current);
       reconstructTimer.current = setTimeout(async () => {
         const plainLen = (payload.plain || payload.html?.replace(/<[^>]+>/g, ' ') || '').trim().length;
         if (plainLen < 12 && !payload.images.length && !ocrText.trim()) return;
+
+        const rawHtml = payload.rawClipboardHtml || payload.html;
+        if (rawHtml && detectVmlEquationImages(rawHtml)) {
+          setClipboardFidelity('low_vml');
+        } else if (rawHtml) {
+          setClipboardFidelity('medium');
+        } else if (payload.plain || ocrText) {
+          setClipboardFidelity('ocr');
+        } else {
+          setClipboardFidelity('low');
+        }
 
         setReconstructing(true);
         setPipelineState('parsing');
@@ -252,7 +264,7 @@ export function QuestionEditorForm({
           setPipelineState('gemini');
 
           const result = await runQuestionReconstruction({
-            html: payload.html,
+            html: rawHtml || payload.html,
             plain: payload.plain,
             ocrText,
             images: payload.images,
@@ -467,11 +479,41 @@ export function QuestionEditorForm({
 
         <Card className="p-3 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Paste & reconstruct</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Paste & reconstruct</h3>
+              {clipboardFidelity && (
+                <Badge
+                  variant={
+                    clipboardFidelity === 'high'
+                      ? 'success'
+                      : clipboardFidelity === 'medium'
+                      ? 'info'
+                      : clipboardFidelity === 'ocr'
+                      ? 'default'
+                      : clipboardFidelity === 'low_vml'
+                      ? 'error'
+                      : 'default'
+                  }
+                  size="sm"
+                >
+                  {clipboardFidelity === 'high' && 'High Fidelity'}
+                  {clipboardFidelity === 'medium' && 'Medium Fidelity'}
+                  {clipboardFidelity === 'ocr' && 'OCR Ingest'}
+                  {clipboardFidelity === 'low_vml' && 'Image-Based Math Detected'}
+                  {clipboardFidelity === 'low' && 'Low Fidelity'}
+                </Badge>
+              )}
+            </div>
             <Badge variant="info" size="sm">
               {reconstructing ? 'Working…' : 'Auto-detect · OCR · Gemini'}
             </Badge>
           </div>
+
+          {clipboardFidelity === 'low_vml' && (
+            <Alert variant="warning" title="Word Pasted Equations as Rendered Images">
+              Word pasted equations as rendered images instead of semantic math. For accurate mathematical preservation, please upload the DOCX file directly instead of pasting.
+            </Alert>
+          )}
           
           <div className="flex flex-wrap gap-1 mb-1">
             {SUBTYPE_OPTIONS.map((opt) => (

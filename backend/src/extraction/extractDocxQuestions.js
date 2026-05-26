@@ -75,7 +75,7 @@ export async function extractDocxQuestions(filePath, context = {}) {
     return enriched;
   });
 
-  let questions = normalizeQuestions(blocksWithMedia, {
+  let questions = await normalizeQuestions(blocksWithMedia, {
     ...context,
     extractedFrom: 'docx',
     sourceFile: path.basename(filePath),

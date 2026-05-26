@@ -90,7 +90,7 @@ testCases.forEach((tc, idx) => {
   console.log(plainFromBlocks);
 
   // 3. Pipeline Reconstruction
-  const result = runStagesReconstruction(plainFromBlocks, tc.html, null, blocks);
+  const result = await runStagesReconstruction(plainFromBlocks, tc.html, null, blocks);
   console.log('\nReconstructed Stem:');
   console.log(result.stem);
   console.log('Reconstructed Type:', result.questionType);
