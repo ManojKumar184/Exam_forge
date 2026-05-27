@@ -72,7 +72,8 @@ const testCases = [
 
 console.log('--- RUNNING STRUCTURED BLOCKS PARSING TESTS ---');
 
-testCases.forEach((tc, idx) => {
+for (let idx = 0; idx < testCases.length; idx++) {
+  const tc = testCases[idx];
   console.log(`\nTest Case ${idx + 1}: ${tc.name}`);
   console.log('---------------------------------------------');
   
@@ -112,4 +113,4 @@ testCases.forEach((tc, idx) => {
     console.log('  Final Reconstructed Output:', result.debugInfo.finalReconstructedOutput);
   }
   console.log('=============================================');
-});
+}

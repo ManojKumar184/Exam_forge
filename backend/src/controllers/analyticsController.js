@@ -24,3 +24,18 @@ export async function testPerformance(req, res) {
   res.json({ success: true, data });
 }
 
+export async function getSystemMonitor(req, res) {
+  const data = await analyticsService.getSystemMonitor();
+  res.json({ success: true, data });
+}
+
+export async function getReplaySummary(req, res) {
+  const data = await analyticsService.getReplaySummary();
+  res.json({ success: true, data });
+}
+
+export async function runReplayHarness(req, res) {
+  const data = await analyticsService.runReplayHarness();
+  res.json({ success: true, data });
+}
+

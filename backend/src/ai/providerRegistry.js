@@ -1,17 +1,11 @@
 import { env } from '../config/env.js';
 import { RulesProvider } from './providers/rulesProvider.js';
-import { OpenAIProvider } from './providers/openaiProvider.js';
-import { GeminiProvider } from './providers/geminiProvider.js';
 import { OllamaProvider } from './providers/ollamaProvider.js';
 
 const rules = new RulesProvider();
-const openai = new OpenAIProvider();
-const gemini = new GeminiProvider();
 const ollama = new OllamaProvider();
 
 const LLM_PROVIDERS = {
-  openai,
-  gemini,
   ollama,
 };
 

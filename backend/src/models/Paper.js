@@ -5,6 +5,7 @@ const paperSectionSchema = new mongoose.Schema(
     name: { type: String, required: true },
     questionCount: { type: Number, default: 0 },
     marksPerQuestion: { type: Number, default: 4 },
+    negativeMarksPerQuestion: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -16,6 +17,7 @@ const paperQuestionSchema = new mongoose.Schema(
     sectionOrder: { type: Number, default: 0 },
     questionOrder: { type: Number, required: true },
     customMarks: { type: Number, default: null },
+    customNegativeMarks: { type: Number, default: null },
   },
   { _id: false }
 );

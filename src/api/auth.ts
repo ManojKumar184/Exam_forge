@@ -6,6 +6,7 @@ export interface AuthResponse {
   profile: Profile;
   accessToken: string;
   refreshToken: string;
+  pendingApproval?: boolean;
 }
 
 export async function apiRegister(payload: {

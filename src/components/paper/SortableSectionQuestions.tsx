@@ -22,6 +22,7 @@ import type { Question } from '../../types';
 
 export interface SelectedQuestion extends Question {
   customMarks: number;
+  customNegativeMarks?: number | null;
   sectionId: string;
   orderIndex: number;
 }
@@ -31,6 +32,7 @@ interface SortableSectionQuestionsProps {
   questions: SelectedQuestion[];
   onReorder: (sectionId: string, questions: SelectedQuestion[]) => void;
   onUpdateMarks: (sectionId: string, questionId: string, marks: number) => void;
+  onUpdateNegativeMarks?: (sectionId: string, questionId: string, negMarks: number | null) => void;
   onRemove: (sectionId: string, questionId: string) => void;
   onReplace?: (sectionId: string, questionId: string) => void;
   replacingId?: string | null;
@@ -41,6 +43,7 @@ function SortableQuestionRow({
   index,
   sectionId,
   onUpdateMarks,
+  onUpdateNegativeMarks,
   onRemove,
   onReplace,
   isReplacing,
@@ -49,6 +52,7 @@ function SortableQuestionRow({
   index: number;
   sectionId: string;
   onUpdateMarks: (sectionId: string, questionId: string, marks: number) => void;
+  onUpdateNegativeMarks?: (sectionId: string, questionId: string, negMarks: number | null) => void;
   onRemove: (sectionId: string, questionId: string) => void;
   onReplace?: (sectionId: string, questionId: string) => void;
   isReplacing?: boolean;
@@ -98,35 +102,53 @@ function SortableQuestionRow({
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <Input
-          type="number"
-          value={question.customMarks.toString()}
-          onChange={(e) => {
-            const marks = parseInt(e.target.value, 10) || 0;
-            onUpdateMarks(sectionId, question.id, marks);
-          }}
-          className="w-16 h-8 text-sm"
-        />
-        {onReplace && (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[8px] uppercase font-bold text-slate-400 block">Marks</span>
+          <Input
+            type="number"
+            value={question.customMarks.toString()}
+            onChange={(e) => {
+              const marks = parseInt(e.target.value, 10) || 0;
+              onUpdateMarks(sectionId, question.id, marks);
+            }}
+            className="w-12 h-7 text-xs px-1 text-center"
+          />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[8px] uppercase font-bold text-slate-400 block">Neg M</span>
+          <Input
+            type="number"
+            value={(question.customNegativeMarks ?? '').toString()}
+            onChange={(e) => {
+              const val = e.target.value === '' ? null : Number(e.target.value);
+              onUpdateNegativeMarks?.(sectionId, question.id, val);
+            }}
+            placeholder="0"
+            className="w-12 h-7 text-xs px-1 text-center font-medium text-red-600 dark:text-red-400"
+          />
+        </div>
+        <div className="flex items-center gap-0.5 mt-4">
+          {onReplace && (
+            <button
+              type="button"
+              onClick={() => onReplace(sectionId, question.id)}
+              disabled={isReplacing}
+              className="p-1 text-slate-400 hover:text-blue-500 disabled:opacity-40"
+              aria-label="Replace question"
+              title="Regenerate this slot"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isReplacing ? 'animate-spin' : ''}`} />
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onReplace(sectionId, question.id)}
-            disabled={isReplacing}
-            className="p-1 text-slate-400 hover:text-blue-500 disabled:opacity-40"
-            aria-label="Replace question"
-            title="Regenerate this slot"
+            onClick={() => onRemove(sectionId, question.id)}
+            className="p-1 text-slate-400 hover:text-red-500"
+            aria-label="Remove question"
           >
-            <RefreshCw className={`w-4 h-4 ${isReplacing ? 'animate-spin' : ''}`} />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onRemove(sectionId, question.id)}
-          className="p-1 text-slate-400 hover:text-red-500"
-          aria-label="Remove question"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        </div>
       </div>
     </div>
   );
@@ -137,6 +159,7 @@ export function SortableSectionQuestions({
   questions,
   onReorder,
   onUpdateMarks,
+  onUpdateNegativeMarks,
   onRemove,
   onReplace,
   replacingId,
@@ -172,6 +195,7 @@ export function SortableSectionQuestions({
               index={index}
               sectionId={sectionId}
               onUpdateMarks={onUpdateMarks}
+              onUpdateNegativeMarks={onUpdateNegativeMarks}
               onRemove={onRemove}
               onReplace={onReplace}
               isReplacing={replacingId === question.id}

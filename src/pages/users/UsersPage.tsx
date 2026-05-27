@@ -23,6 +23,16 @@ export function UsersPage() {
     return () => clearTimeout(timer);
   }, [search, roleFilter]);
 
+  const handleApprove = async (user: Profile) => {
+    await updateUser(user.id, { approval_status: 'approved', is_active: true });
+    fetchUsers({ search: search || undefined, role: roleFilter || undefined });
+  };
+
+  const handleReject = async (user: Profile) => {
+    await updateUser(user.id, { approval_status: 'rejected', is_active: false });
+    fetchUsers({ search: search || undefined, role: roleFilter || undefined });
+  };
+
   const toggleActive = async (user: Profile) => {
     await updateUser(user.id, { is_active: !user.is_active });
     fetchUsers({ search: search || undefined, role: roleFilter || undefined });
@@ -32,6 +42,12 @@ export function UsersPage() {
     if (role === 'super_admin') return 'error';
     if (role === 'faculty') return 'info';
     return 'success';
+  };
+
+  const approvalBadge = (status: string) => {
+    if (status === 'approved') return 'success';
+    if (status === 'rejected') return 'error';
+    return 'warning';
   };
 
   return (
@@ -71,7 +87,7 @@ export function UsersPage() {
         <Card className="overflow-hidden">
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {users.map((user) => (
-              <div key={user.id} className="flex items-center gap-4 px-6 py-4">
+              <div key={user.id} className="flex items-center gap-4 px-6 py-4 flex-wrap sm:flex-nowrap">
                 <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-semibold text-slate-600 dark:text-slate-200">
                   {user.full_name?.[0]?.toUpperCase() || 'U'}
                 </div>
@@ -80,16 +96,43 @@ export function UsersPage() {
                     {user.full_name || 'Unnamed'}
                   </p>
                   <p className="text-sm text-slate-500 truncate">{user.email}</p>
+                  {user.school_institute && (
+                    <p className="text-xs text-slate-400 truncate">{user.school_institute}</p>
+                  )}
                 </div>
-                <Badge variant={roleBadge(user.role)} size="sm">
-                  {user.role.replace('_', ' ')}
-                </Badge>
-                <Badge variant={user.is_active ? 'success' : 'default'} size="sm">
-                  {user.is_active ? 'Active' : 'Inactive'}
-                </Badge>
-                <Button variant="outline" size="sm" onClick={() => toggleActive(user)}>
-                  {user.is_active ? 'Deactivate' : 'Activate'}
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant={roleBadge(user.role)} size="sm">
+                    {user.role.replace('_', ' ')}
+                  </Badge>
+                  {user.role === 'faculty' && (
+                    <Badge variant={approvalBadge(user.approval_status)} size="sm">
+                      {user.approval_status.toUpperCase()}
+                    </Badge>
+                  )}
+                  <Badge variant={user.is_active ? 'success' : 'default'} size="sm">
+                    {user.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  {user.role === 'faculty' && user.approval_status === 'pending' ? (
+                    <>
+                      <Button variant="primary" size="sm" onClick={() => handleApprove(user)}>
+                        Approve
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleReject(user)}>
+                        Reject
+                      </Button>
+                    </>
+                  ) : user.role === 'faculty' && user.approval_status === 'rejected' ? (
+                    <Button variant="outline" size="sm" onClick={() => handleApprove(user)}>
+                      Approve
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => toggleActive(user)}>
+                      {user.is_active ? 'Suspend' : 'Activate'}
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

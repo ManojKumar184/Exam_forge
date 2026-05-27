@@ -15,6 +15,7 @@ import fs from 'fs';
 import { env, isProduction, validateEnv, logEnvSummary } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { ensureOllamaReady } from './ai/ollamaSetup.js';
+import { startBackgroundJobs } from './jobs/index.js';
 import apiRoutes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
@@ -31,6 +32,8 @@ async function bootstrap() {
   fs.mkdirSync(path.join(env.uploadDir, 'images'), { recursive: true });
 
   await connectDatabase();
+
+  startBackgroundJobs();
 
   // Asynchronously initialize local Ollama model fallback
   ensureOllamaReady().catch((err) => {

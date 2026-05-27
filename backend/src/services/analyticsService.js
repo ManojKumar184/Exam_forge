@@ -1,4 +1,9 @@
 import { User, Question, Paper, OnlineTest, TestAttempt, Upload } from '../models/index.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import { env } from '../config/env.js';
 
 export async function getAdminAnalytics() {
   const [roleCounts, questionCounts, totalPapers, totalTests, totalAttempts, totalUploads] =
@@ -186,6 +191,165 @@ export async function getStudentAnalytics(studentId) {
     completed_attempts: completed.length,
     average_score: Number(avg.toFixed(2)),
     best_score: Number(best.toFixed(2)),
+  };
+}
+
+let isReplayRunning = false;
+let lastReplayRunTime = null;
+
+export function getReplayStatus() {
+  return {
+    isRunning: isReplayRunning,
+    lastRunTime: lastReplayRunTime,
+  };
+}
+
+export async function getSystemMonitor() {
+  const baseUrl = (env.ai.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+  const model = env.ai.ollamaModel || 'llama3.2';
+  
+  let ollamaStatus = 'offline';
+  let ollamaModelFound = false;
+  
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`);
+    if (res.ok) {
+      ollamaStatus = 'online';
+      const data = await res.json();
+      const installedModels = data.models || [];
+      ollamaModelFound = installedModels.some((m) => {
+        const name = m.name || '';
+        return (
+          name.toLowerCase() === model.toLowerCase() ||
+          name.toLowerCase().startsWith(`${model.toLowerCase()}:`) ||
+          model.toLowerCase().startsWith(`${name.toLowerCase()}:`)
+        );
+      });
+    }
+  } catch (err) {
+    // offline
+  }
+
+  // Calculate parsing metrics from latest 100 questions
+  const questions = await Question.find({})
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .select('parserConfidence reconstructionFidelity extractionWarnings questionType');
+  
+  let totalConfidence = 0;
+  let totalFidelity = 0;
+  let totalWarnings = 0;
+  let count = questions.length;
+
+  for (const q of questions) {
+    totalConfidence += q.parserConfidence || 0.8;
+    totalFidelity += q.reconstructionFidelity || 0.8;
+    totalWarnings += q.extractionWarnings?.length || 0;
+  }
+
+  const avgConfidence = count > 0 ? (totalConfidence / count) * 100 : 90.0;
+  const avgFidelity = count > 0 ? (totalFidelity / count) * 100 : 85.0;
+  const avgWarnings = count > 0 ? (totalWarnings / count) : 0.2;
+
+  // DB stats
+  const [usersCount, questionsCount, papersCount, testsCount, attemptsCount] = await Promise.all([
+    User.countDocuments(),
+    Question.countDocuments(),
+    Paper.countDocuments(),
+    OnlineTest.countDocuments(),
+    TestAttempt.countDocuments(),
+  ]);
+
+  // Simulated storage usage
+  const storageUsedBytes = (questionsCount * 1200) + (papersCount * 5000) + (attemptsCount * 2500);
+  const storageLimitBytes = 5 * 1024 * 1024 * 1024; // 5 GB limit
+
+  return {
+    ollama: {
+      status: ollamaStatus,
+      model,
+      modelInstalled: ollamaModelFound,
+      baseUrl,
+    },
+    parser: {
+      healthStatus: avgConfidence > 75 ? 'healthy' : avgConfidence > 50 ? 'warning' : 'critical',
+      avgConfidence: Number(avgConfidence.toFixed(1)),
+      avgFidelity: Number(avgFidelity.toFixed(1)),
+      avgWarnings: Number(avgWarnings.toFixed(2)),
+      sampleCount: count,
+    },
+    database: {
+      users: usersCount,
+      questions: questionsCount,
+      papers: papersCount,
+      tests: testsCount,
+      attempts: attemptsCount,
+    },
+    storage: {
+      usedBytes: storageUsedBytes,
+      limitBytes: storageLimitBytes,
+      percentage: Number(((storageUsedBytes / storageLimitBytes) * 100).toFixed(2)),
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+export async function getReplaySummary() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const jsonReportPath = path.join(__dirname, '../extraction/validation_results.json');
+  
+  try {
+    const raw = await fs.readFile(jsonReportPath, 'utf8');
+    const data = JSON.parse(raw);
+    return {
+      summary: data.summary,
+      evaluations: data.evaluations ? data.evaluations.slice(0, 50) : [], // Limit size
+      status: getReplayStatus(),
+    };
+  } catch (err) {
+    return {
+      summary: {
+        totalQuestions: 0,
+        avgStemSimilarityPercent: "0.00",
+        optionsMatchRatePercent: "0.00",
+        classificationMatchRatePercent: "0.00",
+        totalWarningsCount: 0,
+        error: "Results file not found. Please run the replay harness.",
+      },
+      evaluations: [],
+      status: getReplayStatus(),
+    };
+  }
+}
+
+export async function runReplayHarness() {
+  if (isReplayRunning) {
+    return { success: false, message: 'Replay harness is already running.' };
+  }
+
+  isReplayRunning = true;
+  lastReplayRunTime = new Date().toISOString();
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const scriptPath = path.join(__dirname, '../extraction/validationHarness.js');
+
+  const proc = spawn('node', [scriptPath], {
+    detached: true,
+    stdio: 'ignore',
+  });
+
+  proc.on('exit', () => {
+    isReplayRunning = false;
+  });
+
+  proc.unref();
+
+  return {
+    success: true,
+    message: 'Replay harness run started in background.',
+    startedAt: lastReplayRunTime,
   };
 }
 

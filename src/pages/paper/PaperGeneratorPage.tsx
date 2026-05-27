@@ -305,6 +305,18 @@ export function PaperGeneratorPage() {
     );
   };
 
+  const updateQuestionNegativeMarks = (sectionId: string, questionId: string, negMarks: number | null) => {
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id !== sectionId) return s;
+        return {
+          ...s,
+          questions: s.questions.map((q) => (q.id === questionId ? { ...q, customNegativeMarks: negMarks } : q)),
+        };
+      })
+    );
+  };
+
   const handleExportPdf = async () => {
     if (!paperId) return;
     setIsExporting(true);
@@ -343,6 +355,7 @@ export function PaperGeneratorPage() {
           section_order: sections.indexOf(s),
           question_order: index,
           custom_marks: q.customMarks,
+          custom_negative_marks: q.customNegativeMarks ?? null,
         }))
       );
 
@@ -362,6 +375,7 @@ export function PaperGeneratorPage() {
           name: s.name,
           questionCount: s.questions.length,
           marksPerQuestion: s.marksPerQuestion,
+          negativeMarksPerQuestion: s.negativeMarksPerQuestion || 0,
         })),
         questions: paperQuestions,
       };
@@ -607,7 +621,7 @@ export function PaperGeneratorPage() {
               {sections.map((section) => (
                 <div key={section.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-2">
                   <p className="text-sm font-medium text-slate-900 dark:text-white">{section.name}</p>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <Input
                       type="number"
                       label="Target Q"
@@ -618,7 +632,7 @@ export function PaperGeneratorPage() {
                           prev.map((s) => (s.id === section.id ? { ...s, targetCount: count } : s))
                         );
                       }}
-                      className="flex-1 h-8 text-sm"
+                      className="h-8 text-xs px-1"
                     />
                     <Input
                       type="number"
@@ -630,7 +644,19 @@ export function PaperGeneratorPage() {
                           prev.map((s) => (s.id === section.id ? { ...s, marksPerQuestion: marks } : s))
                         );
                       }}
-                      className="w-20 h-8 text-sm"
+                      className="h-8 text-xs px-1"
+                    />
+                    <Input
+                      type="number"
+                      label="Neg M/Q"
+                      value={(section.negativeMarksPerQuestion ?? 0).toString()}
+                      onChange={(e) => {
+                        const neg = Number(e.target.value) || 0;
+                        setSections((prev) =>
+                          prev.map((s) => (s.id === section.id ? { ...s, negativeMarksPerQuestion: neg } : s))
+                        );
+                      }}
+                      className="h-8 text-xs px-1"
                     />
                   </div>
                   <p className="text-xs text-slate-500">
@@ -690,6 +716,7 @@ export function PaperGeneratorPage() {
                       questions={section.questions}
                       onReorder={reorderSectionQuestions}
                       onUpdateMarks={updateQuestionMarks}
+                      onUpdateNegativeMarks={updateQuestionNegativeMarks}
                       onRemove={removeQuestionFromSection}
                       onReplace={replaceQuestion}
                       replacingId={replacingId}

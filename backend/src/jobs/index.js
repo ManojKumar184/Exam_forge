@@ -1,7 +1,9 @@
-/**
- * Background jobs (upload processing, leaderboard recompute) — Phase 2+
- * Consider BullMQ or agenda when scaling.
- */
-export const jobs = {
-  enabled: false,
-};
+import { startEnrichmentWorker } from './enrichmentWorker.js';
+import { startIngestionWatchdog } from './watchdog.js';
+
+export function startBackgroundJobs() {
+  startEnrichmentWorker().catch((err) => {
+    console.error('Failed to start enrichment worker:', err);
+  });
+  startIngestionWatchdog();
+}

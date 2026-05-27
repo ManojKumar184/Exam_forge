@@ -50,14 +50,15 @@ const UNICODE_TO_LATEX = {
   'α': ' \\alpha ',
   'β': ' \\beta ',
   'γ': ' \\gamma ',
-  'delta': ' \\delta ',
-  'theta': ' \\theta ',
-  'lambda': ' \\lambda ',
-  'mu': ' \\mu ',
-  'sigma': ' \\sigma ',
-  'phi': ' \\phi ',
-  'psi': ' \\psi ',
+  'δ': ' \\delta ',
+  'θ': ' \\theta ',
+  'λ': ' \\lambda ',
+  'μ': ' \\mu ',
+  'σ': ' \\sigma ',
+  'φ': ' \\phi ',
+  'ψ': ' \\psi ',
   'omega': ' \\omega ',
+  'ω': ' \\omega ',
 };
 
 const SAFE_MATH_CHARS = /[a-zA-Z0-9\s.,;:!?@#&%"'~$()\[\]{}=+\-*/\^_\u2229\u222a\u2282\u2286\u221a\u03c0\u2211\u222b\u2264\u2265\u2260−\u00d7\u00f7|\\{}]/;
@@ -208,13 +209,13 @@ export function shieldMathRegions(text) {
   work = work.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
   work = work.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-  const eqRegex = /[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+)+/g;
+  const eqRegex = /[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
   work = work.replace(eqRegex, addPlaceholder);
 
-  work = work.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
-  work = work.replace(/\b[a-zA-Z0-9_]+[\^_][-+a-zA-Z0-9_\(\)]+/g, addPlaceholder);
+  work = work.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_α-ωΑ-Ω∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
+  work = work.replace(/(?<![a-zA-Z0-9_α-ωΑ-Ω])[a-zA-Z0-9_α-ωΑ-Ω]+[\^_][-+a-zA-Z0-9_α-ωΑ-Ω\(\)]+/g, addPlaceholder);
   work = work.replace(/\b\d+\s*\/\s*\d+\b/g, addPlaceholder);
-  work = work.replace(/[√π∑∫αβγδθλμσφω∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
+  work = work.replace(/[√π∑∫αβγδθλμσφωηε∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
 
   return { shielded: work, placeholders };
 }
@@ -262,6 +263,7 @@ export function mergeLinesSemantically(text) {
 }
 
 export function restoreMathRegions(text, placeholders) {
+  if (!text) return '';
   let restored = text;
   const keys = Array.from(placeholders.keys()).sort((a, b) => {
     const numA = parseInt(a.replace(/[^\d]/g, ''), 10);
@@ -271,7 +273,9 @@ export function restoreMathRegions(text, placeholders) {
 
   for (const key of keys) {
     const val = placeholders.get(key) || '';
-    restored = restored.split(key).join(val);
+    const numberStr = key.replace(/[^\d]/g, '');
+    const regex = new RegExp(`MATHPLACEHOLDER\\s*\\_?\\s*${numberStr}`, 'gi');
+    restored = restored.replace(regex, val);
   }
 
   return restored;
@@ -604,7 +608,12 @@ function semanticClassify(stemText, optionsCount) {
     return 'TRUE_FALSE';
   }
   
-  if (optionsCount >= 2) {
+  // Count inline option markers in stem text
+  const optionMatches = [...stemText.matchAll(/(?:^|[^a-zA-Z0-9_\$])(?:OPTION_([A-D])|[\(\[]\s*([A-D])\s*[\)\]]|\b([A-D])\s*[\).:\-–—])(?=\s|$)/gi)];
+  const distinctLabels = new Set(optionMatches.map(m => (m[1] || m[2] || m[3]).toUpperCase()));
+  const effectiveOptionsCount = Math.max(optionsCount, distinctLabels.size);
+
+  if (effectiveOptionsCount >= 2) {
     const hasStatementLayer = /\b(statement|i|ii|iii|iv|a|b|c)\b/i.test(lower) && 
                               /(?:only\s+[a-d]\s+and\s+[a-d]|[a-d]\s*,\s*[a-d]\s*only)/i.test(lower);
     if (hasStatementLayer) {
@@ -646,7 +655,28 @@ function extractStatements(text) {
 /**
  * Execute the 13-stage Unified Ingestion Engine.
  */
-export async function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null, rawHtml = null) {
+/**
+ * Shield math regions from text using temporary placeholders.
+ */
+function shieldText(text, map, counterObj) {
+  if (!text) return '';
+  let shielded = text;
+  
+  const addTempPlaceholder = (match) => {
+    const key = `MATHPLACEHOLDER${counterObj.count++}`;
+    map.set(key, match);
+    return key;
+  };
+  
+  shielded = shielded.replace(/\$\$([\s\S]+?)\$\$/g, addTempPlaceholder);
+  shielded = shielded.replace(/\\\[([\s\S]+?)\\\]/g, addTempPlaceholder);
+  shielded = shielded.replace(/\$([^$\n]+?)\$/g, addTempPlaceholder);
+  shielded = shielded.replace(/\\\(([\s\S]+?)\\\)/g, addTempPlaceholder);
+  
+  return shielded;
+}
+
+export async function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null, rawHtml = null, options = {}) {
   // 13 Stages container
   const stages = {
     stage0: {
@@ -807,13 +837,13 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     shieldedPlain = shieldedPlain.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
     shieldedPlain = shieldedPlain.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-    const eqRegex = /[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_\(\)\[\]\{\}\\\^_\.]+)+/g;
+    const eqRegex = /[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
     shieldedPlain = shieldedPlain.replace(eqRegex, addPlaceholder);
 
-    shieldedPlain = shieldedPlain.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
-    shieldedPlain = shieldedPlain.replace(/\b[a-zA-Z0-9_]+[\^_][-+a-zA-Z0-9_\(\)]+/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_α-ωΑ-Ω∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/(?<![a-zA-Z0-9_α-ωΑ-Ω])[a-zA-Z0-9_α-ωΑ-Ω]+[\^_][-+a-zA-Z0-9_α-ωΑ-Ω\(\)]+/g, addPlaceholder);
     shieldedPlain = shieldedPlain.replace(/\b\d+\s*\/\s*\d+\b/g, addPlaceholder);
-    shieldedPlain = shieldedPlain.replace(/[√π∑∫αβγδθλμσφω∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/[√π∑∫αβγδθλμσφωηε∩∪⊂⊆≤≥≠±×÷−]/g, addPlaceholder);
 
     // Restore HTML tags
     const htmlKeys = Array.from(htmlPlaceholders.keys()).sort((a, b) => b.length - a.length);
@@ -878,10 +908,13 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     if (splitResult.success) {
       stem = splitResult.stem.replace(QUESTION_START_RE, '').trim();
       options = splitResult.options.map(o => ({ text: o.text }));
+      if (stages.stage6.classified_type === 'DESCRIPTIVE' || stages.stage6.classified_type === 'mcq') {
+        stages.stage6.classified_type = 'MCQ_SINGLE';
+      }
     }
   }
 
-  // Restore Math regions in stem and options
+  // Restore Math regions in stem, options, and statementGroups for Stage 8
   const { normalized: normalizedPlaceholders } = normalizeAllMathPlaceholders(placeholders);
   stem = restoreMathRegions(stem, normalizedPlaceholders);
   options = options.map(o => ({
@@ -894,6 +927,17 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   stages.stage8.reconstructed_options = options;
   stages.stage8.statement_groups = statementGroups;
 
+  // Now, shield math regions specifically for Stage 9 (Ollama refinement) to ensure they are deterministic + immutable!
+  const tempPlaceholders = new Map();
+  const counterObj = { count: 0 };
+
+  const shieldedStemForOllama = shieldText(stem, tempPlaceholders, counterObj);
+  const shieldedOptionsForOllama = options.map(o => ({
+    ...o,
+    text: shieldText(o.text, tempPlaceholders, counterObj)
+  }));
+  const shieldedStatementGroupsForOllama = statementGroups.map(s => shieldText(s, tempPlaceholders, counterObj));
+
   // Stage 9: Ollama Semantic Refinement (Local Inference)
   let correctAnswers = [];
   let explanation = "";
@@ -901,10 +945,12 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   let tags = [questionType.toLowerCase()];
 
   const ollamaModel = env.ai.ollamaModel || 'llama3.2';
-  if (env.ai.provider === 'ollama') {
+  const shouldSkipLlm = options.skipLlm !== false; // defaults to true unless skipLlm is explicitly set to false
+  
+  if (env.ai.provider === 'ollama' && !shouldSkipLlm) {
     try {
       const refined = await ollamaReconstructCleanup(
-        { questionText: stem, questionType, options },
+        { questionText: shieldedStemForOllama, questionType, options: shieldedOptionsForOllama },
         plainText
       );
       if (refined) {
@@ -914,6 +960,8 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
         if (refined.questionType) stages.stage6.classified_type = refined.questionType;
         if (Array.isArray(refined.options)) {
           options = refined.options.map(o => ({ text: o.text || o || '' }));
+        } else {
+          options = shieldedOptionsForOllama;
         }
         if (Array.isArray(refined.correctAnswers)) {
           correctAnswers = refined.correctAnswers;
@@ -921,6 +969,8 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
         if (refined.explanation) explanation = refined.explanation;
         if (Array.isArray(refined.statementGroups)) {
           statementGroups = refined.statementGroups;
+        } else {
+          statementGroups = shieldedStatementGroupsForOllama;
         }
         if (Array.isArray(refined.formulas)) {
           formulas = refined.formulas;
@@ -929,14 +979,32 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
           tags = [...new Set([...tags, ...refined.tags])];
         }
       } else {
+        stem = shieldedStemForOllama;
+        options = shieldedOptionsForOllama;
+        statementGroups = shieldedStatementGroupsForOllama;
         stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
       }
     } catch (err) {
+      stem = shieldedStemForOllama;
+      options = shieldedOptionsForOllama;
+      statementGroups = shieldedStatementGroupsForOllama;
       stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
     }
   } else {
+    stem = shieldedStemForOllama;
+    options = shieldedOptionsForOllama;
+    statementGroups = shieldedStatementGroupsForOllama;
     stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
   }
+
+  // Restore the temporary placeholders from Ollama's output (or fallbacks)
+  stem = restoreMathRegions(stem, tempPlaceholders);
+  options = options.map(o => ({
+    ...o,
+    text: restoreMathRegions(o.text, tempPlaceholders)
+  }));
+  statementGroups = statementGroups.map(s => restoreMathRegions(s, tempPlaceholders));
+  explanation = restoreMathRegions(explanation, tempPlaceholders);
 
   // Stage 10: Final Validation
   const validation = validateReconstruction(stem, options);
@@ -963,6 +1031,43 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   stages.stage12.difficulty = "medium";
   stages.stage12.tags = tags;
 
+  // Math Preservation Confidence
+  let mathPreservationConfidence = 1.0;
+  if (stages.stage10.unresolved_placeholders.length > 0) {
+    mathPreservationConfidence -= stages.stage10.unresolved_placeholders.length * 0.25;
+  }
+  if (stages.stage11.malformed_expressions.length > 0) {
+    mathPreservationConfidence -= stages.stage11.malformed_expressions.length * 0.15;
+  }
+  mathPreservationConfidence = Math.max(0.1, Math.min(1.0, mathPreservationConfidence));
+
+  // Semantic Confidence
+  let semanticConfidence = 1.0;
+  if (!questionType || questionType === 'DESCRIPTIVE') {
+    semanticConfidence -= 0.1;
+  }
+  if (questionType === 'MCQ_SINGLE' || questionType === 'MCQ_MULTI') {
+    if (options.length < 2) {
+      semanticConfidence -= 0.4;
+    } else if (options.length !== 4) {
+      semanticConfidence -= 0.1;
+    }
+  }
+  if (stem.length < 20) {
+    semanticConfidence -= 0.2;
+  }
+  semanticConfidence = Math.max(0.1, Math.min(1.0, semanticConfidence));
+
+  // Metadata Confidence
+  let metadataConfidence = 1.0;
+  if (stages.stage12.tags.length === 0) {
+    metadataConfidence -= 0.1;
+  }
+  if (!stages.stage12.class) {
+    metadataConfidence -= 0.2;
+  }
+  metadataConfidence = Math.max(0.1, Math.min(1.0, metadataConfidence));
+
   // Stage 13: Database-ready Semantic Object Generation
   const dbObject = {
     questionType: stages.stage6.classified_type,
@@ -985,6 +1090,9 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     comprehensionLinks: [],
     parserConfidence: stages.stage10.parser_confidence,
     reconstructionFidelity: Math.max(0.2, 1 - (stages.stage11.malformed_expressions.length * 0.1) - (unresolved.length * 0.15)),
+    semanticConfidence,
+    mathPreservationConfidence,
+    metadataConfidence,
   };
   stages.stage13.db_object = dbObject;
 
@@ -1002,6 +1110,15 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     stages,
   };
 
+  // Log 3: Stage-by-stage outputs
+  for (const [key, stage] of Object.entries(stages)) {
+    logger.info(`[FORENSIC_LOG] 3. Stage-by-stage outputs - ${key} (${stage.title})`, {
+      stageKey: key,
+      title: stage.title,
+      output: JSON.parse(JSON.stringify(stage))
+    });
+  }
+
   return {
     stem,
     options,
@@ -1016,6 +1133,9 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     statementGroups,
     comprehensionLinks: [],
     reconstructionFidelity: dbObject.reconstructionFidelity,
+    semanticConfidence,
+    mathPreservationConfidence,
+    metadataConfidence,
     debugInfo,
   };
 }

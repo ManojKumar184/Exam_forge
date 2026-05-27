@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema(
     schoolInstitute: { type: String, default: null },
     phone: { type: String, default: null },
     isActive: { type: Boolean, default: true },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'approved',
+    },
     refreshTokens: {
       type: [refreshTokenSchema],
       default: [],

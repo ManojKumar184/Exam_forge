@@ -39,7 +39,7 @@ interface AuthContextValue {
     fullName: string,
     role: UserRole,
     institution?: string
-  ) => Promise<{ error: { message: string } | null }>;
+  ) => Promise<{ error: { message: string } | null; pendingApproval?: boolean }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: unknown }>;
   refreshProfile: () => Promise<void>;
@@ -119,6 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role,
           schoolInstitute: institution,
         });
+        if (data.pendingApproval) {
+          return { error: null, pendingApproval: true };
+        }
         setTokens(data.accessToken, data.refreshToken);
         applySession({ user: data.user, profile: data.profile });
         return { error: null };

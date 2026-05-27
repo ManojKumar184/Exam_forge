@@ -13,6 +13,7 @@ export function toProfile(user) {
     school_institute: doc.schoolInstitute || null,
     phone: doc.phone || null,
     is_active: doc.isActive !== false,
+    approval_status: doc.approvalStatus || 'approved',
     created_at: doc.createdAt?.toISOString?.() || new Date().toISOString(),
     updated_at: doc.updatedAt?.toISOString?.() || new Date().toISOString(),
   };

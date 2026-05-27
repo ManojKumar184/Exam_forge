@@ -84,6 +84,8 @@ const questionSchema = new mongoose.Schema(
     uploadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Upload', default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     debugInfo: { type: mongoose.Schema.Types.Mixed, default: null },
+    semanticEnriched: { type: Boolean, default: false },
+    enrichmentAttempts: { type: Number, default: 0 },
     
     // SaaS semantic metadata fields
     correctAnswers: { type: [String], default: [] },
@@ -94,6 +96,10 @@ const questionSchema = new mongoose.Schema(
     comprehensionLinks: { type: [mongoose.Schema.Types.ObjectId], ref: 'Question', default: [] },
     parserConfidence: { type: Number, default: 0 },
     reconstructionFidelity: { type: Number, default: 0 },
+    semanticConfidence: { type: Number, default: 0 },
+    mathPreservationConfidence: { type: Number, default: 0 },
+    metadataConfidence: { type: Number, default: 0 },
+    auditHistory: { type: [mongoose.Schema.Types.Mixed], default: [] },
   },
   { timestamps: true }
 );

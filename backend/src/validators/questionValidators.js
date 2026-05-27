@@ -21,18 +21,94 @@ export const createQuestionSchema = z.object({
   question_latex: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
+  parser_confidence: z.number().optional(),
+  reconstruction_fidelity: z.number().optional(),
+  semantic_confidence: z.number().optional(),
+  math_preservation_confidence: z.number().optional(),
+  metadata_confidence: z.number().optional(),
+  audit_history: z.array(z.any()).optional(),
 });
 
 export const updateQuestionSchema = createQuestionSchema.partial();
 
 export const reconstructQuestionSchema = z.object({
-  html: z.string().max(500_000).optional(),
-  plain: z.string().max(200_000).optional(),
-  rawHtml: z.string().max(500_000).optional(),
-  ocrText: z.string().max(200_000).optional(),
-  images: z.array(z.string().max(2_000_000)).max(6).optional(),
+  html: z.string().max(10_000_000).optional(),
+  plain: z.string().max(5_000_000).optional(),
+  rawHtml: z.string().max(10_000_000).optional(),
+  ocrText: z.string().max(5_000_000).optional(),
+  images: z.array(z.string().max(10_000_000)).max(20).optional(),
   useGemini: z.boolean().optional(),
   blocks: z.array(z.any()).optional(),
+});
+
+export const semanticQuestionSchema = z.object({
+  questionType: z.string().optional().default("DESCRIPTIVE"),
+  stem: z.string().optional().default(""),
+  options: z.array(
+    z.union([
+      z.string(),
+      z.object({
+        text: z.string().optional().default(""),
+        latex: z.string().nullable().optional(),
+        image: z.string().nullable().optional()
+      })
+    ])
+  ).optional().default([]),
+  correctAnswers: z.union([z.string(), z.array(z.string())]).optional().default([]),
+  explanation: z.string().optional().default(""),
+  statementGroups: z.array(z.string()).optional().default([]),
+  formulas: z.array(z.string()).optional().default([]),
+  tags: z.array(z.string()).optional().default([]),
+});
+
+export const reconstructionResponsePayloadSchema = z.object({
+  questionText: z.string().default(''),
+  questionHtml: z.string().nullable().optional(),
+  questionLatex: z.string().nullable().optional(),
+  questionType: z.string().default('descriptive'),
+  subtype: z.string().default('descriptive'),
+  options: z.array(z.object({
+    text: z.string().default(''),
+    latex: z.string().nullable().optional(),
+    image: z.string().nullable().optional(),
+  })).default([]),
+  tags: z.array(z.string()).default([]),
+  questionImages: z.array(z.string()).default([]),
+  numericalAnswer: z.number().nullable().optional(),
+  correctOption: z.number().nullable().optional(),
+  warnings: z.array(z.string()).default([]),
+  sources: z.object({
+    parser: z.boolean().default(true),
+    ocr: z.boolean().default(false),
+    gemini: z.boolean().default(false),
+    ollama: z.boolean().optional(),
+  }),
+  hasEquation: z.boolean().default(false),
+  correctAnswers: z.array(z.string()).default([]),
+  figures: z.array(z.any()).default([]),
+  formulas: z.array(z.string()).default([]),
+  semanticBlocks: z.array(z.any()).default([]),
+  statementGroups: z.array(z.string()).default([]),
+  comprehensionLinks: z.array(z.any()).default([]),
+  parserConfidence: z.number().default(1.0),
+  reconstructionFidelity: z.number().default(0.8),
+  semanticConfidence: z.number().default(1.0),
+  mathPreservationConfidence: z.number().default(1.0),
+  metadataConfidence: z.number().default(1.0),
+  raw_stem: z.string().default(''),
+  raw_options: z.array(z.object({
+    text: z.string().default(''),
+    latex: z.string().nullable().optional(),
+  })).default([]),
+  layout_blocks: z.array(z.any()).default([]),
+  parser_confidence: z.number().default(1.0),
+  reconstruction_fidelity: z.number().default(0.8),
+  semantic_confidence: z.number().default(1.0),
+  math_preservation_confidence: z.number().default(1.0),
+  metadata_confidence: z.number().default(1.0),
+  audit_history: z.array(z.any()).default([]),
+  ocr_confidence: z.number().nullable().optional(),
+  debugInfo: z.any().nullable().optional(),
 });
 
 export const listQuestionsSchema = z.object({

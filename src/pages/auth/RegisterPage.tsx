@@ -43,6 +43,11 @@ export function RegisterPage() {
       return;
     }
 
+    if (result.pendingApproval) {
+      navigate('/login', { state: { pendingApproval: true } });
+      return;
+    }
+
     navigate('/dashboard');
   };
 

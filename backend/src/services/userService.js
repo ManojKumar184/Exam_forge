@@ -48,6 +48,8 @@ export async function updateUser(id, body) {
   if (body.full_name !== undefined) user.fullName = body.full_name;
   if (body.role !== undefined) user.role = body.role;
   if (body.is_active !== undefined) user.isActive = Boolean(body.is_active);
+  if (body.approval_status !== undefined) user.approvalStatus = body.approval_status;
+  if (body.approvalStatus !== undefined) user.approvalStatus = body.approvalStatus;
   if (body.school_institute !== undefined) user.schoolInstitute = body.school_institute;
   if (body.phone !== undefined) user.phone = body.phone;
 

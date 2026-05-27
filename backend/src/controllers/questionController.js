@@ -1,5 +1,7 @@
 import * as questionService from '../services/questionService.js';
 import { reconstructQuestionInput } from '../services/questionReconstructService.js';
+import { logger } from '../utils/logger.js';
+import { reconstructionResponsePayloadSchema } from '../validators/questionValidators.js';
 
 export async function list(req, res) {
   const data = await questionService.listQuestions(req.query, req.user);
@@ -71,6 +73,25 @@ export async function bulkUpdateMetadata(req, res) {
 
 /** Editor assist: parse/OCR/Gemini reconstruct without persisting. */
 export async function reconstruct(req, res) {
+  // Log 1: Raw request payload
+  logger.info('[FORENSIC_LOG] 1. Raw request payload', { body: req.body });
+
   const data = await reconstructQuestionInput(req.body);
-  res.json({ success: true, data });
+
+  // Validate the final response payload with Zod
+  const validationResult = reconstructionResponsePayloadSchema.safeParse(data);
+  if (!validationResult.success) {
+    logger.error('[FORENSIC_LOG] 8. Final API response shape validation failure', {
+      errors: validationResult.error.errors,
+      data
+    });
+  } else {
+    logger.info('[FORENSIC_LOG] 8. Final API response shape validation success', {
+      shape: Object.keys(validationResult.data)
+    });
+  }
+
+  const finalPayload = validationResult.success ? validationResult.data : data;
+
+  res.json({ success: true, data: finalPayload });
 }

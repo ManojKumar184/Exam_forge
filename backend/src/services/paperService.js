@@ -52,7 +52,12 @@ function mapBodyToPaperFields(body) {
     totalMarks: Number(body.total_marks ?? body.totalMarks ?? 0),
     totalQuestions: Number(body.total_questions ?? body.totalQuestions ?? 0),
     durationMinutes: Number(body.duration_minutes ?? body.durationMinutes ?? 180),
-    sections: body.sections || [],
+    sections: (body.sections || []).map((s) => ({
+      name: s.name,
+      questionCount: Number(s.questionCount ?? s.question_count ?? 0),
+      marksPerQuestion: Number(s.marksPerQuestion ?? s.marks_per_question ?? 4),
+      negativeMarksPerQuestion: Number(s.negativeMarksPerQuestion ?? s.negative_marks_per_question ?? s.negativeMarks ?? 0),
+    })),
     instructions: body.instructions ?? null,
     paperSet: body.paper_set || body.paperSet || 'A',
     isOnline: Boolean(body.is_online ?? body.isOnline ?? false),
@@ -77,6 +82,7 @@ export async function createPaper(body, user) {
     sectionOrder: Number(q.section_order ?? q.sectionOrder ?? 0),
     questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
     customMarks: q.custom_marks ?? q.customMarks ?? null,
+    customNegativeMarks: q.custom_negative_marks ?? q.customNegativeMarks ?? null,
   }));
   fields.createdBy = user._id;
   const doc = await Paper.create(fields);
@@ -100,6 +106,7 @@ export async function updatePaper(id, body, user) {
       sectionOrder: Number(q.section_order ?? q.sectionOrder ?? 0),
       questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
       customMarks: q.custom_marks ?? q.customMarks ?? null,
+      customNegativeMarks: q.custom_negative_marks ?? q.customNegativeMarks ?? null,
     }));
   }
   if (body.status === 'published' && !paper.publishedAt) {
@@ -128,6 +135,7 @@ export async function generatePaper(config, user) {
         name: 'Section A - MCQ',
         questionCount: Number(config.total_questions || 20),
         marksPerQuestion: Number(config.marks_per_question || 4),
+        negativeMarksPerQuestion: Number(config.negative_marks_per_question || config.negativeMarks || 0),
         question_types: ['mcq'],
       },
     ];
@@ -152,6 +160,7 @@ export async function generatePaper(config, user) {
         section_order: sectionOrder,
         question_order: questionOrder,
         custom_marks: q.custom_marks,
+        custom_negative_marks: q.custom_negative_marks || null,
       });
     });
   });
@@ -165,6 +174,7 @@ export async function generatePaper(config, user) {
         name: s.name,
         questionCount: s.questionCount ?? s.question_count,
         marksPerQuestion: s.marksPerQuestion ?? s.marks_per_question ?? 4,
+        negativeMarksPerQuestion: s.negativeMarksPerQuestion ?? s.negative_marks_per_question ?? s.negativeMarks ?? 0,
       })),
       questions: paperQuestions,
       status: config.status || 'draft',

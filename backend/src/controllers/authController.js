@@ -2,15 +2,26 @@ import * as authService from '../services/authService.js';
 import { toAuthUser, toProfile } from '../utils/userMapper.js';
 
 export async function register(req, res) {
-  const { user, accessToken, refreshToken } = await authService.registerUser(req.body);
-  setRefreshCookie(res, refreshToken);
+  const result = await authService.registerUser(req.body);
+  if (result.pendingApproval) {
+    return res.status(202).json({
+      success: true,
+      message: 'Registration successful! Your account is pending Super Admin approval.',
+      data: {
+        user: toAuthUser(result.user),
+        profile: toProfile(result.user),
+        pendingApproval: true,
+      },
+    });
+  }
+  setRefreshCookie(res, result.refreshToken);
   res.status(201).json({
     success: true,
     data: {
-      user: toAuthUser(user),
-      profile: toProfile(user),
-      accessToken,
-      refreshToken,
+      user: toAuthUser(result.user),
+      profile: toProfile(result.user),
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     },
   });
 }

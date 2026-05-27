@@ -82,11 +82,28 @@ function SafeTextViewer({
 }
 
 function ensureStages(result: any) {
-  const debug = result.debugInfo || {};
+  const defaultStages = {
+    stage0: { title: "Stage 0 — Clipboard / DOCX Ingest", mime_types: [], payload_sizes: {}, preview_snippets: {}, raw_clipboard_html: "" },
+    stage1: { title: "Stage 1 — Word Nuclear Cleaner", before_html: "", after_html: "", removed_tags: [], removed_attributes: [], math_containing_nodes: [] },
+    stage2: { title: "Stage 2 — Structural HTML Normalization", normalization_log: [] },
+    stage3: { title: "Stage 3 — Figure/Image Isolation", figures_extracted: [], isolated_html: "" },
+    stage4: { title: "Stage 4 — Semantic Math Shielding", equations_detected: [], shield_map: {}, failed_math_detections: [], total_math_count: 0, preserved_math_count: 0, dropped_math_count: 0 },
+    stage5: { title: "Stage 5 — DOM Block Extraction", blocks: [] },
+    stage6: { title: "Stage 6 — Semantic Question Typing", classified_type: "", evidence: [] },
+    stage7: { title: "Stage 7 — Adaptive Parser Selection", selected_parser: "" },
+    stage8: { title: "Stage 8 — MCQ / Statement / Comprehension Reconstruction", reconstructed_stem: "", reconstructed_options: [], statement_groups: [] },
+    stage9: { title: "Stage 9 — Ollama Semantic Refinement", refined: false, response: null, warnings: [] },
+    stage10: { title: "Stage 10 — Final Validation", warnings: [], parser_confidence: 1.0, unresolved_placeholders: [] },
+    stage11: { title: "Stage 11 — KaTeX Verification", final_katex_source: "", malformed_expressions: [] },
+    stage12: { title: "Stage 12 — Metadata Classification", class: 11, difficulty: "medium", tags: [] },
+    stage13: { title: "Stage 13 — Database-ready Semantic Object Generation", db_object: {}, report: {} },
+  };
+
+  const debug = result?.debugInfo || {};
   const placeholders = debug.shieldedMathPlaceholders || {};
   const totalMath = Object.keys(placeholders).length;
 
-  const src = debug.rawClipboardHtml || result.questionHtml || '';
+  const src = debug.rawClipboardHtml || result?.questionHtml || '';
   const vmlDetected = /<v:shape|<v:imagedata|o:OLEObject/i.test(src) || /clip_image\d+/i.test(src);
   const shapeMatches = src.match(/<v:shape|<v:imagedata/gi) || [];
   const clipMatches = src.match(/clip_image\d+/gi) || [];
@@ -95,15 +112,15 @@ function ensureStages(result: any) {
   const ommlMatch = src.match(/<m:oMath\b|<oMath\b/gi) || [];
   const ommlCount = ommlMatch.length;
   
-  const malformedExpressions = result.debugInfo?.stages?.stage11?.malformed_expressions || [];
+  const malformedExpressions = result?.debugInfo?.stages?.stage11?.malformed_expressions || [];
   const malformedCount = malformedExpressions.length;
   const unresolvedCount = 0;
   const convertedCount = Math.max(0, totalMath - unresolvedCount - malformedCount);
   const latexValid = malformedCount === 0;
 
-  let stages: any;
+  let stages: any = {};
 
-  if (result.debugInfo?.stages) {
+  if (result?.debugInfo?.stages) {
     stages = JSON.parse(JSON.stringify(result.debugInfo.stages));
   } else {
     stages = {
@@ -111,7 +128,7 @@ function ensureStages(result: any) {
         title: "Stage 0 — Clipboard / DOCX Ingest",
         mime_types: debug.rawClipboardHtml ? ["text/plain", "text/html"] : ["text/plain"],
         payload_sizes: {
-          "text/plain": (result.raw_stem || "").length,
+          "text/plain": (result?.raw_stem || "").length,
           "text/html": (debug.rawClipboardHtml || "").length,
         },
         raw_clipboard_html: debug.rawClipboardHtml || null,
@@ -119,7 +136,7 @@ function ensureStages(result: any) {
       stage1: {
         title: "Stage 1 — Word Nuclear Cleaner",
         before_html: debug.rawClipboardHtml || null,
-        after_html: result.questionHtml || null,
+        after_html: result?.questionHtml || null,
         removed_tags: debug.rawClipboardHtml ? ["style", "class", "xml"] : [],
         removed_attributes: ["class", "style", "mso-*"],
         math_containing_nodes: debug.rawClipboardHtml && /math|oMath/i.test(debug.rawClipboardHtml) ? ["OMML/MathML"] : [],
@@ -130,8 +147,8 @@ function ensureStages(result: any) {
       },
       stage3: {
         title: "Stage 3 — Figure/Image Isolation",
-        figures_extracted: result.figures || [],
-        isolated_html: result.questionHtml || null,
+        figures_extracted: result?.figures || [],
+        isolated_html: result?.questionHtml || null,
       },
       stage4: {
         title: "Stage 4 — Semantic Math Shielding",
@@ -148,70 +165,79 @@ function ensureStages(result: any) {
       },
       stage6: {
         title: "Stage 6 — Semantic Question Typing",
-        classified_type: result.questionType?.toUpperCase() || "MCQ_SINGLE",
-        evidence: [`Options Count: ${result.options?.length || 0}`],
+        classified_type: result?.questionType?.toUpperCase() || "MCQ_SINGLE",
+        evidence: [`Options Count: ${result?.options?.length || 0}`],
       },
       stage7: {
         title: "Stage 7 — Adaptive Parser Selection",
-        selected_parser: result.options?.length > 0 ? "MCQ Parser" : "Descriptive Parser",
+        selected_parser: result?.options?.length > 0 ? "MCQ Parser" : "Descriptive Parser",
       },
       stage8: {
         title: "Stage 8 — MCQ / Statement / Comprehension Reconstruction",
-        reconstructed_stem: result.questionText,
-        reconstructed_options: result.options,
-        statement_groups: result.statementGroups || [],
+        reconstructed_stem: result?.questionText || "",
+        reconstructed_options: result?.options || [],
+        statement_groups: result?.statementGroups || [],
       },
       stage9: {
         title: "Stage 9 — Ollama Semantic Refinement",
-        refined: result.sources?.ollama || false,
+        refined: result?.sources?.ollama || false,
         response: null,
         warnings: [],
       },
       stage10: {
         title: "Stage 10 — Final Validation",
-        warnings: result.warnings || [],
-        parser_confidence: result.parser_confidence || 1.0,
+        warnings: result?.warnings || [],
+        parser_confidence: result?.parser_confidence || 1.0,
         unresolved_placeholders: [],
       },
       stage11: {
         title: "Stage 11 — KaTeX Verification",
-        final_katex_source: result.questionText,
+        final_katex_source: result?.questionText || "",
         malformed_expressions: malformedExpressions,
       },
       stage12: {
         title: "Stage 12 — Metadata Classification",
-        class: result.class || 11,
-        difficulty: result.difficulty || "medium",
-        tags: result.tags || [],
+        class: result?.class || 11,
+        difficulty: result?.difficulty || "medium",
+        tags: result?.tags || [],
       },
       stage13: {
         title: "Stage 13 — Database-ready Semantic Object Generation",
         db_object: {
-          questionType: result.questionType || 'MCQ_SINGLE',
-          stem: result.questionText,
-          options: result.options,
-          correctAnswers: result.correctAnswers || [],
-          explanation: result.explanation || "",
-          figures: result.figures || [],
+          questionType: result?.questionType || 'MCQ_SINGLE',
+          stem: result?.questionText || "",
+          options: result?.options || [],
+          correctAnswers: result?.correctAnswers || [],
+          explanation: result?.explanation || "",
+          figures: result?.figures || [],
           metadata: {
-            class: result.class || 11,
-            difficulty: result.difficulty || "medium",
-            tags: result.tags || [],
+            class: result?.class || 11,
+            difficulty: result?.difficulty || "medium",
+            tags: result?.tags || [],
           },
-          formulas: result.formulas || [],
-          difficulty: result.difficulty || "medium",
-          tags: result.tags || [],
-          source: result.source || 'paste',
-          statementGroups: result.statementGroups || [],
-          parserConfidence: result.parser_confidence || 1.0,
-          reconstructionFidelity: result.reconstructionFidelity || 0.8,
+          formulas: result?.formulas || [],
+          difficulty: result?.difficulty || "medium",
+          tags: result?.tags || [],
+          source: result?.source || 'paste',
+          statementGroups: result?.statementGroups || [],
+          parserConfidence: result?.parser_confidence || 1.0,
+          reconstructionFidelity: result?.reconstructionFidelity || 0.8,
         },
       },
     };
   }
 
+  // Ensure all stage objects are merged with defaultStages to guarantee properties exist
+  for (let i = 0; i <= 13; i++) {
+    const key = `stage${i}`;
+    stages[key] = {
+      ...defaultStages[key as keyof typeof defaultStages],
+      ...(stages[key] || {}),
+    };
+  }
+
   const rawHtmlStr = stages.stage0?.raw_clipboard_html || '';
-  const cleanedHtmlStr = stages.stage1?.after_html || result.questionHtml || '';
+  const cleanedHtmlStr = stages.stage1?.after_html || result?.questionHtml || '';
 
   const rawNodes = countHtmlNodes(rawHtmlStr);
   const cleanedNodes = countHtmlNodes(cleanedHtmlStr);
@@ -224,11 +250,11 @@ function ensureStages(result: any) {
       totalMathExpressions: totalMath,
       preservedMathExpressions: totalMath,
       droppedMathExpressions: 0,
-      reconstructionAccuracy: result.parser_confidence || 1.0,
-      optionAccuracy: result.options?.length > 0 ? 1.0 : 0.0,
-      parserWarnings: result.warnings || [],
+      reconstructionAccuracy: result?.parser_confidence || 1.0,
+      optionAccuracy: result?.options?.length > 0 ? 1.0 : 0.0,
+      parserWarnings: result?.warnings || [],
       unresolvedBlocks: 0,
-      confidence: result.parser_confidence || 1.0,
+      confidence: result?.parser_confidence || 1.0,
       
       totalSemanticMathBlocks: totalMath,
       extractedOmmlBlocks: ommlCount,
@@ -260,6 +286,15 @@ export function ReconstructionPreview({
 }: ReconstructionPreviewProps) {
   const [activeTab, setActiveTab] = useState<number>(0);
   const subtypeLabel = subtype.replace(/_/g, ' ');
+
+  // Log 10: React preview render inputs
+  console.log('[FORENSIC_LOG] 10. React preview render inputs:', {
+    previewQuestion,
+    subtype,
+    reconstructing,
+    lastResult,
+    pipelineState
+  });
 
   const getPipelineLabel = () => {
     switch (pipelineState) {

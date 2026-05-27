@@ -36,26 +36,53 @@ export async function registerUser({ email, password, fullName, role, schoolInst
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const isFaculty = role === 'faculty';
   const user = await User.create({
     email: email.toLowerCase(),
     passwordHash,
     fullName,
     role,
     schoolInstitute: schoolInstitute || null,
+    isActive: !isFaculty,
+    approvalStatus: isFaculty ? 'pending' : 'approved',
   });
+
+  if (isFaculty) {
+    return { user, pendingApproval: true };
+  }
 
   return issueTokenPair(user);
 }
 
 export async function loginUser({ email, password }) {
   const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash');
-  if (!user || !user.isActive) {
+  if (!user) {
     throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+  }
+
+  if (user.approvalStatus === 'pending') {
+    throw new AppError(
+      'Your faculty account is pending approval by the Super Admin.',
+      403,
+      'PENDING_APPROVAL'
+    );
+  }
+
+  if (user.approvalStatus === 'rejected') {
+    throw new AppError(
+      'Your faculty account registration has been rejected by the Super Admin.',
+      403,
+      'REGISTRATION_REJECTED'
+    );
+  }
+
+  if (!user.isActive) {
+    throw new AppError('Your account has been deactivated. Please contact support.', 403, 'ACCOUNT_DEACTIVATED');
   }
 
   return issueTokenPair(user);

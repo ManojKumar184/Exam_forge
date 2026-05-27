@@ -184,14 +184,14 @@ export async function autosaveAttempt(testId, user, payload) {
   return mapTestAttempt(attempt);
 }
 
-function scoreAnswer(answer, question, marks) {
+function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   if (!question) return { isCorrect: null, marks: 0, skipped: true };
   if (question.questionType === 'mcq') {
     if (answer.selectedOption === null || answer.selectedOption === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
     const isCorrect = Number(question.correctOption) === Number(answer.selectedOption);
-    return { isCorrect, marks: isCorrect ? marks : 0, skipped: false };
+    return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   if (question.questionType === 'numerical') {
     if (answer.numericalAnswer === null || answer.numericalAnswer === undefined) {
@@ -200,7 +200,7 @@ function scoreAnswer(answer, question, marks) {
     const tolerance = Number(question.numericalTolerance || 0);
     const isCorrect =
       Math.abs(Number(answer.numericalAnswer) - Number(question.numericalAnswer)) <= tolerance;
-    return { isCorrect, marks: isCorrect ? marks : 0, skipped: false };
+    return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   // descriptive evaluated later by faculty; keep pending
   if (!answer.textAnswer) return { isCorrect: null, marks: 0, skipped: true };
@@ -222,10 +222,23 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
 
   const questionMap = new Map(
-    (test.paperId?.questions || []).map((pq) => [
-      (pq.questionId?._id || pq.questionId).toString(),
-      { question: pq.questionId, marks: Number(pq.customMarks || 0) },
-    ])
+    (test.paperId?.questions || []).map((pq) => {
+      const sectionName = pq.section || 'A';
+      const sectionObj = test.paperId?.sections?.find(s => s.name === sectionName || s.id === sectionName);
+      const defaultNegMarks = sectionObj?.negativeMarksPerQuestion || 0;
+      const negativeMarks = pq.customNegativeMarks !== null && pq.customNegativeMarks !== undefined
+        ? pq.customNegativeMarks
+        : defaultNegMarks;
+
+      return [
+        (pq.questionId?._id || pq.questionId).toString(),
+        {
+          question: pq.questionId,
+          marks: Number(pq.customMarks || 0),
+          negativeMarks: Number(negativeMarks || 0),
+        },
+      ];
+    })
   );
 
   let score = 0;
@@ -236,8 +249,9 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId.toString());
     const maxMarks = entry?.marks || 0;
+    const negativeMarks = entry?.negativeMarks || 0;
     answer.maxMarks = maxMarks;
-    const evalResult = scoreAnswer(answer, entry?.question, maxMarks);
+    const evalResult = scoreAnswer(answer, entry?.question, maxMarks, negativeMarks);
     answer.isCorrect = evalResult.isCorrect;
     answer.marksObtained = evalResult.marks;
     if (evalResult.skipped) {

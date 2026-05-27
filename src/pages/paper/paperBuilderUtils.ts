@@ -6,15 +6,16 @@ export interface Section {
   id: string;
   name: string;
   marksPerQuestion: number;
+  negativeMarksPerQuestion: number;
   questionTypes: ('mcq' | 'descriptive' | 'numerical')[];
   targetCount: number;
   questions: SelectedQuestion[];
 }
 
 export const DEFAULT_SECTIONS: Section[] = [
-  { id: 'A', name: 'Section A - MCQ', marksPerQuestion: 4, questionTypes: ['mcq'], targetCount: 15, questions: [] },
-  { id: 'B', name: 'Section B - Short Answer', marksPerQuestion: 4, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
-  { id: 'C', name: 'Section C - Long Answer', marksPerQuestion: 8, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
+  { id: 'A', name: 'Section A - MCQ', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['mcq'], targetCount: 15, questions: [] },
+  { id: 'B', name: 'Section B - Short Answer', marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
+  { id: 'C', name: 'Section C - Long Answer', marksPerQuestion: 8, negativeMarksPerQuestion: 0, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
 ];
 
 export function applySelectionToSections(
@@ -145,37 +146,17 @@ export function validateSectionsLocally(sections: Section[], totalMarks: number)
 }
 
 export function paperToSections(paper: {
-  sections?: { name: string; questionCount: number; marksPerQuestion: number }[];
+  sections?: { name: string; questionCount: number; marksPerQuestion: number; negativeMarksPerQuestion?: number }[];
   questions?: Array<{
     question_id: string;
     section: string;
     question_order: number;
     custom_marks: number | null;
+    custom_negative_marks?: number | null;
     question?: Question;
   }>;
 }): Section[] {
   const base = DEFAULT_SECTIONS.map((s) => ({ ...s, questions: [] as SelectedQuestion[] }));
-
-  if (paper.sections?.length) {
-    return paper.sections.map((ps, i) => {
-      const defaultSec = base[i] || {
-        id: String.fromCharCode(65 + i),
-        name: ps.name,
-        marksPerQuestion: ps.marksPerQuestion,
-        questionTypes: ['mcq', 'descriptive', 'numerical'] as Section['questionTypes'],
-        targetCount: ps.questionCount,
-        questions: [],
-      };
-      return {
-        ...defaultSec,
-        id: defaultSec.id || String.fromCharCode(65 + i),
-        name: ps.name,
-        marksPerQuestion: ps.marksPerQuestion,
-        targetCount: ps.questionCount,
-        questions: [],
-      };
-    });
-  }
 
   const bySection = new Map<string, SelectedQuestion[]>();
   (paper.questions || []).forEach((pq) => {
@@ -185,11 +166,36 @@ export function paperToSections(paper: {
     list.push({
       ...q,
       customMarks: pq.custom_marks ?? q.marks,
+      customNegativeMarks: pq.custom_negative_marks ?? null,
       sectionId: pq.section,
       orderIndex: pq.question_order,
-    });
+    } as SelectedQuestion);
     bySection.set(pq.section, list);
   });
+
+  if (paper.sections?.length) {
+    return paper.sections.map((ps, i) => {
+      const secId = String.fromCharCode(65 + i);
+      const defaultSec = base.find(b => b.id === secId) || {
+        id: secId,
+        name: ps.name,
+        marksPerQuestion: ps.marksPerQuestion,
+        negativeMarksPerQuestion: ps.negativeMarksPerQuestion ?? 0,
+        questionTypes: ['mcq', 'descriptive', 'numerical'] as Section['questionTypes'],
+        targetCount: ps.questionCount,
+        questions: [],
+      };
+      return {
+        ...defaultSec,
+        id: defaultSec.id || secId,
+        name: ps.name,
+        marksPerQuestion: ps.marksPerQuestion,
+        negativeMarksPerQuestion: ps.negativeMarksPerQuestion ?? 0,
+        targetCount: ps.questionCount,
+        questions: (bySection.get(secId) || []).sort((a, b) => a.orderIndex - b.orderIndex),
+      };
+    });
+  }
 
   return base.map((s) => ({
     ...s,

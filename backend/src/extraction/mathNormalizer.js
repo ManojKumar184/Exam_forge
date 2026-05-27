@@ -2,6 +2,7 @@
 const VALID_LATEX_COMMANDS = new Set([
   'cap', 'cup', 'subset', 'subseteq', 'sqrt', 'pi', 'sum', 'int', 'le', 'ge', 'ne', 'neq', 'pm', 'times', 'div',
   'alpha', 'beta', 'gamma', 'delta', 'theta', 'lambda', 'mu', 'sigma', 'phi', 'psi', 'omega',
+  'Alpha', 'Beta', 'Gamma', 'Delta', 'Theta', 'Lambda', 'Mu', 'Sigma', 'Phi', 'Psi', 'Omega',
   'frac', 'in', 'notin', 'cdot', 'infty', 'partial', 'nabla', 'approx', 'equiv', 'to', 'rightarrow',
   'left', 'right', 'bar', 'vec', 'hat', 'tilde', 'sin', 'cos', 'tan', 'log', 'ln', 'lim', 'matrix',
   'begin', 'end', 'text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'over', 'choose',

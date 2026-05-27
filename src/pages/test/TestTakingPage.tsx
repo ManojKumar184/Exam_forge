@@ -34,6 +34,9 @@ interface QuestionWithOrder {
   is_visited: boolean;
   marks: number;
   time_spent_seconds: number;
+  is_correct?: boolean | null;
+  marks_obtained?: number;
+  grading_remarks?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -42,6 +45,10 @@ const STATUS_COLORS: Record<string, string> = {
   'not-visited': 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300',
   'marked-answered': 'bg-blue-500 text-white',
   'not-answered': 'bg-red-500 text-white',
+  'review-correct': 'bg-emerald-500 text-white hover:bg-emerald-600',
+  'review-incorrect': 'bg-rose-500 text-white hover:bg-rose-600',
+  'review-skipped': 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-400',
+  'review-pending': 'bg-amber-500 text-white hover:bg-amber-600',
 };
 
 export function TestTakingPage() {
@@ -154,6 +161,9 @@ export function TestTakingPage() {
       numerical_answer: hasNum ? saved!.numerical_answer! : undefined,
       is_visited: hasMcq || hasText || hasNum,
       time_spent_seconds: saved?.time_spent_seconds ?? 0,
+      is_correct: saved?.is_correct ?? null,
+      marks_obtained: saved?.marks_obtained ?? 0,
+      grading_remarks: saved?.grading_remarks ?? null,
     };
   };
 
@@ -396,6 +406,18 @@ export function TestTakingPage() {
     (q.numerical_answer !== undefined && q.numerical_answer !== '');
 
   const getQuestionStatus = (q: QuestionWithOrder): string => {
+    if (isReviewMode) {
+      if (q.question.question_type === 'descriptive') {
+        if (!q.text_answer?.trim()) return 'review-skipped';
+        if (q.is_correct === true) return 'review-correct';
+        if (q.is_correct === false) return 'review-incorrect';
+        return 'review-pending';
+      }
+      if (q.is_correct === true) return 'review-correct';
+      if (q.is_correct === false) return 'review-incorrect';
+      return 'review-skipped';
+    }
+
     if (isAnswered(q)) {
       if (q.is_marked) return 'marked-answered';
       return 'answered';
@@ -505,43 +527,147 @@ export function TestTakingPage() {
 
           {currentQuestion.question.question_type === 'mcq' && options && (
             <div className="space-y-3">
-              {displayOptions.map(({ originalIndex, option }, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  disabled={isReviewMode}
-                  onClick={() => handleAnswer(originalIndex)}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    currentQuestion.user_answer === originalIndex
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                      : 'border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500'
-                  } ${isReviewMode ? 'cursor-default opacity-90' : ''}`}
-                >
-                  <RichOptionContent option={option} index={index} />
-                </button>
-              ))}
+              {displayOptions.map(({ originalIndex, option }, index) => {
+                const isSelected = currentQuestion.user_answer === originalIndex;
+                const isCorrect = currentQuestion.question.correct_option === originalIndex;
+                let optionStyle = 'border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500';
+                
+                if (isReviewMode) {
+                  if (isCorrect) {
+                    optionStyle = 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200';
+                  } else if (isSelected) {
+                    optionStyle = 'border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-900 dark:text-rose-200';
+                  } else {
+                    optionStyle = 'border-slate-200 dark:border-slate-700 opacity-60 cursor-default';
+                  }
+                } else if (isSelected) {
+                  optionStyle = 'border-blue-500 bg-blue-50 dark:bg-blue-900/30';
+                }
+
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    disabled={isReviewMode}
+                    onClick={() => handleAnswer(originalIndex)}
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${optionStyle} ${isReviewMode ? 'cursor-default' : ''}`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex-1">
+                        <RichOptionContent option={option} index={index} />
+                      </div>
+                      {isReviewMode && (
+                        <div className="ml-3 flex-shrink-0">
+                          {isCorrect && (
+                            <span className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-300 animate-pulse">
+                              Correct Answer
+                            </span>
+                          )}
+                          {isSelected && !isCorrect && (
+                            <span className="inline-flex items-center justify-center bg-rose-100 text-rose-800 text-xs font-bold px-2.5 py-1 rounded-full border border-rose-300">
+                              Your Selection (Incorrect)
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {currentQuestion.question.question_type === 'numerical' && (
-            <Input
-              label="Your answer"
-              type="number"
-              step="any"
-              disabled={isReviewMode}
-              value={String(currentQuestion.numerical_answer ?? '')}
-              onChange={(e) => handleNumericalAnswer(e.target.value)}
-            />
+            <div className="space-y-4">
+              <Input
+                label="Your Answer"
+                type="text"
+                disabled={isReviewMode}
+                value={String(currentQuestion.numerical_answer ?? '')}
+                onChange={(e) => handleNumericalAnswer(e.target.value)}
+              />
+              {isReviewMode && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <span className="text-xs text-slate-500 font-semibold block uppercase">Correct Value</span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white">
+                      {currentQuestion.question.numerical_answer} 
+                      {Number(currentQuestion.question.numerical_tolerance) > 0 && ` (±${currentQuestion.question.numerical_tolerance})`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-500 font-semibold block uppercase">Evaluation</span>
+                    <div className="mt-1">
+                      {currentQuestion.is_correct ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ✓ Correct (+{currentQuestion.marks_obtained || currentQuestion.marks} Marks)
+                        </span>
+                      ) : currentQuestion.numerical_answer === undefined || currentQuestion.numerical_answer === null || currentQuestion.numerical_answer === '' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          ⚠ Skipped (0 Marks)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                          ✗ Incorrect ({currentQuestion.marks_obtained ?? 0} Marks)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {currentQuestion.question.question_type === 'descriptive' && (
-            <Textarea
-              label="Your answer"
-              disabled={isReviewMode}
-              value={currentQuestion.text_answer || ''}
-              onChange={(e) => handleTextAnswer(e.target.value)}
-              rows={6}
-            />
+            <div className="space-y-4">
+              <Textarea
+                label="Your Answer"
+                disabled={isReviewMode}
+                value={currentQuestion.text_answer || ''}
+                onChange={(e) => handleTextAnswer(e.target.value)}
+                rows={6}
+              />
+              {isReviewMode && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <span className="text-xs text-slate-500 font-semibold block uppercase">Model Answer / Reference Key</span>
+                    <p className="mt-2 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
+                      {currentQuestion.question.answer_text || 'No reference key provided.'}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-lg border border-indigo-100 dark:border-indigo-950">
+                    <div>
+                      <span className="text-xs text-slate-500 font-semibold block uppercase">Marks Awarded</span>
+                      <span className="text-xl font-extrabold text-indigo-700 dark:text-indigo-400">
+                        {currentQuestion.marks_obtained ?? 0} / {currentQuestion.marks}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-500 font-semibold block uppercase">Teacher Feedback / Remarks</span>
+                      <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 italic">
+                        {currentQuestion.grading_remarks || 'Pending grading or no remarks provided.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isReviewMode && (
+            <div className="mt-6 p-5 bg-indigo-50 dark:bg-indigo-950/20 rounded-lg border border-indigo-100 dark:border-indigo-900/50">
+              <h4 className="font-semibold text-indigo-900 dark:text-indigo-300 text-sm mb-2 flex items-center gap-1.5">
+                <span>💡</span> Answer Explanation
+              </h4>
+              {currentQuestion.question.explanation ? (
+                <p className="text-sm text-indigo-950 dark:text-indigo-200 leading-relaxed whitespace-pre-wrap">
+                  {currentQuestion.question.explanation}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500 italic">No explanation available for this question.</p>
+              )}
+            </div>
           )}
 
           <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-700">

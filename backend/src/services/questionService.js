@@ -127,19 +127,58 @@ export async function createQuestion(body, user) {
   fields.duplicateHash = computeDuplicateHash(fields.questionText || body.question_text);
 
   const dup = await findDuplicateCandidate(Question, fields.duplicateHash);
-  if (dup) {
-    fields.status = 'needs_review';
-    fields.duplicateOf = dup._id;
-    fields.extractionWarnings = ['Possible duplicate detected'];
-  }
-
+  
   const ai = await classifyQuestionMetadata(fields);
   fields.aiConfidence = ai.aiConfidence;
   fields.aiMetadata = ai.aiMetadata;
+  
+  // Inherit class, subject, etc. from classifier if not specified
+  if (ai.class && !fields.class) fields.class = ai.class;
+  if (ai.subjectId && !fields.subjectId) fields.subjectId = ai.subjectId;
+  if (ai.chapterId && !fields.chapterId) fields.chapterId = ai.chapterId;
+  if (ai.examTypeId && !fields.examTypeId) fields.examTypeId = ai.examTypeId;
+  if (ai.difficulty && !fields.difficulty) fields.difficulty = ai.difficulty;
 
-  if (user.role !== 'super_admin') {
+  const lowConfidence = 
+    (fields.parserConfidence !== undefined && fields.parserConfidence < 0.70) ||
+    (fields.semanticConfidence !== undefined && fields.semanticConfidence < 0.70) ||
+    (fields.mathPreservationConfidence !== undefined && fields.mathPreservationConfidence < 0.70) ||
+    (fields.metadataConfidence !== undefined && fields.metadataConfidence < 0.70) ||
+    (fields.aiConfidence !== undefined && fields.aiConfidence < 70);
+
+  if (dup || lowConfidence) {
+    fields.status = 'needs_review';
+    if (dup) {
+      fields.duplicateOf = dup._id;
+      fields.extractionWarnings = [...(fields.extractionWarnings || []), 'Possible duplicate detected'];
+    }
+    if (lowConfidence) {
+      fields.extractionWarnings = [...(fields.extractionWarnings || []), 'Low confidence score detected'];
+    }
+  } else {
     fields.status = 'pending';
   }
+
+  const snapshot = {
+    questionText: fields.questionText,
+    questionType: fields.questionType,
+    options: fields.options,
+    correctOption: fields.correctOption,
+    explanation: fields.explanation,
+    confidence: {
+      parserConfidence: fields.parserConfidence,
+      semanticConfidence: fields.semanticConfidence,
+      mathPreservationConfidence: fields.mathPreservationConfidence,
+      metadataConfidence: fields.metadataConfidence,
+    }
+  };
+  fields.auditHistory = [{
+    action: 'ingested',
+    timestamp: new Date(),
+    user: user._id,
+    parserVersion: 'v1.0.0',
+    snapshot
+  }];
 
   const doc = await Question.create(fields);
   await doc.populate(['subjectId', 'chapterId', 'examTypeId']);
@@ -155,7 +194,39 @@ export async function updateQuestion(id, body, user) {
     fields.duplicateHash = computeDuplicateHash(fields.questionText);
   }
 
+  const preSnapshot = {
+    questionText: question.questionText,
+    questionType: question.questionType,
+    options: question.options,
+    correctOption: question.correctOption,
+    explanation: question.explanation,
+    confidence: {
+      parserConfidence: question.parserConfidence,
+      semanticConfidence: question.semanticConfidence,
+      mathPreservationConfidence: question.mathPreservationConfidence,
+      metadataConfidence: question.metadataConfidence,
+    }
+  };
+
   Object.assign(question, fields);
+
+  question.auditHistory = [
+    ...(question.auditHistory || []),
+    {
+      action: 'manually_corrected',
+      timestamp: new Date(),
+      user: user._id,
+      preSnapshot,
+      postSnapshot: {
+        questionText: question.questionText,
+        questionType: question.questionType,
+        options: question.options,
+        correctOption: question.correctOption,
+        explanation: question.explanation,
+      }
+    }
+  ];
+
   await question.save();
   await question.populate(['subjectId', 'chapterId', 'examTypeId']);
   return mapQuestion(question);
@@ -177,47 +248,83 @@ export async function approveQuestion(id, user) {
     );
   }
 
-  const q = await Question.findByIdAndUpdate(
-    id,
+  existing.status = 'approved';
+  existing.reviewedBy = user._id;
+  existing.reviewedAt = new Date();
+  existing.reviewNotes = null;
+  existing.auditHistory = [
+    ...(existing.auditHistory || []),
     {
-      status: 'approved',
-      reviewedBy: user._id,
-      reviewedAt: new Date(),
-      reviewNotes: null,
-    },
-    { new: true }
-  ).populate(['subjectId', 'chapterId', 'examTypeId']);
-  if (!q) throw new AppError('Question not found', 404, 'NOT_FOUND');
-  return mapQuestion(q);
+      action: 'approved',
+      timestamp: new Date(),
+      user: user._id,
+    }
+  ];
+
+  await existing.save();
+  await existing.populate(['subjectId', 'chapterId', 'examTypeId']);
+  return mapQuestion(existing);
 }
 
 export async function rejectQuestion(id, user, notes) {
-  const q = await Question.findByIdAndUpdate(
-    id,
+  const existing = await Question.findById(id);
+  if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
+
+  existing.status = 'rejected';
+  existing.reviewedBy = user._id;
+  existing.reviewedAt = new Date();
+  existing.reviewNotes = notes;
+  existing.auditHistory = [
+    ...(existing.auditHistory || []),
     {
-      status: 'rejected',
-      reviewedBy: user._id,
-      reviewedAt: new Date(),
-      reviewNotes: notes,
-    },
-    { new: true }
-  ).populate(['subjectId', 'chapterId', 'examTypeId']);
-  if (!q) throw new AppError('Question not found', 404, 'NOT_FOUND');
-  return mapQuestion(q);
+      action: 'rejected',
+      timestamp: new Date(),
+      user: user._id,
+      notes,
+    }
+  ];
+
+  await existing.save();
+  await existing.populate(['subjectId', 'chapterId', 'examTypeId']);
+  return mapQuestion(existing);
 }
 
 export async function bulkApprove(ids, user) {
-  await Question.updateMany(
-    { _id: { $in: ids } },
-    { status: 'approved', reviewedBy: user._id, reviewedAt: new Date() }
-  );
+  const questions = await Question.find({ _id: { $in: ids } });
+  for (const q of questions) {
+    q.status = 'approved';
+    q.reviewedBy = user._id;
+    q.reviewedAt = new Date();
+    q.auditHistory = [
+      ...(q.auditHistory || []),
+      {
+        action: 'approved',
+        timestamp: new Date(),
+        user: user._id,
+      }
+    ];
+    await q.save();
+  }
 }
 
 export async function bulkReject(ids, user, notes) {
-  await Question.updateMany(
-    { _id: { $in: ids } },
-    { status: 'rejected', reviewedBy: user._id, reviewedAt: new Date(), reviewNotes: notes }
-  );
+  const questions = await Question.find({ _id: { $in: ids } });
+  for (const q of questions) {
+    q.status = 'rejected';
+    q.reviewedBy = user._id;
+    q.reviewedAt = new Date();
+    q.reviewNotes = notes;
+    q.auditHistory = [
+      ...(q.auditHistory || []),
+      {
+        action: 'rejected',
+        timestamp: new Date(),
+        user: user._id,
+        notes,
+      }
+    ];
+    await q.save();
+  }
 }
 
 export async function bulkDelete(ids) {

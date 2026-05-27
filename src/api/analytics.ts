@@ -59,3 +59,18 @@ export async function fetchTestPerformanceAnalyticsApi(
   return data.data;
 }
 
+export async function fetchSystemMonitorApi(): Promise<any> {
+  const { data } = await apiClient.get<{ success: boolean; data: any }>('/analytics/system-monitor');
+  return data.data;
+}
+
+export async function fetchReplaySummaryApi(): Promise<any> {
+  const { data } = await apiClient.get<{ success: boolean; data: any }>('/analytics/replay-summary');
+  return data.data;
+}
+
+export async function runReplayHarnessApi(): Promise<any> {
+  const { data } = await apiClient.post<{ success: boolean; data: any }>('/analytics/run-replay');
+  return data.data;
+}
+

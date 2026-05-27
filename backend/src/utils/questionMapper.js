@@ -64,6 +64,10 @@ export function mapQuestion(doc) {
     comprehension_links: (d.comprehensionLinks || []).map(idStr),
     parser_confidence: d.parserConfidence ?? 0,
     reconstruction_fidelity: d.reconstructionFidelity ?? 0,
+    semantic_confidence: d.semanticConfidence ?? 0,
+    math_preservation_confidence: d.mathPreservationConfidence ?? 0,
+    metadata_confidence: d.metadataConfidence ?? 0,
+    audit_history: d.auditHistory || [],
     subject: d.subjectId?.name
       ? {
           id: idStr(d.subjectId._id || d.subjectId),
@@ -161,6 +165,14 @@ export function bodyToQuestionFields(body) {
     parserConfidence: 'parserConfidence',
     reconstruction_fidelity: 'reconstructionFidelity',
     reconstructionFidelity: 'reconstructionFidelity',
+    semantic_confidence: 'semanticConfidence',
+    semanticConfidence: 'semanticConfidence',
+    math_preservation_confidence: 'mathPreservationConfidence',
+    mathPreservationConfidence: 'mathPreservationConfidence',
+    metadata_confidence: 'metadataConfidence',
+    metadataConfidence: 'metadataConfidence',
+    audit_history: 'auditHistory',
+    auditHistory: 'auditHistory',
   };
 
   const out = {};

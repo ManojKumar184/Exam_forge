@@ -10,6 +10,7 @@ export interface Profile {
   school_institute: string | null;
   phone: string | null;
   is_active: boolean;
+  approval_status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
 }
@@ -108,6 +109,13 @@ export interface Question {
   subject?: Subject;
   chapter?: Chapter;
   exam_type?: ExamType;
+  parser_confidence?: number;
+  reconstruction_fidelity?: number;
+  semantic_confidence?: number;
+  math_preservation_confidence?: number;
+  metadata_confidence?: number;
+  audit_history?: Array<any>;
+  debug_info?: any;
 }
 
 // Paper types
@@ -118,6 +126,7 @@ export interface PaperSection {
   name: string;
   questionCount: number;
   marksPerQuestion: number;
+  negativeMarksPerQuestion?: number;
 }
 
 export interface Paper {
@@ -153,6 +162,7 @@ export interface PaperQuestion {
   section_order: number;
   question_order: number;
   custom_marks: number | null;
+  custom_negative_marks?: number | null;
   created_at?: string;
   question?: Question;
 }
@@ -279,6 +289,7 @@ export interface AnalyticsData {
   total_attempts: number;
   pending_questions: number;
   approved_questions: number;
+  needs_review_questions?: number;
 }
 
 // Filter types

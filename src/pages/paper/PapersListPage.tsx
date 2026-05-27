@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Edit } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, Button, Badge, Loading, EmptyState, Modal } from '../../components/ui';
+import { Card, Button, Badge, Loading, EmptyState, Modal, Input } from '../../components/ui';
 import { FileText, Plus, PlayCircle, Calendar, Clock, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadPaperPdfApi } from '../../api/papers';
@@ -16,6 +16,15 @@ export function PapersListPage() {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [showCreateTestModal, setShowCreateTestModal] = useState(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const [testStartTime, setTestStartTime] = useState('');
+  const [testEndTime, setTestEndTime] = useState('');
+  const [shuffleQuestions, setShuffleQuestions] = useState(true);
+  const [shuffleOptions, setShuffleOptions] = useState(true);
+  const [showResults, setShowResults] = useState(true);
+  const [allowReview, setAllowReview] = useState(true);
+  const [isPublic, setIsPublic] = useState(true);
+  const [accessCode, setAccessCode] = useState('');
 
   const handleExportPdf = async (
     paper: Paper,
@@ -45,20 +54,19 @@ export function PapersListPage() {
     if (!selectedPaper) return;
 
     const testCode = `TEST-${Date.now().toString(36).toUpperCase()}`;
-    const now = new Date();
-    const startTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const endTime = new Date(startTime.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     const { data, error } = await createOnlineTest({
       paper_id: selectedPaper.id,
       test_code: testCode,
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
+      start_time: testStartTime ? new Date(testStartTime).toISOString() : null,
+      end_time: testEndTime ? new Date(testEndTime).toISOString() : null,
       duration_minutes: selectedPaper.duration_minutes,
-      shuffle_questions: true,
-      shuffle_options: true,
-      show_results: true,
-      is_public: true,
+      shuffle_questions: shuffleQuestions,
+      shuffle_options: shuffleOptions,
+      show_results: showResults,
+      allow_review: allowReview,
+      is_public: isPublic,
+      access_code: isPublic ? null : accessCode || null,
       status: 'scheduled',
     });
 
@@ -141,6 +149,23 @@ export function PapersListPage() {
                     leftIcon={<PlayCircle className="w-4 h-4" />}
                     onClick={() => {
                       setSelectedPaper(paper);
+                      const now = new Date();
+                      const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                      const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+                      
+                      const toLocalISO = (d: Date) => {
+                        const pad = (n: number) => n.toString().padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                      };
+                      
+                      setTestStartTime(toLocalISO(start));
+                      setTestEndTime(toLocalISO(end));
+                      setShuffleQuestions(true);
+                      setShuffleOptions(true);
+                      setShowResults(true);
+                      setAllowReview(true);
+                      setIsPublic(true);
+                      setAccessCode('');
                       setShowCreateTestModal(true);
                     }}
                   >
@@ -179,26 +204,117 @@ export function PapersListPage() {
         isOpen={showCreateTestModal}
         onClose={() => setShowCreateTestModal(false)}
         title="Create Online Test"
-        size="md"
+        size="lg"
       >
-        <div className="p-6 space-y-4">
-          <p className="text-slate-600 dark:text-slate-400">
-            This will create an online test from paper: <strong>{selectedPaper?.title}</strong>
-          </p>
-          <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Duration: {selectedPaper?.duration_minutes} minutes
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Questions: {selectedPaper?.total_questions}
+        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          <div>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Configure access, timers, and behavior for: <strong>{selectedPaper?.title}</strong>
             </p>
           </div>
-          <div className="flex justify-end gap-3">
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              type="datetime-local"
+              label="Start Date & Time"
+              value={testStartTime}
+              onChange={(e) => setTestStartTime(e.target.value)}
+            />
+            <Input
+              type="datetime-local"
+              label="End Date & Time"
+              value={testEndTime}
+              onChange={(e) => setTestEndTime(e.target.value)}
+            />
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Test Administration Rules</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shuffleQuestions}
+                  onChange={(e) => setShuffleQuestions(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Shuffle Questions</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shuffleOptions}
+                  onChange={(e) => setShuffleOptions(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Shuffle Options (MCQs)</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showResults}
+                  onChange={(e) => setShowResults(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Results Immediately</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowReview}
+                  onChange={(e) => setAllowReview(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Allow Student Review</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Access Control</h4>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  checked={isPublic}
+                  onChange={() => setIsPublic(true)}
+                  className="text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Public Access</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  checked={!isPublic}
+                  onChange={() => setIsPublic(false)}
+                  className="text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Protected (requires Access Code)</span>
+              </label>
+            </div>
+
+            {!isPublic && (
+              <Input
+                type="text"
+                placeholder="e.g. MATH101"
+                label="Access Code"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+              />
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 border-t pt-4 dark:border-slate-700">
             <Button variant="ghost" onClick={() => setShowCreateTestModal(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreateOnlineTest}>
-              Create Test
+              Publish Test
             </Button>
           </div>
         </div>

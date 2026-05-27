@@ -94,6 +94,18 @@ function calculateParserConfidence(row, warnings) {
 }
 
 async function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, blocks = null, rawHtml = null) {
+  // Log 2: Reconstruction pipeline input
+  logger.info('[FORENSIC_LOG] 2. Reconstruction pipeline input', {
+    inputs: {
+      cleanedPlainLength: cleanedPlain?.length || 0,
+      cleanedHtmlLength: cleanedHtml?.length || 0,
+      ocrTextLength: ocrText?.length || 0,
+      blocksCount: blocks?.length || 0,
+      rawHtmlLength: rawHtml?.length || 0,
+      plainSample: cleanedPlain?.slice(0, 100)
+    }
+  });
+
   const pipeline = await runStagesReconstruction(cleanedPlain, cleanedHtml, ocrText, blocks, rawHtml);
 
   const row = {
@@ -119,6 +131,9 @@ async function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, 
     comprehensionLinks: pipeline.comprehensionLinks || [],
     parserConfidence: pipeline.confidence,
     reconstructionFidelity: pipeline.reconstructionFidelity || 0.8,
+    semanticConfidence: pipeline.semanticConfidence || 1.0,
+    mathPreservationConfidence: pipeline.mathPreservationConfidence || 1.0,
+    metadataConfidence: pipeline.metadataConfidence || 1.0,
     
     // Structured temporary fields
     raw_stem: pipeline.stem,
@@ -169,6 +184,9 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
     comprehensionLinks: row.comprehensionLinks || [],
     parserConfidence: row.parserConfidence || parser_confidence,
     reconstructionFidelity: row.reconstructionFidelity || 0.8,
+    semanticConfidence: row.semanticConfidence || 1.0,
+    mathPreservationConfidence: row.mathPreservationConfidence || 1.0,
+    metadataConfidence: row.metadataConfidence || 1.0,
 
     // Add temporary structured reconstruction state
     raw_stem: row.raw_stem || row.questionText || '',

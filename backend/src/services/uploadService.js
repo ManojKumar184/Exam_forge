@@ -46,20 +46,25 @@ export async function startAsyncUpload(file, user, options = {}) {
 async function processUploadInternal(upload, file, user, options = {}) {
   const fileType = upload.fileType;
   
-  // Stage 0: file_received
-  upload.progress = 5;
-  upload.processingStage = 'parsing';
-  upload.stageLogs = [`[UPLOAD_STAGE] 0 file_received - ${new Date().toISOString()}`];
-  await upload.save();
+  // Helper for status and stage logging updates (watchdog heartbeat)
+  const onStageChange = async (stage, progress, logMessage) => {
+    upload.processingStage = stage;
+    upload.progress = progress;
+    if (logMessage) {
+      upload.stageLogs.push(`[UPLOAD_STAGE] ${stage} - ${logMessage} - ${new Date().toISOString()}`);
+    }
+    upload.lastHeartbeat = new Date();
+    await upload.save();
+  };
+
+  // Stage 0: uploaded
+  await onStageChange('uploaded', 5, 'File uploaded and received on server');
 
   try {
     const filePath = path.join(env.uploadDir, 'documents', file.filename);
     
-    // Stage 1: docx_unzip_done
-    upload.progress = 15;
-    upload.processingStage = 'parsing';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 1 docx_unzip_done - ${new Date().toISOString()}`);
-    await upload.save();
+    // Stage 1: extracting
+    await onStageChange('extracting', 15, 'XML extraction and ZIP extraction initiated');
 
     const catalog = await loadClassificationCatalog();
     const uploadContext = {
@@ -70,28 +75,18 @@ async function processUploadInternal(upload, file, user, options = {}) {
       filename: file.originalname,
       source: 'upload',
       sourceFile: file.originalname,
+      onStageChange,
+      skipLlm: true, // synchronously bypass Ollama refinement during ingestion
     };
-
-    // Stage 2: xml_parse_done
-    upload.progress = 25;
-    upload.processingStage = 'extracting_xml';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 2 xml_parse_done - ${new Date().toISOString()}`);
-    await upload.save();
 
     const extractResult = await retryAsync(
       () => extractionService.processAndDeduplicate(filePath, fileType, uploadContext),
       { label: 'upload-extraction', retries: 1 }
     );
 
-    // Stage 3 & 4: omml_extract_done and semantic_blocks_done
-    upload.progress = 40;
-    upload.processingStage = 'reconstructing';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 3 omml_extract_done - ${new Date().toISOString()}`);
-    upload.stageLogs.push(`[UPLOAD_STAGE] 4 semantic_blocks_done - ${new Date().toISOString()}`);
     if (extractResult.usedOcr) {
-      upload.processingStage = 'ocr';
+      await onStageChange('ocr', 35, 'Tesseract OCR fallback triggered for page images');
     }
-    await upload.save();
 
     const docMeta = parseDocumentMetadata(
       extractResult.rawText || extractResult.questions?.map((q) => q.questionText).join('\n') || '',
@@ -111,83 +106,92 @@ async function processUploadInternal(upload, file, user, options = {}) {
       return;
     }
 
-    // Stage 5: reconstruction_done
-    upload.progress = 45;
-    upload.processingStage = 'classifying';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 5 reconstruction_done - ${new Date().toISOString()}`);
-    await upload.save();
+    // Stage 5: persisted
+    await onStageChange('persisted', 75, `Deterministic reconstruction complete. Persisting ${extractResult.questions.length} questions...`);
 
     const questionIds = [];
     const questions = extractResult.questions;
 
-    // Stage 6: classification_done
-    upload.progress = 50;
-    upload.processingStage = 'saving';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 6 classification_done - ${new Date().toISOString()}`);
-    await upload.save();
-
     for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      const classified = await classifyQuestionMetadata(q, catalog, docMeta, uploadContext);
-      const { isDuplicate, ...questionFields } = q;
-      const imageMetadata =
-        q.imageMetadata ||
-        (q.questionImages || []).map((url, order) => ({
-          url,
-          order,
-          caption: null,
-          type: 'diagram',
-        }));
+      try {
+        const q = questions[i];
+        const classified = await classifyQuestionMetadata(q, catalog, docMeta, uploadContext);
+        const { isDuplicate, ...questionFields } = q;
+        const imageMetadata =
+          q.imageMetadata ||
+          (q.questionImages || []).map((url, order) => ({
+            url,
+            order,
+            caption: null,
+            type: 'diagram',
+          }));
 
-      const doc = await Question.create({
-        ...questionFields,
-        class: classified.class ?? questionFields.class,
-        subjectId: classified.subjectId ?? questionFields.subjectId,
-        chapterId: classified.chapterId ?? questionFields.chapterId,
-        examTypeId: classified.examTypeId ?? questionFields.examTypeId,
-        difficulty: classified.difficulty ?? questionFields.difficulty,
-        tags: [
-          ...new Set([...(classified.tags || []), ...(questionFields.tags || [])]),
-        ],
-        status: classified.status || (q.isDuplicate ? 'needs_review' : 'pending'),
-        renderingMetadata: {
-          ...(questionFields.renderingMetadata || {}),
-          ...(q.renderingMetadata || {}),
-        },
-        questionImages: q.questionImages || questionFields.questionImages || [],
-        imageMetadata,
-        diagrams: q.diagrams || [],
-        hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
-        hasTable: Boolean(q.hasTable),
-        questionLatex: q.questionLatex || questionFields.questionLatex,
-        hasEquation: Boolean(q.hasEquation || questionFields.hasEquation),
-        duplicateOf: q.duplicateOf || null,
-        extractionWarnings: [
+        const lowConfidence = 
+          (q.parserConfidence !== undefined && q.parserConfidence < 0.70) ||
+          (q.semanticConfidence !== undefined && q.semanticConfidence < 0.70) ||
+          (q.mathPreservationConfidence !== undefined && q.mathPreservationConfidence < 0.70) ||
+          (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70) ||
+          (classified.aiConfidence !== undefined && classified.aiConfidence < 70);
+
+        const status = (classified.status === 'needs_review' || q.isDuplicate || lowConfidence) ? 'needs_review' : 'pending';
+
+        const extractionWarnings = [
           ...(classified.extractionWarnings || []),
           ...(docMeta.warnings || []),
           ...(q.extractionWarnings || []),
-        ],
-        aiConfidence: classified.aiConfidence ?? 0,
-        aiMetadata: classified.aiMetadata || {},
-        uploadId: upload._id,
-        createdBy: user._id,
-        source: 'upload',
-        sourceFile: file.originalname,
-        debugInfo: q.debugInfo || null,
-      });
-      questionIds.push(doc._id);
+        ];
+        if (lowConfidence) {
+          extractionWarnings.push('Low confidence score detected');
+        }
 
-      upload.progress = 50 + Math.round(((i + 1) / questions.length) * 45);
+        const doc = await Question.create({
+          ...questionFields,
+          class: classified.class ?? questionFields.class,
+          subjectId: classified.subjectId ?? questionFields.subjectId,
+          chapterId: classified.chapterId ?? questionFields.chapterId,
+          examTypeId: classified.examTypeId ?? questionFields.examTypeId,
+          difficulty: classified.difficulty ?? questionFields.difficulty,
+          tags: [
+            ...new Set([...(classified.tags || []), ...(questionFields.tags || [])]),
+          ],
+          status,
+          renderingMetadata: {
+            ...(questionFields.renderingMetadata || {}),
+            ...(q.renderingMetadata || {}),
+          },
+          questionImages: q.questionImages || questionFields.questionImages || [],
+          imageMetadata,
+          diagrams: q.diagrams || [],
+          hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
+          hasTable: Boolean(q.hasTable),
+          questionLatex: q.questionLatex || questionFields.questionLatex,
+          hasEquation: Boolean(q.hasEquation || questionFields.hasEquation),
+          duplicateOf: q.duplicateOf || null,
+          extractionWarnings,
+          aiConfidence: classified.aiConfidence ?? 0,
+          aiMetadata: classified.aiMetadata || {},
+          uploadId: upload._id,
+          createdBy: user._id,
+          source: 'upload',
+          sourceFile: file.originalname,
+          debugInfo: q.debugInfo || null,
+          semanticEnriched: false, // will be picked up by the background enrichment worker
+        });
+        questionIds.push(doc._id);
+      } catch (err) {
+        logger.error(`Failed to persist question block ${i + 1} during upload`, { error: err.message });
+        upload.stageLogs.push(`[UPLOAD_STAGE] warning - Failed to save question ${i + 1}: ${err.message} - ${new Date().toISOString()}`);
+      }
+
+      upload.progress = 75 + Math.round(((i + 1) / questions.length) * 20);
+      upload.lastHeartbeat = new Date();
       await upload.save();
     }
 
-    // Stage 7: db_save_done
-    upload.progress = 98;
-    upload.processingStage = 'completed';
-    upload.stageLogs.push(`[UPLOAD_STAGE] 7 db_save_done - ${new Date().toISOString()}`);
-    await upload.save();
+    // Stage 6: semantic_enrichment (queued for background processing)
+    await onStageChange('semantic_enrichment', 95, `Questions persisted. Queueing for background Ollama semantic enrichment...`);
 
-    // Stage 8: completed
+    // Stage 7: completed
     upload.status = 'completed';
     upload.progress = 100;
     upload.processingStage = 'completed';
@@ -198,7 +202,7 @@ async function processUploadInternal(upload, file, user, options = {}) {
       ...(extractResult.questions.some((q) => q.isDuplicate) ? ['Some duplicates flagged'] : []),
     ];
     upload.processedAt = new Date();
-    upload.stageLogs.push(`[UPLOAD_STAGE] 8 completed - ${new Date().toISOString()}`);
+    upload.stageLogs.push(`[UPLOAD_STAGE] completed - Upload processed successfully - ${new Date().toISOString()}`);
     await upload.save();
   } catch (err) {
     logger.error('Upload processing failed internal', {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Button, Input, Alert } from '../../components/ui';
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
@@ -13,6 +13,8 @@ export function LoginPage() {
 
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as { pendingApproval?: boolean } | null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +53,12 @@ export function LoginPage() {
               Sign in to your ExamForge account
             </p>
           </div>
+
+          {state?.pendingApproval && (
+            <Alert variant="info" className="mb-6">
+              Registration successful! Your faculty account is pending approval by the Super Admin. You will be able to log in once approved.
+            </Alert>
+          )}
 
           {error && (
             <Alert variant="error" className="mb-6">
