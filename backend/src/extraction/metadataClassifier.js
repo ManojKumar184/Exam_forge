@@ -43,7 +43,8 @@ function detectClassesInDocument(headerText) {
   const found = new Set();
   for (const re of CLASS_PATTERNS) {
     let m;
-    const g = new RegExp(re.source, re.flags);
+    const flags = re.flags.includes('g') ? re.flags : re.flags + 'g';
+    const g = new RegExp(re.source, flags);
     while ((m = g.exec(headerText)) !== null) {
       const token = (m[1] || '').toLowerCase();
       if (ROMAN_CLASS[token]) found.add(ROMAN_CLASS[token]);

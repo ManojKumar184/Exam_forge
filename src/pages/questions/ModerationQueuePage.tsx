@@ -8,7 +8,8 @@ import {
   AlertTriangle, Shield, CheckCircle, HelpCircle, FileText
 } from 'lucide-react';
 import type { Question, QuestionOption } from '../../types';
-import { QuestionContentPreview } from '../../components/content/RichContent';
+import { QuestionContentPreview, RichContent, RichOptionContent } from '../../components/content/RichContent';
+import { MathRenderer } from '../../components/math/MathRenderer';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { apiConfig } from '../../config/api';
@@ -64,15 +65,15 @@ export function ModerationQueuePage() {
   const loadQueue = async () => {
     try {
       // We want to fetch questions that are pending or needs_review
-      const response = await axios.get(`${apiConfig.baseUrl}/questions`, {
+      const response = await axios.get(`${apiConfig.baseUrl}/api/questions`, {
         params: { status: 'pending', limit: 100 },
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('examforge_access_token')}` }
       });
       const pendingItems = response.data?.data?.items || [];
 
-      const reviewResponse = await axios.get(`${apiConfig.baseUrl}/questions`, {
+      const reviewResponse = await axios.get(`${apiConfig.baseUrl}/api/questions`, {
         params: { status: 'needs_review', limit: 100 },
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('examforge_access_token')}` }
       });
       const reviewItems = reviewResponse.data?.data?.items || [];
 
@@ -190,13 +191,13 @@ export function ModerationQueuePage() {
 
     setIsRerunning(true);
     try {
-      const response = await axios.post(`${apiConfig.baseUrl}/questions/reconstruct`, {
+      const response = await axios.post(`${apiConfig.baseUrl}/api/questions/reconstruct`, {
         html: rawHtml || undefined,
         plain: rawPlain,
         rawHtml: rawHtml || undefined,
         images: activeQuestion.question_images || [],
       }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('examforge_access_token')}` }
       });
 
       const parsed = response.data?.data;
@@ -493,13 +494,27 @@ export function ModerationQueuePage() {
                       rows={4}
                     />
 
+                    {editForm.question_text && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                        <span className="font-bold text-slate-500 dark:text-slate-400 block mb-1">Live Stem Preview</span>
+                        <RichContent text={editForm.question_text} compact />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="Question LaTeX Formula (Optional)"
-                        value={editForm.question_latex || ''}
-                        onChange={(e) => setEditForm(p => ({ ...p, question_latex: e.target.value }))}
-                        placeholder="e.g. \int_{0}^{\pi} \sin(x) dx"
-                      />
+                      <div className="space-y-1.5">
+                        <Input
+                          label="Question LaTeX Formula (Optional)"
+                          value={editForm.question_latex || ''}
+                          onChange={(e) => setEditForm(p => ({ ...p, question_latex: e.target.value }))}
+                          placeholder="e.g. \int_{0}^{\pi} \sin(x) dx"
+                        />
+                        {editForm.question_latex && (
+                          <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 text-xs flex justify-center">
+                            <MathRenderer latex={editForm.question_latex} display />
+                          </div>
+                        )}
+                      </div>
                       <Select
                         label="Question Type"
                         options={[
@@ -539,6 +554,12 @@ export function ModerationQueuePage() {
                                 }}
                                 placeholder="LaTeX math if separate"
                               />
+                              {editForm.options[idx] && (
+                                <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800 text-xs">
+                                  <span className="font-bold text-slate-400 block mb-0.5">Live Option Preview:</span>
+                                  <RichOptionContent option={editForm.options[idx]} index={idx} />
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -714,6 +735,27 @@ export function ModerationQueuePage() {
                           <div
                             className={`h-full ${getConfidenceBarClass(activeQuestion.metadata_confidence || 1.0)}`}
                             style={{ width: `${(activeQuestion.metadata_confidence || 1.0) * 100}%` }}
+                          />
+                        </div>
+                      </Card>
+
+                      {/* Metric 5 */}
+                      <Card className="p-4 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Reconstruction Fidelity</span>
+                            <span className={`text-sm font-bold ${getConfidenceColorClass(activeQuestion.reconstruction_fidelity ?? 1.0)}`}>
+                              {Math.round((activeQuestion.reconstruction_fidelity ?? 1.0) * 100)}%
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+                            Fidelity rating measuring equation translation correctness, visual image fallback dependencies, and document structure preservation.
+                          </p>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${getConfidenceBarClass(activeQuestion.reconstruction_fidelity ?? 1.0)}`}
+                            style={{ width: `${(activeQuestion.reconstruction_fidelity ?? 1.0) * 100}%` }}
                           />
                         </div>
                       </Card>

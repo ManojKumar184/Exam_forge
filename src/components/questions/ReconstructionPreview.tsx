@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Badge } from '../ui';
 import { QuestionContentPreview } from '../content/RichContent';
 import type { Question } from '../../types';
@@ -285,6 +285,10 @@ export function ReconstructionPreview({
   pipelineState = 'idle',
 }: ReconstructionPreviewProps) {
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [showForensics, setShowForensics] = useState(false);
+  const [normLimit, setNormLimit] = useState(50);
+  const [blocksLimit, setBlocksLimit] = useState(50);
+
   const subtypeLabel = subtype.replace(/_/g, ' ');
 
   // Log 10: React preview render inputs
@@ -313,7 +317,15 @@ export function ReconstructionPreview({
     }
   };
 
-  const stagesData = lastResult ? ensureStages(lastResult) : null;
+  const stagesData = useMemo(() => {
+    if (!lastResult || !showForensics) return null;
+    return ensureStages(lastResult);
+  }, [lastResult, showForensics]);
+
+  const uniqueWarnings = useMemo(() => {
+    if (!lastResult?.warnings) return [];
+    return Array.from(new Set(lastResult.warnings));
+  }, [lastResult?.warnings]);
 
   const stageTabs = [
     { id: 0, label: '0. Ingest' },
@@ -355,12 +367,12 @@ export function ReconstructionPreview({
         )}
       </div>
 
-      {lastResult?.warnings && lastResult.warnings.length > 0 && (
+      {uniqueWarnings.length > 0 && (
         <div className="rounded bg-amber-50 dark:bg-amber-950/20 p-2 text-xs border border-amber-200 dark:border-amber-900/50">
           <p className="font-semibold text-amber-800 dark:text-amber-200 mb-1">Warnings:</p>
           <ul className="text-amber-700 dark:text-amber-300 list-disc pl-4 space-y-0.5">
-            {lastResult.warnings.slice(0, 4).map((w) => (
-              <li key={w}>{w}</li>
+            {uniqueWarnings.slice(0, 4).map((w: string, idx: number) => (
+              <li key={`warn-${idx}-${w}`}>{w}</li>
             ))}
           </ul>
         </div>
@@ -370,10 +382,17 @@ export function ReconstructionPreview({
         <QuestionContentPreview question={previewQuestion} compact showOptions />
       </div>
 
-      {lastResult && stagesData && (
-        <details className="text-xs border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-50 dark:bg-slate-800/40">
-          <summary className="cursor-pointer px-2 py-1.5 bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-300 select-none flex items-center justify-between">
-            <span className="font-bold">Pipeline Forensic Debug Inspector (SaaS Version)</span>
+      {lastResult && (
+        <div className="text-xs border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-50 dark:bg-slate-800/40">
+          <button
+            type="button"
+            onClick={() => setShowForensics(!showForensics)}
+            className="w-full text-left px-2 py-1.5 bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-300 select-none flex items-center justify-between hover:bg-slate-200 dark:hover:bg-slate-750 transition-colors"
+          >
+            <span className="font-bold flex items-center gap-1">
+              <span>{showForensics ? "▼" : "▶"}</span>
+              Pipeline Forensic Debug Inspector (SaaS Version)
+            </span>
             {lastResult.debugInfo?.timings && (
               <span className="text-[10px] text-slate-400 font-normal">
                 total: {(
@@ -383,355 +402,378 @@ export function ReconstructionPreview({
                 )}ms
               </span>
             )}
-          </summary>
-          <div className="p-2 space-y-2 bg-white dark:bg-slate-950">
-            <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-300 border-b border-slate-100 dark:border-slate-800">
-              {stageTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-2 py-1 rounded-t whitespace-nowrap text-[10px] font-medium transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-indigo-600 text-white font-semibold'
-                      : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          </button>
 
-            <div className="p-2 min-h-[140px] bg-slate-50 dark:bg-slate-900/60 rounded border border-slate-100 dark:border-slate-800/80">
-              {activeTab === 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage0.title}</h4>
-                  <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div>Available MimeTypes: <span className="font-mono text-indigo-600 dark:text-indigo-400">{(stagesData.stage0.mime_types || []).join(', ') || 'none'}</span></div>
-                    {Object.entries(stagesData.stage0.payload_sizes || {}).map(([mime, size]) => (
-                      <div key={mime}>{mime} payload size: <span className="font-bold">{(size as number).toLocaleString()} chars</span></div>
-                    ))}
-                  </div>
-                  <SafeTextViewer 
-                    text={stagesData.stage0.raw_clipboard_html} 
-                    title="Raw Clipboard / DOCX Ingest" 
-                    className="text-emerald-600 dark:text-emerald-400" 
-                  />
-                </div>
-              )}
+          {showForensics && stagesData && (
+            <div className="p-2 space-y-2 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-300 border-b border-slate-100 dark:border-slate-800">
+                {stageTabs.map((tab) => (
+                  <button
+                    key={`tab-${tab.id}`}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-2 py-1 rounded-t whitespace-nowrap text-[10px] font-medium transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-indigo-600 text-white font-semibold'
+                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-              {activeTab === 1 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage1.title}</h4>
-                  <div className="space-y-1 text-[10px]">
-                    <div>Removed tags: <span className="font-mono text-red-600">{(stagesData.stage1.removed_tags || []).join(', ') || 'None'}</span></div>
-                    <div>Removed attributes: <span className="font-mono text-red-600">{(stagesData.stage1.removed_attributes || []).join(', ') || 'None'}</span></div>
-                    <div>Math components detected: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(stagesData.stage1.math_containing_nodes || []).join(', ') || 'None'}</span></div>
-                  </div>
-                  <SafeTextViewer 
-                    text={stagesData.stage1.after_html} 
-                    title="Cleaned Nuclear Output" 
-                    className="text-indigo-600 dark:text-indigo-400" 
-                  />
-                </div>
-              )}
-
-              {activeTab === 2 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage2.title}</h4>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
-                    {stagesData.stage2.normalization_log && stagesData.stage2.normalization_log.length > 0 ? (
-                      stagesData.stage2.normalization_log.map((log: any, idx: number) => (
-                        <div key={idx} className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-mono text-[9.5px]">
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400">[{log.action}]:</span> {log.details || log.reason || JSON.stringify(log)}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-slate-400 text-center py-4">No normalization events logged.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 3 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage3.title}</h4>
-                  <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1">
-                    <div>Extracted Figures: <span className="font-bold text-indigo-600">{stagesData.stage3.figures_extracted?.length || 0}</span></div>
-                  </div>
-                  {stagesData.stage3.figures_extracted && stagesData.stage3.figures_extracted.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      {stagesData.stage3.figures_extracted.map((fig: any, idx: number) => (
-                        <div key={idx} className="p-2 border rounded bg-white dark:bg-slate-950 flex flex-col items-center">
-                          <span className="font-bold text-[9px] text-slate-500 mb-1">{fig.id}</span>
-                          <img src={fig.url} alt={fig.id} className="max-h-24 object-contain rounded" />
-                        </div>
+              <div className="p-2 min-h-[140px] bg-slate-50 dark:bg-slate-900/60 rounded border border-slate-100 dark:border-slate-800/80">
+                {activeTab === 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage0.title}</h4>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>Available MimeTypes: <span className="font-mono text-indigo-600 dark:text-indigo-400">{(stagesData.stage0.mime_types || []).join(', ') || 'none'}</span></div>
+                      {Object.entries(stagesData.stage0.payload_sizes || {}).map(([mime, size]) => (
+                        <div key={`mime-size-${mime}`}>{mime} payload size: <span className="font-bold">{(size as number).toLocaleString()} chars</span></div>
                       ))}
                     </div>
-                  )}
-                  <SafeTextViewer 
-                    text={stagesData.stage3.isolated_html} 
-                    title="Isolated HTML (with [FIGURE_1] tags)" 
-                    className="text-slate-700 dark:text-slate-300" 
-                  />
-                </div>
-              )}
-
-              {activeTab === 4 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage4.title}</h4>
-                  <div className="grid grid-cols-3 gap-2 text-[10px] bg-white dark:bg-slate-950 p-1.5 rounded border border-slate-100 dark:border-slate-850">
-                    <div className="text-center"><span className="text-slate-400 block uppercase text-[8px]">Total Math</span> <span className="font-bold">{stagesData.stage4.total_math_count || 0}</span></div>
-                    <div className="text-center border-x"><span className="text-slate-400 block uppercase text-[8px]">Preserved</span> <span className="font-bold text-green-600">{stagesData.stage4.preserved_math_count || 0}</span></div>
-                    <div className="text-center"><span className="text-slate-400 block uppercase text-[8px]">Dropped</span> <span className="font-bold text-red-500">{stagesData.stage4.dropped_math_count || 0}</span></div>
+                    <SafeTextViewer 
+                      text={stagesData.stage0.raw_clipboard_html} 
+                      title="Raw Clipboard / DOCX Ingest" 
+                      className="text-emerald-600 dark:text-emerald-400" 
+                    />
                   </div>
-                  {stagesData.stage4.shield_map && Object.keys(stagesData.stage4.shield_map).length > 0 && (
-                    <div className="max-h-40 overflow-y-auto mt-2 border rounded border-slate-200 dark:border-slate-800">
-                      <table className="min-w-full text-[9px] bg-white dark:bg-slate-950">
-                        <thead>
-                          <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-                            <th className="p-1 text-left">Placeholder Token</th>
-                            <th className="p-1 text-left">Extracted Formula</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.entries(stagesData.stage4.shield_map).map(([key, math]) => (
-                            <tr key={key} className="border-b border-slate-100 dark:border-slate-900">
-                              <td className="p-1 font-mono font-bold text-slate-500">{key}</td>
-                              <td className="p-1 font-mono text-indigo-600 dark:text-indigo-400 break-all">{math as string}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                )}
+
+                {activeTab === 1 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage1.title}</h4>
+                    <div className="space-y-1 text-[10px]">
+                      <div>Removed tags: <span className="font-mono text-red-600">{(stagesData.stage1.removed_tags || []).join(', ') || 'None'}</span></div>
+                      <div>Removed attributes: <span className="font-mono text-red-600">{(stagesData.stage1.removed_attributes || []).join(', ') || 'None'}</span></div>
+                      <div>Math components detected: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(stagesData.stage1.math_containing_nodes || []).join(', ') || 'None'}</span></div>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 5 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage5.title}</h4>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
-                    {stagesData.stage5.blocks && stagesData.stage5.blocks.length > 0 ? (
-                      stagesData.stage5.blocks.map((block: any, idx: number) => (
-                        <div key={idx} className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-mono text-[9.5px]">
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400">[{block.type}{block.label ? `:${block.label}` : ''}]:</span> {block.content}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-slate-400 text-center py-4">No semantic blocks extracted.</div>
-                    )}
+                    <SafeTextViewer 
+                      text={stagesData.stage1.after_html} 
+                      title="Cleaned Nuclear Output" 
+                      className="text-indigo-600 dark:text-indigo-400" 
+                    />
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 6 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage6.title}</h4>
-                  <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1">
-                    <div>Classified SaaS Type: <span className="font-bold text-indigo-600 uppercase">{stagesData.stage6.classified_type}</span></div>
-                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2">Evidence:</div>
-                    <ul className="list-disc pl-4 space-y-0.5">
-                      {(stagesData.stage6.evidence || []).map((ev: string, idx: number) => <li key={idx}>{ev}</li>)}
-                    </ul>
+                {activeTab === 2 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage2.title}</h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1.5">
+                      {stagesData.stage2.normalization_log && stagesData.stage2.normalization_log.length > 0 ? (
+                        <>
+                          {stagesData.stage2.normalization_log.slice(0, normLimit).map((log: any, idx: number) => (
+                            <div key={`norm-log-${idx}-${log.action}`} className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-mono text-[9.5px]">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">[{log.action}]:</span> {log.details || log.reason || JSON.stringify(log)}
+                            </div>
+                          ))}
+                          {stagesData.stage2.normalization_log.length > normLimit && (
+                            <button
+                              type="button"
+                              onClick={() => setNormLimit(p => p + 50)}
+                              className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline py-1 w-full text-center"
+                            >
+                              Show more (+{stagesData.stage2.normalization_log.length - normLimit} items)
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-slate-400 text-center py-4">No normalization events logged.</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 7 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage7.title}</h4>
-                  <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px]">
-                    Selected Parser Sub-Logic: <span className="font-bold text-indigo-650">{stagesData.stage7.selected_parser}</span>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 8 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage8.title}</h4>
-                  <div className="space-y-2 text-[10px]">
-                    {stagesData.stage8.statement_groups?.length > 0 && (
-                      <div className="p-2 bg-white dark:bg-slate-950 rounded border border-indigo-50">
-                        <div className="text-[8px] uppercase tracking-wider font-bold text-slate-400 mb-1">Extracted Statement Layer:</div>
-                        <ol className="list-decimal pl-4 space-y-0.5">
-                          {stagesData.stage8.statement_groups.map((s: string, idx: number) => <li key={idx} className="font-mono">{s}</li>)}
-                        </ol>
+                {activeTab === 3 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage3.title}</h4>
+                    <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1">
+                      <div>Extracted Figures: <span className="font-bold text-indigo-600">{stagesData.stage3.figures_extracted?.length || 0}</span></div>
+                    </div>
+                    {stagesData.stage3.figures_extracted && stagesData.stage3.figures_extracted.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {stagesData.stage3.figures_extracted.map((fig: any, idx: number) => (
+                          <div key={`fig-${idx}-${fig.id}`} className="p-2 border rounded bg-white dark:bg-slate-950 flex flex-col items-center">
+                            <span className="font-bold text-[9px] text-slate-500 mb-1">{fig.id}</span>
+                            <img src={fig.url} alt={fig.id} className="max-h-24 object-contain rounded" />
+                          </div>
+                        ))}
                       </div>
                     )}
                     <SafeTextViewer 
-                      text={stagesData.stage8.reconstructed_stem} 
-                      title="Reconstructed Stem" 
-                      className="text-slate-850 dark:text-slate-200" 
+                      text={stagesData.stage3.isolated_html} 
+                      title="Isolated HTML (with [FIGURE_1] tags)" 
+                      className="text-slate-700 dark:text-slate-300" 
                     />
-                    <div className="p-2 bg-white dark:bg-slate-950 rounded border">
-                      <div className="text-[8px] uppercase tracking-wider font-bold text-slate-400 mb-1">Reconstructed Options:</div>
-                      <ul className="space-y-1">
-                        {(stagesData.stage8.reconstructed_options || []).map((o: any, idx: number) => (
-                          <li key={idx} className="font-mono">{String.fromCharCode(65 + idx)}. {o.text}</li>
-                        ))}
+                  </div>
+                )}
+
+                {activeTab === 4 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage4.title}</h4>
+                    <div className="grid grid-cols-3 gap-2 text-[10px] bg-white dark:bg-slate-950 p-1.5 rounded border border-slate-100 dark:border-slate-850">
+                      <div className="text-center"><span className="text-slate-400 block uppercase text-[8px]">Total Math</span> <span className="font-bold">{stagesData.stage4.total_math_count || 0}</span></div>
+                      <div className="text-center border-x"><span className="text-slate-400 block uppercase text-[8px]">Preserved</span> <span className="font-bold text-green-600">{stagesData.stage4.preserved_math_count || 0}</span></div>
+                      <div className="text-center"><span className="text-slate-400 block uppercase text-[8px]">Dropped</span> <span className="font-bold text-red-500">{stagesData.stage4.dropped_math_count || 0}</span></div>
+                    </div>
+                    {stagesData.stage4.shield_map && Object.keys(stagesData.stage4.shield_map).length > 0 && (
+                      <div className="max-h-40 overflow-y-auto mt-2 border rounded border-slate-200 dark:border-slate-800">
+                        <table className="min-w-full text-[9px] bg-white dark:bg-slate-950">
+                          <thead>
+                            <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+                              <th className="p-1 text-left">Placeholder Token</th>
+                              <th className="p-1 text-left">Extracted Formula</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(stagesData.stage4.shield_map).map(([key, math], idx) => (
+                              <tr key={`shield-${key}-${idx}`} className="border-b border-slate-100 dark:border-slate-900">
+                                <td className="p-1 font-mono font-bold text-slate-500">{key}</td>
+                                <td className="p-1 font-mono text-indigo-600 dark:text-indigo-400 break-all">{math as string}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 5 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage5.title}</h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1.5">
+                      {stagesData.stage5.blocks && stagesData.stage5.blocks.length > 0 ? (
+                        <>
+                          {stagesData.stage5.blocks.slice(0, blocksLimit).map((block: any, idx: number) => (
+                            <div key={`block-${idx}-${block.type}`} className="p-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-mono text-[9.5px]">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">[{block.type}{block.label ? `:${block.label}` : ''}]:</span> {block.content}
+                            </div>
+                          ))}
+                          {stagesData.stage5.blocks.length > blocksLimit && (
+                            <button
+                              type="button"
+                              onClick={() => setBlocksLimit(p => p + 50)}
+                              className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline py-1 w-full text-center"
+                            >
+                              Show more (+{stagesData.stage5.blocks.length - blocksLimit} items)
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-slate-400 text-center py-4">No semantic blocks extracted.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 6 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage6.title}</h4>
+                    <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1.5">
+                      <div>Classified Type: <span className="font-bold text-indigo-600 uppercase">{stagesData.stage6.classified_type}</span></div>
+                      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-2">Evidence:</div>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        {(stagesData.stage6.evidence || []).map((ev: string, idx: number) => <li key={`evidence-${idx}`}>{ev}</li>)}
                       </ul>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {activeTab === 9 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage9.title}</h4>
-                  <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1">
-                    <div>Local Refinement Status: <span className={`font-semibold ${stagesData.stage9.refined ? 'text-green-600' : 'text-slate-450'}`}>{stagesData.stage9.refined ? '✓ Ollama Refined' : 'Using Deterministic Parser'}</span></div>
-                    {stagesData.stage9.warnings?.length > 0 && (
-                      <div className="text-amber-600 font-semibold mt-1">
-                        {stagesData.stage9.warnings.join('; ')}
-                      </div>
-                    )}
+                {activeTab === 7 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage7.title}</h4>
+                    <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px]">
+                      Selected Parser Sub-Logic: <span className="font-bold text-indigo-650">{stagesData.stage7.selected_parser}</span>
+                    </div>
                   </div>
-                  {stagesData.stage9.response && (
-                    <SafeTextViewer 
-                      text={JSON.stringify(stagesData.stage9.response, null, 2)} 
-                      title="Ollama Output Response" 
-                      className="text-slate-700 dark:text-slate-300" 
-                    />
-                  )}
-                </div>
-              )}
+                )}
 
-              {activeTab === 10 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage10.title}</h4>
-                  <div className="space-y-1.5 text-[10px]">
-                    <div>Parser Confidence: <span className="font-bold text-emerald-600">{((stagesData.stage10.parser_confidence || 1) * 100).toFixed(0)}%</span></div>
-                    <div>Unresolved placeholders: <span className="font-mono font-bold text-red-500">{(stagesData.stage10.unresolved_placeholders || []).join(', ') || 'None'}</span></div>
-                    {stagesData.stage10.warnings && stagesData.stage10.warnings.length > 0 && (
-                      <div className="p-1.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 font-medium">
-                        Reconstruction warnings: {(stagesData.stage10.warnings || []).join('; ')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 11 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage11.title}</h4>
-                  <div className="space-y-1.5 text-[10px]">
-                    {stagesData.stage11.malformed_expressions && stagesData.stage11.malformed_expressions.length > 0 ? (
-                      <div className="p-2 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded font-semibold space-y-1">
-                        <div className="text-[9px] uppercase tracking-wider font-bold">⚠️ Malformed Expressions Detected:</div>
-                        <ul className="list-disc pl-4 space-y-0.5">
-                          {stagesData.stage11.malformed_expressions.map((mal: string, i: number) => (
-                            <li key={i}>{mal}</li>
+                {activeTab === 8 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage8.title}</h4>
+                    <div className="space-y-2 text-[10px]">
+                      {stagesData.stage8.statement_groups?.length > 0 && (
+                        <div className="p-2 bg-white dark:bg-slate-950 rounded border border-indigo-50">
+                          <div className="text-[8px] uppercase tracking-wider font-bold text-slate-400 mb-1">Extracted Statement Layer:</div>
+                          <ol className="list-decimal pl-4 space-y-0.5">
+                            {stagesData.stage8.statement_groups.map((s: string, idx: number) => <li key={`statement-${idx}`} className="font-mono">{s}</li>)}
+                          </ol>
+                        </div>
+                      )}
+                      <SafeTextViewer 
+                        text={stagesData.stage8.reconstructed_stem} 
+                        title="Reconstructed Stem" 
+                        className="text-slate-850 dark:text-slate-200" 
+                      />
+                      <div className="p-2 bg-white dark:bg-slate-950 rounded border">
+                        <div className="text-[8px] uppercase tracking-wider font-bold text-slate-400 mb-1">Reconstructed Options:</div>
+                        <ul className="space-y-1">
+                          {(stagesData.stage8.reconstructed_options || []).map((o: any, idx: number) => (
+                            <li key={`option-${idx}`} className="font-mono">{String.fromCharCode(65 + idx)}. {o.text}</li>
                           ))}
                         </ul>
                       </div>
-                    ) : (
-                      <div className="p-1.5 bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 rounded font-medium">
-                        ✓ All restored math delimiters and equations match correct LaTeX/KaTeX structure guidelines.
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 9 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage9.title}</h4>
+                    <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1.5">
+                      <div>Local Refinement Status: <span className={`font-semibold ${stagesData.stage9.refined ? 'text-green-600' : 'text-slate-450'}`}>{stagesData.stage9.refined ? '✓ Ollama Refined' : 'Using Deterministic Parser'}</span></div>
+                      {stagesData.stage9.warnings?.length > 0 && (
+                        <div className="text-amber-600 font-semibold mt-1">
+                          {stagesData.stage9.warnings.join('; ')}
+                        </div>
+                      )}
+                    </div>
+                    {stagesData.stage9.response && (
+                      <SafeTextViewer 
+                        text={JSON.stringify(stagesData.stage9.response, null, 2)} 
+                        title="Ollama Output Response" 
+                        className="text-slate-700 dark:text-slate-300" 
+                      />
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 10 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage10.title}</h4>
+                    <div className="space-y-1.5 text-[10px]">
+                      <div>Parser Confidence: <span className="font-bold text-emerald-600">{((stagesData.stage10.parser_confidence || 1) * 100).toFixed(0)}%</span></div>
+                      <div>Unresolved placeholders: <span className="font-mono font-bold text-red-500">{(stagesData.stage10.unresolved_placeholders || []).join(', ') || 'None'}</span></div>
+                      {stagesData.stage10.warnings && stagesData.stage10.warnings.length > 0 && (
+                        <div className="p-1.5 rounded bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 font-medium">
+                          Reconstruction warnings: {(stagesData.stage10.warnings || []).join('; ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 11 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage11.title}</h4>
+                    <div className="space-y-1.5 text-[10px]">
+                      {stagesData.stage11.malformed_expressions && stagesData.stage11.malformed_expressions.length > 0 ? (
+                        <div className="p-2 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded font-semibold space-y-1">
+                          <div className="text-[9px] uppercase tracking-wider font-bold">⚠️ Malformed Expressions Detected:</div>
+                          <ul className="list-disc pl-4 space-y-0.5">
+                            {stagesData.stage11.malformed_expressions.map((mal: string, i: number) => (
+                              <li key={`malformed-${i}`}>{mal}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="p-1.5 bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 rounded font-medium">
+                          ✓ All restored math delimiters and equations match correct LaTeX/KaTeX structure guidelines.
+                        </div>
+                      )}
+                      <SafeTextViewer 
+                        text={stagesData.stage11.final_katex_source} 
+                        title="Final KaTeX Math Source" 
+                        className="text-slate-700 dark:text-slate-300" 
+                      />
+                    </div>
+
+                    {stagesData.stage13.report && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10.5px]">
+                        <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Preservation Metrics</span>
+                          <div>Math Count: <span className="font-bold">{stagesData.stage13.report.totalMathExpressions || 0}</span></div>
+                          <div>Preserved: <span className="font-bold text-green-600">{stagesData.stage13.report.preservedMathExpressions || 0}</span></div>
+                          <div>Dropped: <span className="font-bold text-red-500">{stagesData.stage13.report.droppedMathExpressions || 0}</span></div>
+                          {stagesData.stage13.report.extractedOmmlBlocks !== undefined && (
+                            <>
+                              <div className="mt-1 border-t pt-1 border-slate-100 dark:border-slate-850">OMML Blocks: <span className="font-bold">{stagesData.stage13.report.extractedOmmlBlocks}</span></div>
+                              <div>Converted: <span className="font-bold text-green-600">{stagesData.stage13.report.convertedEquations}</span></div>
+                              <div>Failed: <span className="font-bold text-red-500">{stagesData.stage13.report.failedConversions}</span></div>
+                              <div>VML Ingested: <span className={`font-bold ${stagesData.stage13.report.vmlImageEquationsDetected ? 'text-red-500' : 'text-slate-500'}`}>{stagesData.stage13.report.vmlImageEquationsDetected ? `Yes (${stagesData.stage13.report.degradedClipboardEquations} degraded)` : 'No'}</span></div>
+                              <div>LaTeX Validity: <span className={`font-bold ${stagesData.stage13.report.latexValidity ? 'text-green-600' : 'text-red-500'}`}>{stagesData.stage13.report.latexValidity ? 'Valid' : 'Invalid'}</span></div>
+                            </>
+                          )}
+                        </div>
+                        
+                        <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Parser Accuracy</span>
+                          <div>Reconstruction score: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(stagesData.stage13.report.reconstructionAccuracy * 100).toFixed(0)}%</span></div>
+                          <div>Option extraction: <span className="font-bold">{stagesData.stage13.report.optionAccuracy > 0.5 ? '✓ Success' : 'N/A'}</span></div>
+                          <div>Confidence rating: <span className="font-bold uppercase text-emerald-600">{stagesData.stage13.report.confidence > 0.8 ? 'High' : stagesData.stage13.report.confidence > 0.5 ? 'Medium' : 'Needs Review'}</span></div>
+                        </div>
+
+                        <div className="p-2 rounded bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-150/40 dark:border-indigo-900/30 col-span-1 md:col-span-2">
+                          <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Word Ingestion & Cleanup Benchmarks</span>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                             <div>Before Cleanup Size: <span className="font-bold">{((stagesData.stage0.payload_sizes?.["text/html"] || 0) / 1024).toFixed(2)} KB</span></div>
+                             <div>After Cleanup Size: <span className="font-bold">{((stagesData.stage1.after_html?.length || lastResult.questionHtml?.length || 0) / 1024).toFixed(2)} KB</span></div>
+                             <div>Compression Ratio: <span className="font-bold text-indigo-600">
+                              {(() => {
+                                const before = stagesData.stage0.payload_sizes?.["text/html"] || 0;
+                                const after = stagesData.stage1.after_html?.length || lastResult.questionHtml?.length || 0;
+                                return after > 0 ? `${(before / after).toFixed(1)}x` : 'N/A';
+                              })()}
+                             </span></div>
+                             <div>VML Purge Count: <span className="font-bold text-red-500">
+                              {stagesData.stage13.report.degradedClipboardEquations || 0} purged
+                             </span></div>
+                             <div>Raw DOM Node Count: <span className="font-bold">{stagesData.stage13.report.rawNodes ?? 0}</span></div>
+                             <div>Cleaned DOM Node Count: <span className="font-bold">{stagesData.stage13.report.cleanedNodes ?? 0}</span></div>
+                             <div>DOM Node Reduction: <span className="font-bold text-green-600">-{stagesData.stage13.report.nodeReduction ?? 0}</span></div>
+                             <div>Semantic Retention Score: <span className="font-bold text-green-600">
+                              {(() => {
+                                const total = stagesData.stage13.report.totalMathExpressions || 0;
+                                const dropped = stagesData.stage13.report.droppedMathExpressions || 0;
+                                const failed = stagesData.stage13.report.failedConversions || 0;
+                                if (total === 0) return '100%';
+                                const score = Math.max(0, Math.min(100, Math.round(((total - dropped - failed) / total) * 100)));
+                                return `${score}%`;
+                              })()}
+                             </span></div>
+                          </div>
+                        </div>
                       </div>
                     )}
+
+                    {lastResult.debugInfo?.classification && (
+                      <div className="p-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded border border-indigo-100 dark:border-indigo-900/40 text-[10px]">
+                        <span className="text-[8.5px] uppercase font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">Metadata Classifications:</span>
+                        Class: <span className="font-bold">{lastResult.debugInfo.classification.class ?? '11'}</span> | 
+                        Difficulty: <span className="font-bold uppercase">{lastResult.debugInfo.classification.difficulty ?? 'medium'}</span> | 
+                        Subject: <span className="font-bold">{lastResult.debugInfo.classification.hints?.subject || 'Auto-detect'}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 12 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage12.title}</h4>
+                    <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1.5">
+                      <div>Class: <span className="font-bold">{stagesData.stage12.class ?? '11'}</span></div>
+                      <div>Difficulty: <span className="font-bold uppercase">{stagesData.stage12.difficulty ?? 'medium'}</span></div>
+                      <div>Tags: <span className="font-mono text-indigo-600 dark:text-indigo-400">{(stagesData.stage12.tags || []).join(', ') || 'None'}</span></div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 13 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage13.title}</h4>
                     <SafeTextViewer 
-                      text={stagesData.stage11.final_katex_source} 
-                      title="Final KaTeX Math Source" 
+                      text={JSON.stringify(stagesData.stage13.db_object, null, 2)} 
+                      title="Database-ready Object JSON" 
                       className="text-slate-700 dark:text-slate-300" 
                     />
                   </div>
-
-                  {/* Summary report details */}
-                  {stagesData.stage13.report && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10.5px]">
-                      <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Preservation Metrics</span>
-                        <div>Math Count: <span className="font-bold">{stagesData.stage13.report.totalMathExpressions || 0}</span></div>
-                        <div>Preserved: <span className="font-bold text-green-600">{stagesData.stage13.report.preservedMathExpressions || 0}</span></div>
-                        <div>Dropped: <span className="font-bold text-red-500">{stagesData.stage13.report.droppedMathExpressions || 0}</span></div>
-                        {stagesData.stage13.report.extractedOmmlBlocks !== undefined && (
-                          <>
-                            <div className="mt-1 border-t pt-1 border-slate-100 dark:border-slate-850">OMML Blocks: <span className="font-bold">{stagesData.stage13.report.extractedOmmlBlocks}</span></div>
-                            <div>Converted: <span className="font-bold text-green-600">{stagesData.stage13.report.convertedEquations}</span></div>
-                            <div>Failed: <span className="font-bold text-red-500">{stagesData.stage13.report.failedConversions}</span></div>
-                            <div>VML Ingested: <span className={`font-bold ${stagesData.stage13.report.vmlImageEquationsDetected ? 'text-red-500' : 'text-slate-500'}`}>{stagesData.stage13.report.vmlImageEquationsDetected ? `Yes (${stagesData.stage13.report.degradedClipboardEquations} degraded)` : 'No'}</span></div>
-                            <div>LaTeX Validity: <span className={`font-bold ${stagesData.stage13.report.latexValidity ? 'text-green-600' : 'text-red-500'}`}>{stagesData.stage13.report.latexValidity ? 'Valid' : 'Invalid'}</span></div>
-                          </>
-                        )}
-                      </div>
-                      
-                      <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Parser Accuracy</span>
-                        <div>Reconstruction score: <span className="font-bold text-indigo-600 dark:text-indigo-400">{(stagesData.stage13.report.reconstructionAccuracy * 100).toFixed(0)}%</span></div>
-                        <div>Option extraction: <span className="font-bold">{stagesData.stage13.report.optionAccuracy > 0.5 ? '✓ Success' : 'N/A'}</span></div>
-                        <div>Confidence rating: <span className="font-bold uppercase text-emerald-600">{stagesData.stage13.report.confidence > 0.8 ? 'High' : stagesData.stage13.report.confidence > 0.5 ? 'Medium' : 'Needs Review'}</span></div>
-                      </div>
-
-                      {/* Ingestion & Cleanup Benchmarks card */}
-                      <div className="p-2 rounded bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-150/40 dark:border-indigo-900/30 col-span-1 md:col-span-2">
-                        <span className="text-[8px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Word Ingestion & Cleanup Benchmarks</span>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                           <div>Before Cleanup Size: <span className="font-bold">{((stagesData.stage0.payload_sizes?.["text/html"] || 0) / 1024).toFixed(2)} KB</span></div>
-                           <div>After Cleanup Size: <span className="font-bold">{((stagesData.stage1.after_html?.length || lastResult.questionHtml?.length || 0) / 1024).toFixed(2)} KB</span></div>
-                           <div>Compression Ratio: <span className="font-bold text-indigo-600">
-                            {(() => {
-                              const before = stagesData.stage0.payload_sizes?.["text/html"] || 0;
-                              const after = stagesData.stage1.after_html?.length || lastResult.questionHtml?.length || 0;
-                              return after > 0 ? `${(before / after).toFixed(1)}x` : 'N/A';
-                            })()}
-                           </span></div>
-                           <div>VML Purge Count: <span className="font-bold text-red-500">
-                            {stagesData.stage13.report.degradedClipboardEquations || 0} purged
-                           </span></div>
-                           <div>Raw DOM Node Count: <span className="font-bold">{stagesData.stage13.report.rawNodes ?? 0}</span></div>
-                           <div>Cleaned DOM Node Count: <span className="font-bold">{stagesData.stage13.report.cleanedNodes ?? 0}</span></div>
-                           <div>DOM Node Reduction: <span className="font-bold text-green-600">-{stagesData.stage13.report.nodeReduction ?? 0}</span></div>
-                           <div>Semantic Retention Score: <span className="font-bold text-green-600">
-                            {(() => {
-                              const total = stagesData.stage13.report.totalMathExpressions || 0;
-                              const dropped = stagesData.stage13.report.droppedMathExpressions || 0;
-                              const failed = stagesData.stage13.report.failedConversions || 0;
-                              if (total === 0) return '100%';
-                              const score = Math.max(0, Math.min(100, Math.round(((total - dropped - failed) / total) * 100)));
-                              return `${score}%`;
-                            })()}
-                           </span></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {lastResult.debugInfo?.classification && (
-                    <div className="p-2 bg-indigo-50/50 dark:bg-indigo-950/20 rounded border border-indigo-100 dark:border-indigo-900/40 text-[10px]">
-                      <span className="text-[8.5px] uppercase font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">Metadata Classifications:</span>
-                      Class: <span className="font-bold">{lastResult.debugInfo.classification.class ?? '11'}</span> | 
-                      Difficulty: <span className="font-bold uppercase">{lastResult.debugInfo.classification.difficulty ?? 'medium'}</span> | 
-                      Subject: <span className="font-bold">{lastResult.debugInfo.classification.hints?.subject || 'Auto-detect'}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 12 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage12.title}</h4>
-                  <div className="p-2 bg-white dark:bg-slate-950 rounded border text-[10px] space-y-1.5">
-                    <div>Class: <span className="font-bold">{stagesData.stage12.class ?? '11'}</span></div>
-                    <div>Difficulty: <span className="font-bold uppercase">{stagesData.stage12.difficulty ?? 'medium'}</span></div>
-                    <div>Tags: <span className="font-mono text-indigo-600 dark:text-indigo-400">{(stagesData.stage12.tags || []).join(', ') || 'None'}</span></div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 13 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">{stagesData.stage13.title}</h4>
-                  <SafeTextViewer 
-                    text={JSON.stringify(stagesData.stage13.db_object, null, 2)} 
-                    title="Database-ready Object JSON" 
-                    className="text-slate-700 dark:text-slate-300" 
-                  />
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </details>
+          )}
+        </div>
       )}
     </div>
   );

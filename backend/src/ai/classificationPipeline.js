@@ -105,7 +105,7 @@ export async function runClassificationPipeline(
   const llmProvider = getLlmProvider();
   let primaryFailed = false;
 
-  if (llmProvider) {
+  if (llmProvider && !uploadContext.skipLlm) {
     try {
       llm = await llmProvider.classify(question, catalog, docMeta);
       if (llm) {
@@ -121,7 +121,7 @@ export async function runClassificationPipeline(
     primaryFailed = true;
   }
 
-  if (primaryFailed && llmProvider?.name !== 'ollama') {
+  if (primaryFailed && llmProvider?.name !== 'ollama' && !uploadContext.skipLlm) {
     const ollama = getOllamaProvider();
     if (ollama && ollama.isConfigured()) {
       try {

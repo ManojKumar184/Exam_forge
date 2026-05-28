@@ -1,5 +1,5 @@
 import { preNormalizeMathText, normalizeLatexSyntax } from './mathNormalizer.js';
-import { shieldMath } from './mathConverter.js';
+import { shieldMath, translateOmmlNode, translateMathmlNode } from './mathConverter.js';
 import { DOMParser } from 'linkedom';
 import { ollamaReconstructCleanup } from '../ai/ollamaReconstructCleanup.js';
 import { env } from '../config/env.js';
@@ -92,6 +92,55 @@ export function decodeHtmlEntities(str) {
     .replace(/&#39;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+export function generatePayloadFingerprint(html, plain) {
+  const h = html || '';
+  const p = plain || '';
+  
+  const containsOMML = /xmlns:m=|xmlns:o=|<m:oMath|<oMath/i.test(h);
+  const containsVML = /xmlns:v=|<v:shape|<v:imagedata/i.test(h);
+  const containsOLE = /o:OLEObject|ProgID=/i.test(h);
+  const containsMathType = /Equation\.DSMT4|MathType/i.test(h);
+  const containsWMF = /data:image\/wmf|\.wmf\b/i.test(h);
+  const containsImages = /<img\b|data:image\/|clip_image/i.test(h) || /\[FIGURE_/i.test(p);
+  const containsTables = /<table\b/i.test(h) || /\[TABLE\]/i.test(p);
+  const containsScannedContent = /tesseract|ocr/i.test(p) || (containsImages && p.length < 100);
+  const containsInlineEquations = /\bMATHPLACEHOLDER\b/i.test(p) || /\$/i.test(p) || /\\\(/i.test(p);
+  const containsRenderedEquations = containsWMF || containsOLE || /clip_image/i.test(h);
+  const containsOfficeArtifacts = /mso-|urn:schemas-microsoft-com|ProgID="Word\./i.test(h);
+  
+  let sourceType = 'unknown';
+  if (/xmlns:w="urn:schemas-microsoft-com:office:word"|ProgID="Word\.Document"/i.test(h)) {
+    sourceType = 'microsoft_word_html';
+  } else if (/mso-|clip_image/i.test(h)) {
+    sourceType = 'office_clipboard';
+  } else if (/docs\.google\.com/i.test(h) || /id="docs-internal-guid/i.test(h)) {
+    sourceType = 'google_docs_paste';
+  } else if (/<[a-z][\s\S]*>/i.test(h)) {
+    sourceType = 'browser_html';
+  } else if (/pdf/i.test(p) || /pdf/i.test(h)) {
+    sourceType = 'pdf_extract';
+  } else if (/ocr|tesseract/i.test(p)) {
+    sourceType = 'ocr_output';
+  } else if (p.trim() && !h.trim()) {
+    sourceType = 'plain_text';
+  }
+  
+  return {
+    sourceType,
+    containsOMML,
+    containsVML,
+    containsOLE,
+    containsMathType,
+    containsWMF,
+    containsImages,
+    containsTables,
+    containsScannedContent,
+    containsInlineEquations,
+    containsRenderedEquations,
+    containsOfficeArtifacts
+  };
 }
 
 export function normalizeOptionPrefixes(text) {
@@ -482,18 +531,29 @@ function mapToRecord(map) {
 }
 
 function cleanRenderingArtifacts(html) {
-  if (!html) return { cleaned: '', removedCount: 0 };
+  if (!html) return { cleaned: '', removedCount: 0, diagnostics: {} };
   let removedCount = 0;
   let cleaned = html;
 
+  const removedTags = [];
+  let strippedAttributesCount = 0;
+  let removedOfficeNodesCount = 0;
+  let removedVmlFragmentsCount = 0;
+
   const beforeMsEq = cleaned;
   cleaned = cleaned.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  if (cleaned !== beforeMsEq) removedCount++;
+  if (cleaned !== beforeMsEq) {
+    removedCount++;
+    removedVmlFragmentsCount++;
+  }
 
   const beforeVml = cleaned;
   cleaned = cleaned.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
   cleaned = cleaned.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  if (cleaned !== beforeVml) removedCount++;
+  if (cleaned !== beforeVml) {
+    removedCount++;
+    removedVmlFragmentsCount++;
+  }
 
   cleaned = cleaned.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
   cleaned = cleaned.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
@@ -510,11 +570,18 @@ function cleanRenderingArtifacts(html) {
     if (vmlRegex.test(cleaned)) {
       cleaned = cleaned.replace(vmlRegex, '');
       removedCount++;
+      removedVmlFragmentsCount++;
+      removedTags.push(`v/o:${tag}`);
     }
     cleaned = cleaned.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
   }
 
-  cleaned = cleaned.replace(/<\/?(?:v|o|w|m|x):[^>]*>/gi, '');
+  const namespaceRegex = /<\/?(?:v|o|w|m|x):[^>]*>/gi;
+  const matchNamespaces = cleaned.match(namespaceRegex) || [];
+  if (matchNamespaces.length) {
+    removedOfficeNodesCount += matchNamespaces.length;
+    cleaned = cleaned.replace(namespaceRegex, '');
+  }
 
   for (let i = 0; i < 3; i++) {
     cleaned = cleaned.replace(/<span[^>]*>\s*<\/span>/gi, '');
@@ -524,7 +591,16 @@ function cleanRenderingArtifacts(html) {
 
   cleaned = cleaned.replace(/[ \t]{2,}/g, ' ');
 
-  return { cleaned: cleaned.trim(), removedCount };
+  return {
+    cleaned: cleaned.trim(),
+    removedCount,
+    diagnostics: {
+      removedTags,
+      removedOfficeNodesCount,
+      removedVmlFragmentsCount,
+      strippedAttributesCount
+    }
+  };
 }
 
 function checkMalformedExpressions(text) {
@@ -676,7 +752,596 @@ function shieldText(text, map, counterObj) {
   return shielded;
 }
 
-export async function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null, rawHtml = null, options = {}) {
+export function extractOfficeSemantics(html, plainText) {
+  const mathMap = {};
+  const figures = [];
+  const lineage = {};
+  const unresolvedMath = [];
+  let figureCounter = 1;
+  let mathCounter = 1;
+  
+  if (!html) {
+    return { html: '', mathMap, figures, lineage, unresolvedMath };
+  }
+
+  try {
+    // 1. Pre-normalization: Unwrap conditional comments to expose VML/OLE tags
+    let normalizedHtml = html;
+    normalizedHtml = normalizedHtml.replace(/<!--\[if[^\]]*\]>\s*<xml>/gi, '<xml>');
+    normalizedHtml = normalizedHtml.replace(/<\/xml>\s*<!\[endif\]-->/gi, '</xml>');
+    normalizedHtml = normalizedHtml.replace(/<!--\[if[^\]]*\]>/gi, '');
+    normalizedHtml = normalizedHtml.replace(/<!\[endif\]-->/gi, '');
+    normalizedHtml = normalizedHtml.replace(/<!\[if[^\]]*\]>/gi, '');
+    normalizedHtml = normalizedHtml.replace(/<!\[endif\]>/gi, '');
+    normalizedHtml = normalizedHtml.replace(/<!--[\s\S]*?-->/g, '');
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<html><body>${normalizedHtml}</body></html>`, 'text/html');
+    const body = doc.body || doc.documentElement;
+
+    const domToAstNode = (el) => {
+      if (el.nodeType === 3) {
+        return el.nodeValue;
+      }
+      if (el.nodeType !== 1) {
+        return null;
+      }
+      
+      let tag = el.tagName.toLowerCase();
+      const colonIdx = tag.indexOf(':');
+      if (colonIdx !== -1) {
+        tag = tag.slice(colonIdx + 1);
+      }
+      
+      const attrs = {};
+      if (el.attributes) {
+        for (let i = 0; i < el.attributes.length; i++) {
+          const attr = el.attributes[i];
+          let name = attr.name.toLowerCase();
+          const attrColonIdx = name.indexOf(':');
+          if (attrColonIdx !== -1) {
+            name = name.slice(attrColonIdx + 1);
+          }
+          attrs[name] = attr.value;
+        }
+      }
+      
+      const children = [];
+      if (el.childNodes) {
+        for (let i = 0; i < el.childNodes.length; i++) {
+          const childAst = domToAstNode(el.childNodes[i]);
+          if (childAst) children.push(childAst);
+        }
+      }
+      
+      return { tag, attrs, children };
+    };
+
+    const compileTableMarkdown = (tableEl) => {
+      const rows = [];
+      const trs = tableEl.querySelectorAll('tr');
+      for (const tr of trs) {
+        const cells = [];
+        const tds = tr.querySelectorAll('td, th');
+        for (const td of tds) {
+          cells.push(td.textContent?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '');
+        }
+        if (cells.length) {
+          rows.push('| ' + cells.join(' | ') + ' |');
+        }
+      }
+      if (rows.length > 0) {
+        const cellCount = rows[0].split('|').length - 2;
+        if (cellCount > 0) {
+          const sep = '| ' + Array(cellCount).fill('---').join(' | ') + ' |';
+          rows.splice(1, 0, sep);
+        }
+        return '\n\n' + rows.join('\n') + '\n\n';
+      }
+      return '';
+    };
+
+    const getNodeLineage = (node, origin) => {
+      if (!node) return null;
+      const ancestors = [];
+      let parent = node.parentNode;
+      const parentTag = parent ? parent.tagName.toLowerCase().split(':').pop() : '';
+      
+      while (parent && parent.tagName) {
+        ancestors.push(parent.tagName.toLowerCase().split(':').pop());
+        parent = parent.parentNode;
+      }
+
+      let siblingIndex = 0;
+      if (node.parentNode) {
+        const siblings = Array.from(node.parentNode.childNodes);
+        siblingIndex = siblings.indexOf(node);
+      }
+
+      return {
+        parentTag,
+        officeOrigin: origin,
+        ancestors,
+        siblingIndex
+      };
+    };
+
+    // Grouping logic
+    const allNodes = Array.from(body.getElementsByTagName('*'));
+    const shapeGroups = new Map();
+    const getOrCreateGroup = (id) => {
+      if (!id) return null;
+      const cleanId = id.trim();
+      if (!shapeGroups.has(cleanId)) {
+        shapeGroups.set(cleanId, {
+          shapeId: cleanId,
+          shapeNode: null,
+          oleNode: null,
+          imageDataNode: null,
+          fallbackImgNode: null,
+          ommlNode: null,
+          mathmlNode: null,
+          processed: false
+        });
+      }
+      return shapeGroups.get(cleanId);
+    };
+
+    // Populate shape groups
+    for (const node of allNodes) {
+      const tag = node.tagName.toLowerCase();
+      const cleanTag = tag.includes(':') ? tag.slice(tag.indexOf(':') + 1) : tag;
+
+      if (cleanTag === 'shape') {
+        const id = node.getAttribute('id') || node.getAttribute('o:spid');
+        if (id) {
+          const g = getOrCreateGroup(id);
+          if (g) g.shapeNode = node;
+        }
+      } else if (cleanTag === 'oleobject') {
+        const shapeId = node.getAttribute('shapeid') || node.getAttribute('ShapeID') || node.getAttribute('id');
+        if (shapeId) {
+          const g = getOrCreateGroup(shapeId);
+          if (g) g.oleNode = node;
+        }
+      } else if (cleanTag === 'imagedata') {
+        let parent = node.parentNode;
+        while (parent && parent !== body) {
+          const parentTag = parent.tagName.toLowerCase().split(':').pop();
+          if (parentTag === 'shape') {
+            const id = parent.getAttribute('id') || parent.getAttribute('o:spid');
+            if (id) {
+              const g = getOrCreateGroup(id);
+              if (g) g.imageDataNode = node;
+            }
+            break;
+          }
+          parent = parent.parentNode;
+        }
+      } else if (tag === 'img') {
+        const shapeId = node.getAttribute('v:shapes') || node.getAttribute('shapes');
+        if (shapeId) {
+          const g = getOrCreateGroup(shapeId);
+          if (g) g.fallbackImgNode = node;
+        }
+      }
+    }
+
+    // Associate nested OMML / MathML inside shapes
+    for (const node of allNodes) {
+      const tag = node.tagName.toLowerCase();
+      const cleanTag = tag.includes(':') ? tag.slice(tag.indexOf(':') + 1) : tag;
+
+      if (cleanTag === 'omath' || cleanTag === 'omathpara' || cleanTag === 'math') {
+        let parent = node.parentNode;
+        while (parent && parent !== body) {
+          const parentTag = parent.tagName.toLowerCase().split(':').pop();
+          if (parentTag === 'shape') {
+            const id = parent.getAttribute('id') || parent.getAttribute('o:spid');
+            if (id) {
+              const g = shapeGroups.get(id.trim());
+              if (g) {
+                if (cleanTag === 'math') g.mathmlNode = node;
+                else g.ommlNode = node;
+              }
+            }
+            break;
+          }
+          parent = parent.parentNode;
+        }
+      }
+    }
+
+    const replaceGroupWithPlaceholder = (g, placeholderText) => {
+      const nodes = [g.fallbackImgNode, g.shapeNode, g.oleNode].filter(n => n && n.parentNode);
+      if (nodes.length === 0) return;
+      const primaryNode = nodes[0];
+      const parent = primaryNode.parentNode;
+      if (!parent) return;
+      
+      const textNode = doc.createTextNode(placeholderText);
+      parent.replaceChild(textNode, primaryNode);
+      
+      for (let i = 1; i < nodes.length; i++) {
+        nodes[i].parentNode?.removeChild(nodes[i]);
+      }
+      if (g.imageDataNode && g.imageDataNode.parentNode) {
+        g.imageDataNode.parentNode.removeChild(g.imageDataNode);
+      }
+    };
+
+    // Process Shape Groups
+    for (const [shapeId, g] of shapeGroups.entries()) {
+      let resolvedMath = null;
+      let origin = null;
+      const primaryNode = g.fallbackImgNode || g.shapeNode || g.oleNode;
+      if (!primaryNode) continue;
+
+      // 1. OMML
+      if (g.ommlNode) {
+        try {
+          const ast = domToAstNode(g.ommlNode);
+          if (ast) {
+            const latex = translateOmmlNode(ast);
+            if (latex && latex.trim()) {
+              resolvedMath = latex.trim();
+              origin = 'omml';
+            }
+          }
+        } catch (e) {
+          console.warn("Shape group OMML resolution failed:", e);
+        }
+      }
+
+      // 2. MathML
+      if (!resolvedMath && g.mathmlNode) {
+        try {
+          const ast = domToAstNode(g.mathmlNode);
+          if (ast) {
+            const latex = translateMathmlNode(ast);
+            if (latex && latex.trim()) {
+              resolvedMath = latex.trim();
+              origin = 'mathml';
+            }
+          }
+        } catch (e) {
+          console.warn("Shape group MathML resolution failed:", e);
+        }
+      }
+
+      // 3. OLE
+      if (!resolvedMath && g.oleNode) {
+        const alt = g.oleNode.getAttribute('alt') || g.oleNode.getAttribute('title') || '';
+        if (alt && /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(alt)) {
+          resolvedMath = alt.trim();
+          origin = 'ole';
+        }
+      }
+
+      // 4. VML Image metadata
+      if (!resolvedMath && g.imageDataNode) {
+        const title = g.imageDataNode.getAttribute('title') || g.imageDataNode.getAttribute('o:title') || '';
+        if (title && /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(title)) {
+          resolvedMath = title.trim();
+          origin = 'vml';
+        }
+      }
+
+      // 5. Fallback Image alt
+      if (!resolvedMath && g.fallbackImgNode) {
+        const alt = g.fallbackImgNode.getAttribute('alt') || g.fallbackImgNode.getAttribute('title') || '';
+        if (alt && /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(alt)) {
+          resolvedMath = alt.replace(/Equation\b/gi, '').trim();
+          origin = 'img_alt';
+        }
+      }
+
+      logger.info(`[SHAPE_GROUP_TRACE] Group: ${shapeId}`, {
+        groupIdentifier: shapeId,
+        participatingNodes: Object.keys(g).filter(k => g[k] !== null && k !== 'processed' && k !== 'shapeId'),
+        sourceTypes: {
+          hasOmml: !!g.ommlNode,
+          hasMathml: !!g.mathmlNode,
+          hasOle: !!g.oleNode,
+          hasImageData: !!g.imageDataNode,
+          hasFallbackImg: !!g.fallbackImgNode
+        },
+        extractionPriorityChosen: origin || 'none',
+        fallbackReason: origin ? `Successfully extracted via ${origin}` : 'No textual math found in priority chain',
+        unresolvedStatus: resolvedMath ? 'resolved' : 'unresolved'
+      });
+
+      if (resolvedMath) {
+        const ph = `__MATH_PLACEHOLDER_GRP_${mathCounter++}__`;
+        const parentIsBlock = primaryNode.parentNode && ['p', 'div'].includes(primaryNode.parentNode.tagName.toLowerCase()) && primaryNode.parentNode.childNodes.length === 1;
+        mathMap[ph] = parentIsBlock ? `\n$$${resolvedMath}$$\n` : `$${resolvedMath}$`;
+        
+        lineage[ph] = getNodeLineage(primaryNode, origin);
+        replaceGroupWithPlaceholder(g, ph);
+      } else {
+        const src = (g.imageDataNode && g.imageDataNode.getAttribute('src')) || (g.fallbackImgNode && g.fallbackImgNode.getAttribute('src')) || '';
+        const isEquationImage = src.includes('math') || src.includes('equation') || src.includes('.wmf') || 
+                                (g.oleNode && /Equation\./i.test(g.oleNode.getAttribute('progid') || ''));
+
+        if (isEquationImage) {
+          const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+          const outerHtml = (g.shapeNode && g.shapeNode.outerHTML) || (g.oleNode && g.oleNode.outerHTML) || primaryNode.outerHTML;
+          mathMap[ph] = outerHtml;
+          unresolvedMath.push(ph);
+          
+          lineage[ph] = getNodeLineage(primaryNode, 'unresolved_equation');
+          replaceGroupWithPlaceholder(g, ph);
+        } else if (src) {
+          const figId = `[FIGURE_${figureCounter++}]`;
+          const title = (g.imageDataNode && (g.imageDataNode.getAttribute('title') || g.imageDataNode.getAttribute('o:title'))) ||
+                        (g.fallbackImgNode && (g.fallbackImgNode.getAttribute('alt') || g.fallbackImgNode.getAttribute('title'))) || null;
+          figures.push({
+            id: figId,
+            url: src,
+            caption: title,
+            type: 'figure'
+          });
+          
+          lineage[figId] = getNodeLineage(primaryNode, 'figure');
+          replaceGroupWithPlaceholder(g, figId);
+        } else {
+          // Fallback unresolved
+          const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+          const outerHtml = (g.shapeNode && g.shapeNode.outerHTML) || (g.oleNode && g.oleNode.outerHTML) || primaryNode.outerHTML;
+          mathMap[ph] = outerHtml;
+          unresolvedMath.push(ph);
+          
+          lineage[ph] = getNodeLineage(primaryNode, 'unresolved_empty');
+          replaceGroupWithPlaceholder(g, ph);
+        }
+      }
+      g.processed = true;
+    }
+
+    // Now collect and process independent elements
+    const independentElements = [];
+    const collectIndependent = (node) => {
+      if (node.nodeType !== 1) return;
+      const tag = node.tagName.toLowerCase();
+      const cleanTag = tag.includes(':') ? tag.slice(tag.indexOf(':') + 1) : tag;
+
+      let wasGrouped = false;
+      if (cleanTag === 'shape') {
+        const id = node.getAttribute('id') || node.getAttribute('o:spid');
+        if (id && shapeGroups.has(id.trim())) wasGrouped = true;
+      } else if (cleanTag === 'oleobject') {
+        const shapeId = node.getAttribute('shapeid') || node.getAttribute('ShapeID') || node.getAttribute('id');
+        if (shapeId && shapeGroups.has(shapeId.trim())) wasGrouped = true;
+      } else if (cleanTag === 'imagedata') {
+        let parent = node.parentNode;
+        while (parent && parent !== body) {
+          const parentTag = parent.tagName.toLowerCase().split(':').pop();
+          if (parentTag === 'shape') {
+            const id = parent.getAttribute('id') || parent.getAttribute('o:spid');
+            if (id && shapeGroups.has(id.trim())) wasGrouped = true;
+            break;
+          }
+          parent = parent.parentNode;
+        }
+      } else if (tag === 'img') {
+        const shapeId = node.getAttribute('v:shapes') || node.getAttribute('shapes');
+        if (shapeId && shapeGroups.has(shapeId.trim())) wasGrouped = true;
+      }
+
+      const children = Array.from(node.childNodes);
+      for (const child of children) {
+        collectIndependent(child);
+      }
+
+      if (!wasGrouped) {
+        if (['omath', 'omathpara', 'math', 'oleobject', 'imagedata', 'shape', 'img', 'table'].includes(cleanTag)) {
+          independentElements.push(node);
+        }
+      }
+    };
+    collectIndependent(body);
+
+    for (const el of independentElements) {
+      if (!el.parentNode) continue;
+      
+      const tag = el.tagName.toLowerCase();
+      const cleanTag = tag.includes(':') ? tag.slice(tag.indexOf(':') + 1) : tag;
+      
+      if (cleanTag === 'omath' || cleanTag === 'omathpara') {
+        try {
+          const ast = domToAstNode(el);
+          if (ast) {
+            const isBlock = cleanTag === 'omathpara';
+            let latex = translateOmmlNode(ast);
+            if (latex && latex.trim()) {
+              const ph = `__MATH_PLACEHOLDER_OMML_${mathCounter++}__`;
+              mathMap[ph] = isBlock ? `\n$$${latex.trim()}$$\n` : `$${latex.trim()}$`;
+              lineage[ph] = getNodeLineage(el, 'omml');
+              el.parentNode.replaceChild(doc.createTextNode(ph), el);
+            }
+          }
+        } catch (err) {
+          console.warn("DOM OMML translation failed:", err);
+        }
+        continue;
+      }
+      
+      if (cleanTag === 'math') {
+        try {
+          const ast = domToAstNode(el);
+          if (ast) {
+            const isBlock = el.getAttribute('display') === 'block';
+            let latex = translateMathmlNode(ast);
+            if (latex && latex.trim()) {
+              const ph = `__MATH_PLACEHOLDER_MML_${mathCounter++}__`;
+              mathMap[ph] = isBlock ? `\n$$${latex.trim()}$$\n` : `$${latex.trim()}$`;
+              lineage[ph] = getNodeLineage(el, 'mathml');
+              el.parentNode.replaceChild(doc.createTextNode(ph), el);
+            }
+          }
+        } catch (err) {
+          console.warn("DOM MathML translation failed:", err);
+        }
+        continue;
+      }
+      
+      if (cleanTag === 'oleobject') {
+        const alt = el.getAttribute('alt') || el.getAttribute('title') || '';
+        if (alt && /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(alt)) {
+          const ph = `__MATH_PLACEHOLDER_OLE_${mathCounter++}__`;
+          mathMap[ph] = `$${alt.trim()}$`;
+          lineage[ph] = getNodeLineage(el, 'ole');
+          el.parentNode.replaceChild(doc.createTextNode(ph), el);
+        } else {
+          const progId = el.getAttribute('progid') || '';
+          if (/Equation/i.test(progId)) {
+            const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+            mathMap[ph] = el.outerHTML;
+            unresolvedMath.push(ph);
+            lineage[ph] = getNodeLineage(el, 'unresolved_ole');
+            el.parentNode.replaceChild(doc.createTextNode(ph), el);
+          } else {
+            el.parentNode.removeChild(el);
+          }
+        }
+        continue;
+      }
+      
+      if (cleanTag === 'imagedata') {
+        const src = el.getAttribute('src') || '';
+        const title = el.getAttribute('title') || el.getAttribute('o:title') || '';
+        if (src) {
+          const isEquation = src.includes('math') || src.includes('equation') || src.includes('.wmf') || /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(title);
+          if (isEquation && title) {
+            const ph = `__MATH_PLACEHOLDER_VML_${mathCounter++}__`;
+            mathMap[ph] = `$${title.trim()}$`;
+            lineage[ph] = getNodeLineage(el, 'vml');
+            let targetNode = el;
+            if (el.parentNode && el.parentNode.tagName.toLowerCase().split(':').pop() === 'shape') {
+              targetNode = el.parentNode;
+            }
+            targetNode.parentNode?.replaceChild(doc.createTextNode(ph), targetNode);
+          } else if (isEquation) {
+            const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+            let targetNode = el;
+            if (el.parentNode && el.parentNode.tagName.toLowerCase().split(':').pop() === 'shape') {
+              targetNode = el.parentNode;
+            }
+            mathMap[ph] = targetNode.outerHTML;
+            unresolvedMath.push(ph);
+            lineage[ph] = getNodeLineage(targetNode, 'unresolved_vml');
+            targetNode.parentNode?.replaceChild(doc.createTextNode(ph), targetNode);
+          } else {
+            const figId = `[FIGURE_${figureCounter++}]`;
+            figures.push({
+              id: figId,
+              url: src,
+              caption: title || null,
+              type: 'figure'
+            });
+            lineage[figId] = getNodeLineage(el, 'figure');
+            let targetNode = el;
+            if (el.parentNode && el.parentNode.tagName.toLowerCase().split(':').pop() === 'shape') {
+              targetNode = el.parentNode;
+            }
+            targetNode.parentNode?.replaceChild(doc.createTextNode(figId), targetNode);
+          }
+        }
+        continue;
+      }
+
+      if (cleanTag === 'shape') {
+        const title = el.getAttribute('title') || '';
+        if (title && /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(title)) {
+          const ph = `__MATH_PLACEHOLDER_SHAPE_${mathCounter++}__`;
+          mathMap[ph] = `$${title.trim()}$`;
+          lineage[ph] = getNodeLineage(el, 'shape');
+          el.parentNode.replaceChild(doc.createTextNode(ph), el);
+        } else {
+          const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+          mathMap[ph] = el.outerHTML;
+          unresolvedMath.push(ph);
+          lineage[ph] = getNodeLineage(el, 'unresolved_shape');
+          el.parentNode.replaceChild(doc.createTextNode(ph), el);
+        }
+        continue;
+      }
+      
+      if (cleanTag === 'img') {
+        const src = el.getAttribute('src') || '';
+        const alt = el.getAttribute('alt') || '';
+        if (src) {
+          const isEquation = src.includes('equation') || alt.includes('Equation') || /[\+\-=\*\/≤≥≠]|\\|^\s*[a-zA-Z0-9_\^]+\s*$/i.test(alt);
+          if (isEquation && alt) {
+            const cleanAlt = alt.replace(/Equation\b/gi, '').trim();
+            const ph = `__MATH_PLACEHOLDER_IMG_${mathCounter++}__`;
+            mathMap[ph] = `$${cleanAlt}$`;
+            lineage[ph] = getNodeLineage(el, 'img');
+            el.parentNode.replaceChild(doc.createTextNode(ph), el);
+          } else if (isEquation) {
+            const ph = `__MATH_UNRESOLVED_${mathCounter++}__`;
+            mathMap[ph] = el.outerHTML;
+            unresolvedMath.push(ph);
+            lineage[ph] = getNodeLineage(el, 'unresolved_img');
+            el.parentNode.replaceChild(doc.createTextNode(ph), el);
+          } else {
+            const figId = `[FIGURE_${figureCounter++}]`;
+            figures.push({
+              id: figId,
+              url: src,
+              caption: alt || null,
+              type: 'figure'
+            });
+            lineage[figId] = getNodeLineage(el, 'figure');
+            el.parentNode.replaceChild(doc.createTextNode(figId), el);
+          }
+        }
+        continue;
+      }
+      
+      if (cleanTag === 'table') {
+        const md = compileTableMarkdown(el);
+        if (md) {
+          el.parentNode.replaceChild(doc.createTextNode(md), el);
+        }
+        continue;
+      }
+    }
+
+    // Paragraph lists normalization
+    const paragraphs = body.querySelectorAll('p');
+    for (const p of paragraphs) {
+      const className = p.getAttribute('class') || '';
+      const style = p.getAttribute('style') || '';
+      if (className.includes('MsoListParagraph') || style.includes('mso-list')) {
+        const listMatch = style.match(/mso-list\s*:\s*(\w+)\s+level(\d+)/i);
+        const level = listMatch ? parseInt(listMatch[2], 10) : 1;
+        const indent = '  '.repeat(level - 1);
+        const bullet = level % 2 === 0 ? '- ' : '* ';
+        const text = p.textContent?.trim() || '';
+        p.textContent = `${indent}${bullet}${text}`;
+        p.removeAttribute('class');
+        p.removeAttribute('style');
+      }
+    }
+
+    const cleanedHtml = body.innerHTML || '';
+    return {
+      html: cleanedHtml,
+      mathMap,
+      figures,
+      lineage,
+      unresolvedMath
+    };
+
+  } catch (err) {
+    console.warn("DOM-based semantic extraction failed, falling back:", err);
+    return { html: html || '', mathMap, figures, lineage, unresolvedMath };
+  }
+}
+
+
+export async function runStagesReconstruction(plainText, htmlText = null, ocrText = null, blocks = null, rawHtml = null, pipelineOptions = {}) {
   // 13 Stages container
   const stages = {
     stage0: {
@@ -774,15 +1439,19 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     stages.stage0.preview_snippets["text/html"] = srcHtml.slice(0, 150) + (srcHtml.length > 150 ? "..." : "");
   }
 
-  // Stage 1: Word Nuclear Cleaner
-  let cleanedHtml = srcHtml || '';
-  if (cleanedHtml) {
-    const styleCount = (cleanedHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).length;
+  stages.stage0.payloadFingerprint = generatePayloadFingerprint(srcHtml, plainText);
+
+  // Stage 1: Office Semantic Extraction (BEFORE sanitization)
+  const semanticRes = extractOfficeSemantics(srcHtml, plainText);
+  let cleanedHtml = semanticRes.html;
+
+  if (srcHtml) {
+    const styleCount = (srcHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).length;
     if (styleCount) stages.stage1.removed_tags.push("style");
-    const xmlCount = (cleanedHtml.match(/<\?xml[\s\S]*?\?>/gi) || []).length;
+    const xmlCount = (srcHtml.match(/<\?xml[\s\S]*?\?>/gi) || []).length;
     if (xmlCount) stages.stage1.removed_tags.push("xml");
 
-    const ommlMatch = cleanedHtml.match(/<m:oMath>/g) || [];
+    const ommlMatch = srcHtml.match(/<m:oMath>/g) || [];
     if (ommlMatch.length) stages.stage1.math_containing_nodes.push("OMML (OfficeMath)");
 
     stages.stage1.removed_attributes = ["class", "style", "mso-*", "lang", "width", "height"];
@@ -791,9 +1460,11 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     const cleanedRes = cleanRenderingArtifacts(cleanedHtml);
     cleanedHtml = cleanedRes.cleaned;
     stages.stage1.after_html = cleanedHtml;
+    stages.stage1.cleanup_diagnostics = cleanedRes.diagnostics;
+    stages.stage1.unresolved_placeholder_count = semanticRes.unresolvedMath.length;
   }
 
-  // Stage 2: Structural HTML Normalization
+  // Stage 2: Structural HTML Normalization (AFTER extraction)
   let normalizedHtml = cleanedHtml;
   if (normalizedHtml) {
     normalizedHtml = balanceTags(normalizedHtml);
@@ -801,13 +1472,19 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }
 
   // Stage 3: Figure/Image Isolation
-  const { isolatedHtml, isolatedPlain, figures } = isolateFigures(normalizedHtml, plainText || '');
+  const { isolatedHtml, isolatedPlain, figures: extraFigures } = isolateFigures(normalizedHtml, plainText || '');
+  const figures = [...semanticRes.figures, ...extraFigures];
   stages.stage3.figures_extracted = figures;
   stages.stage3.isolated_html = isolatedHtml;
 
-  // Stage 4: Semantic Math Shielding
+  // Stage 4: Semantic Math Shielding (Integrate pre-extracted and regex-matched math)
   const placeholders = new Map();
-  let count = 0;
+  for (const [k, v] of Object.entries(semanticRes.mathMap)) {
+    placeholders.set(k, v);
+    stages.stage4.equations_detail.push({ key: k, raw: v, parentBlockType: 'paragraph' });
+    stages.stage4.equations_detected.push(v);
+  }
+  let count = placeholders.size;
   const addPlaceholder = (match) => {
     const key = `MATHPLACEHOLDER${count++}`;
     placeholders.set(key, match);
@@ -945,7 +1622,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   let tags = [questionType.toLowerCase()];
 
   const ollamaModel = env.ai.ollamaModel || 'llama3.2';
-  const shouldSkipLlm = options.skipLlm !== false; // defaults to true unless skipLlm is explicitly set to false
+  const shouldSkipLlm = pipelineOptions.skipLlm !== false; // defaults to true unless skipLlm is explicitly set to false
   
   if (env.ai.provider === 'ollama' && !shouldSkipLlm) {
     try {
@@ -1039,6 +1716,10 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   if (stages.stage11.malformed_expressions.length > 0) {
     mathPreservationConfidence -= stages.stage11.malformed_expressions.length * 0.15;
   }
+  const unresolvedMathCount = semanticRes.unresolvedMath ? semanticRes.unresolvedMath.length : 0;
+  if (unresolvedMathCount > 0) {
+    mathPreservationConfidence -= unresolvedMathCount * 0.3;
+  }
   mathPreservationConfidence = Math.max(0.1, Math.min(1.0, mathPreservationConfidence));
 
   // Semantic Confidence
@@ -1068,6 +1749,8 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }
   metadataConfidence = Math.max(0.1, Math.min(1.0, metadataConfidence));
 
+  const reconstructionFidelity = Math.max(0.1, 1 - (stages.stage11.malformed_expressions.length * 0.1) - (unresolved.length * 0.15) - (unresolvedMathCount * 0.25));
+
   // Stage 13: Database-ready Semantic Object Generation
   const dbObject = {
     questionType: stages.stage6.classified_type,
@@ -1089,7 +1772,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     statementGroups,
     comprehensionLinks: [],
     parserConfidence: stages.stage10.parser_confidence,
-    reconstructionFidelity: Math.max(0.2, 1 - (stages.stage11.malformed_expressions.length * 0.1) - (unresolved.length * 0.15)),
+    reconstructionFidelity,
     semanticConfidence,
     mathPreservationConfidence,
     metadataConfidence,
@@ -1108,6 +1791,9 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
       options,
     },
     stages,
+    lineage: semanticRes.lineage,
+    unresolvedMath: semanticRes.unresolvedMath,
+    cleanupDiagnostics: stages.stage1.cleanup_diagnostics
   };
 
   // Log 3: Stage-by-stage outputs
@@ -1132,10 +1818,12 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     semanticBlocks: extractedBlocks,
     statementGroups,
     comprehensionLinks: [],
-    reconstructionFidelity: dbObject.reconstructionFidelity,
+    reconstructionFidelity,
     semanticConfidence,
     mathPreservationConfidence,
     metadataConfidence,
+    lineage: semanticRes.lineage,
+    unresolvedMath: semanticRes.unresolvedMath,
     debugInfo,
   };
 }

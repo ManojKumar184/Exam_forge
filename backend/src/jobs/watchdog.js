@@ -1,5 +1,6 @@
 import { Upload } from '../models/Upload.js';
 import { logger } from '../utils/logger.js';
+import { resumeUpload } from '../services/uploadService.js';
 
 const WATCHDOG_INTERVAL_MS = 30000; // 30 seconds
 const STALL_TIMEOUT_MS = 60000;    // 60 seconds
@@ -31,16 +32,32 @@ async function checkStalledUploads() {
   for (const upload of stalled) {
     logger.warn(`[watchdog] Stalled upload detected: ${upload._id} in stage '${upload.processingStage}'`, {
       lastHeartbeat: upload.lastHeartbeat,
-      updatedAt: upload.updatedAt
+      updatedAt: upload.updatedAt,
+      attempts: upload.attempts
     });
 
-    upload.status = 'failed';
-    upload.progress = 100;
-    upload.processingError = `Ingestion stalled in stage '${upload.processingStage}' (watchdog timeout)`;
-    upload.processingStage = 'failed';
-    upload.stageLogs.push(`[UPLOAD_STAGE] failed - Stalled in stage '${upload.processingStage}' > ${STALL_TIMEOUT_MS / 1000}s - ${new Date().toISOString()}`);
-    
-    await upload.save();
-    logger.info(`[watchdog] Stalled upload ${upload._id} marked as failed.`);
+    if ((upload.attempts || 0) < 3) {
+      try {
+        logger.info(`[watchdog] Triggering auto-recovery / resumption for upload ${upload._id} (attempt #${(upload.attempts || 0) + 1})`);
+        await resumeUpload(upload._id);
+      } catch (err) {
+        logger.error(`[watchdog] Failed to trigger resumption for upload ${upload._id}`, { error: err.message });
+        upload.status = 'failed';
+        upload.progress = 100;
+        upload.processingError = `Failed to resume stalled upload: ${err.message}`;
+        upload.processingStage = 'failed';
+        upload.stageLogs.push(`[UPLOAD_STAGE] failed - Failed to resume: ${err.message} - ${new Date().toISOString()}`);
+        await upload.save();
+      }
+    } else {
+      upload.status = 'failed';
+      upload.progress = 100;
+      upload.processingError = `Ingestion stalled in stage '${upload.processingStage}' (watchdog timeout, maximum attempts reached)`;
+      upload.processingStage = 'failed';
+      upload.stageLogs.push(`[UPLOAD_STAGE] failed - Stalled and exceeded maximum recovery attempts - ${new Date().toISOString()}`);
+      
+      await upload.save();
+      logger.info(`[watchdog] Stalled upload ${upload._id} marked as failed permanently.`);
+    }
   }
 }

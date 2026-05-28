@@ -13,7 +13,8 @@ import { splitHtmlIntoQuestionSegments } from './htmlQuestionParser.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '../../..');
-const docxPath = path.join(projectRoot, 'MATHS JUT - 40 QUESTION.docx');
+const docxFilename = process.argv[2] || 'MATHS JUT - 40 QUESTION.docx';
+const docxPath = path.isAbsolute(docxFilename) ? docxFilename : path.join(projectRoot, docxFilename);
 
 /**
  * Calculates string similarity using Levenshtein distance
@@ -211,7 +212,8 @@ async function run() {
   const classMatchRate = totalQuestions > 0 ? (classificationMatchCount / totalQuestions) * 100 : 0;
 
   // 5. Generate JSON report
-  const jsonReportPath = path.join(__dirname, 'validation_results.json');
+  const docxBase = path.basename(docxPath, '.docx').replace(/\s+/g, '_');
+  const jsonReportPath = path.join(__dirname, `${docxBase}_validation_results.json`);
   const summary = {
     totalQuestions,
     pipelineATimeMs,
@@ -235,7 +237,7 @@ Evaluation report verifying quality, preservation metrics, and extraction matchi
 
 | Metric | Valuation / Score |
 | --- | --- |
-| **Primary Dataset** | \`MATHS JUT - 40 QUESTION.docx\` |
+| **Primary Dataset** | \`${path.basename(docxPath)}\` |
 | **Total Detected Questions** | **${totalQuestions}** |
 | **Pipeline A Time** | \`${pipelineATimeMs}ms\` |
 | **Pipeline B Time** | \`${pipelineBTimeMs}ms\` |
@@ -261,7 +263,7 @@ ${evaluations.map(e => `| ${e.index} | ${e.qnum || 'N/A'} | ${(e.stemSimilarity 
 Report generated automatically at **${new Date().toLocaleString()}**.
 `;
 
-  const reportPath = path.join(projectRoot, 'MATHS_JUT_VALIDATION_REPORT.md');
+  const reportPath = path.join(projectRoot, `${docxBase}_VALIDATION_REPORT.md`);
   await fs.writeFile(reportPath, md);
   console.log(`Saved evaluation markdown report to: ${reportPath}`);
 

@@ -176,9 +176,19 @@ export function bodyToQuestionFields(body) {
   };
 
   const out = {};
+  const objectIdFields = ['subjectId', 'chapterId', 'examTypeId', 'uploadId', 'createdBy', 'reviewedBy', 'duplicateOf'];
   for (const [snake, camel] of Object.entries(map)) {
-    if (body[snake] !== undefined) out[camel] = body[snake];
-    if (body[camel] !== undefined) out[camel] = body[camel];
+    let val = undefined;
+    if (body[snake] !== undefined) val = body[snake];
+    if (body[camel] !== undefined) val = body[camel];
+
+    if (val !== undefined) {
+      if (objectIdFields.includes(camel) && val === '') {
+        out[camel] = null;
+      } else {
+        out[camel] = val;
+      }
+    }
   }
   return out;
 }

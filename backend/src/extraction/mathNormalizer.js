@@ -1,12 +1,47 @@
-// Valid LaTeX commands to keep. Unknown commands will have their backslashes stripped to avoid KaTeX crashes.
 const VALID_LATEX_COMMANDS = new Set([
-  'cap', 'cup', 'subset', 'subseteq', 'sqrt', 'pi', 'sum', 'int', 'le', 'ge', 'ne', 'neq', 'pm', 'times', 'div',
-  'alpha', 'beta', 'gamma', 'delta', 'theta', 'lambda', 'mu', 'sigma', 'phi', 'psi', 'omega',
-  'Alpha', 'Beta', 'Gamma', 'Delta', 'Theta', 'Lambda', 'Mu', 'Sigma', 'Phi', 'Psi', 'Omega',
-  'frac', 'in', 'notin', 'cdot', 'infty', 'partial', 'nabla', 'approx', 'equiv', 'to', 'rightarrow',
-  'left', 'right', 'bar', 'vec', 'hat', 'tilde', 'sin', 'cos', 'tan', 'log', 'ln', 'lim', 'matrix',
-  'begin', 'end', 'text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'over', 'choose',
-  'dots', 'ldots', 'cdots', 'quad', 'qquad', 'textsf', 'texttt', 'textbf', 'textit', 'overline'
+  // Delimiters & operators
+  'left', 'right', 'lbrace', 'rbrace', 'langle', 'rangle', 'lfloor', 'rfloor', 'lceil', 'rceil',
+  'cap', 'cup', 'subset', 'subseteq', 'supset', 'supseteq', 'supsetneq', 'subsetneq', 'in', 'notin',
+  'sqrt', 'cfrac', 'frac', 'sum', 'prod', 'coprod', 'int', 'iint', 'iiint', 'oiint', 'oint',
+  'le', 'ge', 'ne', 'neq', 'pm', 'mp', 'times', 'div', 'cdot', 'infty', 'partial', 'nabla',
+  'approx', 'equiv', 'cong', 'sim', 'simeq', 'prop', 'propto', 'mid', 'parallel', 'perp',
+  'ast', 'star', 'circ', 'bullet', 'dagger', 'ddagger', 'amalg', 'uplus', 'sqcap', 'sqcup',
+  'vee', 'wedge', 'oplus', 'ominus', 'otimes', 'oslash', 'odot',
+  
+  // Greek letters (lowercase)
+  'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'varepsilon', 'zeta', 'eta', 'theta', 'vartheta',
+  'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'pi', 'varpi', 'rho', 'varrho', 'sigma', 'varsigma',
+  'tau', 'upsilon', 'phi', 'varphi', 'chi', 'psi', 'omega',
+  
+  // Greek letters (uppercase)
+  'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa', 'Lambda',
+  'Mu', 'Nu', 'Xi', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+
+  // Arrows
+  'to', 'rightarrow', 'leftarrow', 'leftrightarrow', 'Rightarrow', 'Leftarrow', 'Leftrightarrow',
+  'uparrow', 'downarrow', 'updownarrow', 'Uparrow', 'Downarrow', 'Updownarrow',
+  'nearrow', 'searrow', 'swarrow', 'nwarrow', 'mapsto', 'leadsto',
+
+  // Functions
+  'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan',
+  'sinh', 'cosh', 'tanh', 'coth', 'log', 'ln', 'lg', 'lim', 'limsup', 'liminf',
+  'max', 'min', 'sup', 'inf', 'arg', 'det', 'dim', 'exp', 'gcd', 'hom', 'ker', 'deg', 'pr',
+
+  // Formatting & Accents
+  'bar', 'vec', 'hat', 'tilde', 'dot', 'ddot', 'overline', 'underline', 'widehat', 'widetilde',
+  'check', 'acute', 'grave', 'breve',
+  'quad', 'qquad', 'dots', 'ldots', 'cdots', 'vdots', 'ddots',
+  'begin', 'end', 'over', 'choose',
+
+  // Math Fonts & Styling
+  'text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'mathcal', 'mathbb', 'mathfrak',
+  'textsf', 'texttt', 'textbf', 'textit', 'textnormal',
+
+  // Constants & Symbols
+  'aleph', 'hbar', 'ell', 'Re', 'Im', 'wp', 'emptyset',
+
+  // Environments
+  'matrix', 'pmatrix', 'bmatrix', 'vmatrix', 'Vmatrix', 'aligned', 'align', 'cases', 'array'
 ]);
 
 const UNICODE_FRACTIONS = {

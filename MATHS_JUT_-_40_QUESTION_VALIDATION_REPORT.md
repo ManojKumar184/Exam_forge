@@ -8,9 +8,9 @@ Evaluation report verifying quality, preservation metrics, and extraction matchi
 | --- | --- |
 | **Primary Dataset** | `MATHS JUT - 40 QUESTION.docx` |
 | **Total Detected Questions** | **106** |
-| **Pipeline A Time** | `6922ms` |
-| **Pipeline B Time** | `1975ms` |
-| **Average Stem Match Similarity** | **94.70%** |
+| **Pipeline A Time** | `5460ms` |
+| **Pipeline B Time** | `2565ms` |
+| **Average Stem Match Similarity** | **96.71%** |
 | **Option Count Alignment Rate** | **100.00%** |
 | **AI Classification Metadata Match** | **64.15%** |
 | **Total Warnings Generated** | `222` |
@@ -40,7 +40,7 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 17 | 16 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 18 | 17 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 19 | 18 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 20 | 19 | 15% | ✅ Yes | ✅ Yes | 🟡 Review |
+| 20 | 19 | 89% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 21 | 20 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 22 | 21 | 96% | ✅ Yes | ❌ No | 🟢 Success |
 | 23 | 22 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
@@ -49,8 +49,8 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 26 | 25 | 95% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 27 | 26 | 96% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 28 | 27 | 95% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 29 | 28 | 19% | ✅ Yes | ❌ No | 🟡 Review |
-| 30 | 29 | 38% | ✅ Yes | ✅ Yes | 🟡 Review |
+| 29 | 28 | 98% | ✅ Yes | ❌ No | 🟢 Success |
+| 30 | 29 | 98% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 31 | 30 | 91% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 32 | 31 | 95% | ✅ Yes | ❌ No | 🟢 Success |
 | 33 | 32 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
@@ -134,4 +134,4 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 2. **Inline Option Splitting**: Manual paste simulation pipeline successfully parses inline option chains, matching Pipeline A's structured blocks.
 3. **Equation Safety**: kaTeX brackets, subscripts, and unicode symbols are successfully shielded and normalized across both pipelines with 0 placeholder leaks.
 
-Report generated automatically at **27/5/2026, 10:08:29 pm**.
+Report generated automatically at **28/5/2026, 10:01:13 am**.

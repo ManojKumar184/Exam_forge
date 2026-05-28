@@ -46,7 +46,15 @@ async function bootstrap() {
   app.use(helmet());
   app.use(
     cors({
-      origin: env.clientUrl,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const allowedOrigins = [env.clientUrl, 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
+        if (allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     })
   );
@@ -107,3 +115,5 @@ bootstrap().catch((err) => {
   if (err.stack && !isProduction) console.error(err.stack);
   process.exit(1);
 });
+// Watch-trigger comment for reload: touched at 2026-05-28
+

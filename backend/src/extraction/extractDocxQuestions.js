@@ -75,6 +75,22 @@ export async function extractDocxQuestions(filePath, context = {}) {
     return enriched;
   });
 
+  if (context.returnRawBlocks) {
+    const warnings = [];
+    if (structure.tables?.length) {
+      warnings.push(`${structure.tables.length} table(s) detected — verify table content in questions`);
+    }
+    return {
+      blocks: blocksWithMedia,
+      questions: [],
+      warnings,
+      images,
+      rawText: xmlOrdered,
+      rawTextLength: xmlOrdered.length,
+      extractionMode: structure.paragraphs?.length > 2 ? 'docx_xml+html' : 'docx_html',
+    };
+  }
+
   let questions = await normalizeQuestions(blocksWithMedia, {
     ...context,
     extractedFrom: 'docx',

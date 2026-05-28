@@ -1,0 +1,1333 @@
+{
+  "summary": {
+    "totalQuestions": 39,
+    "pipelineATimeMs": 4792,
+    "pipelineBTimeMs": 634,
+    "avgStemSimilarityPercent": "99.44",
+    "optionsMatchRatePercent": "100.00",
+    "classificationMatchRatePercent": "71.79",
+    "totalWarningsCount": 110,
+    "timestamp": "2026-05-28T04:31:39.010Z"
+  },
+  "evaluations": [
+    {
+      "index": 1,
+      "qnum": 1,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Part A (JEE Main)",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Part A (JEE Main)",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "easy",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "qnum": 1,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Multiple choice questions",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Multiple choice questions",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "easy",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 3,
+      "qnum": 1,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Electric charge is transferred to an irregular metallic disk as shown in figure. If and are charge densities at given points then, choose the correct answer from the options given below:",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Electric charge is transferred to an irregular metallic disk as shown in figure. If and are charge densities at given points then, choose the correct answer from the options given below:",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 4,
+      "qnum": 2,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A small bob of mass 100 mg and charge is connected to an insulatingstring of length 1 m . It is brought near to an infinitely long non-conducting sheet of charge density ' ' as shown in figure. If string subtends an angle of with the sheet at equilibrium the charge density of sheet will be :(Given add acceleration due to gravity, )[April 2, 2025 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "A small bob of mass 100 mg and charge is connected to an insulatingstring of length 1 m . It is brought near to an infinitely long non-conducting sheet of charge density ' ' as shown in figure. If string subtends an angle of with the sheet at equilibrium the charge density of sheet will be :(Given add acceleration due to gravity, )[April 2, 2025 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 5,
+      "qnum": 3,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A small uncharged conducting sphere is placed in contact with an identical sphere but having charge and then removed to a distance such that the force of repulsion between them is . The distance between them is(Take as in Slunits)[Jan. 24, 2025 (II)](A) 2 cm(B) 3 cm(C) 4 cm(D) 1 cm",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "A small uncharged conducting sphere is placed in contact with an identical sphere but having charge and then removed to a distance such that the force of repulsion between them is . The distance between them is(Take as in Slunits)[Jan. 24, 2025 (II)](A) 2 cm(B) 3 cm(C) 4 cm(D) 1 cm",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 6,
+      "qnum": 4,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical conducting spheres and with charge on each, repel each other with a force I N . A third identical uncharged conducting sphere R is successively brought in contact with the two spheres. The new force of repulsion between P and S is :[April 6, 2024 (II)](A) 4 N(B) 6 N(C) 1 N(D) 12 N",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical conducting spheres and with charge on each, repel each other with a force I N . A third identical uncharged conducting sphere R is successively brought in contact with the two spheres. The new force of repulsion between P and S is :[April 6, 2024 (II)](A) 4 N(B) 6 N(C) 1 N(D) 12 N",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 7,
+      "qnum": 5,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Force between two point charges and placed in vacuum at ' r ' cm apart is F . Force between them when placed in a medium having dielectric at ' ' cm apart will be:[Jan. 31, 2024 (II)]",
+        "optionsCount": 2,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Force between two point charges and placed in vacuum at ' r ' cm apart is F . Force between them when placed in a medium having dielectric at ' ' cm apart will be:[Jan. 31, 2024 (II)]",
+        "optionsCount": 2,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 8,
+      "qnum": 6,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A charge is divided into two parts and placed at 1 cm distance so that the repulsive force between them is maximum. The charges of the two parts are:[April 13, 2023 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "A charge is divided into two parts and placed at 1 cm distance so that the repulsive force between them is maximum. The charges of the two parts are:[April 13, 2023 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 9,
+      "qnum": 7,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "If two charges and are separated with distance \" \" and placed in a medium of dielectric constant . What will be the equivalent distance between charges in air for the same electrostatic force?[Jan. 24, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "If two charges and are separated with distance \" \" and placed in a medium of dielectric constant . What will be the equivalent distance between charges in air for the same electrostatic force?[Jan. 24, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 10,
+      "qnum": 8,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical metallic spheres and when placed at certain distance in air repel each other with a force of F . Another identical uncharged sphere is first placed in contact with A and then in contact with B and finally placed at midpoint between spheres A and OPTION_B The force experienced by sphere C will be :[July 29, 2022 (m)]",
+        "optionsCount": 3,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical metallic spheres and when placed at certain distance in air repel each other with a force of F . Another identical uncharged sphere is first placed in contact with A and then in contact with B and finally placed at midpoint between spheres A and OPTION_B The force experienced by sphere C will be :[July 29, 2022 (m)]",
+        "optionsCount": 3,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 11,
+      "qnum": 9,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical positive charges each are fixed at a distance of ' 2 a' apart from each other. Another point charge with mass ' ' is placed at midpoint between two fixed charges. For a small displacement along the line joining the fixed charges, the charge executes SHM. The time period of oscillation of charge will be :[July 27, 2022 (1)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical positive charges each are fixed at a distance of ' 2 a' apart from each other. Another point charge with mass ' ' is placed at midpoint between two fixed charges. For a small displacement along the line joining the fixed charges, the charge executes SHM. The time period of oscillation of charge will be :[July 27, 2022 (1)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 12,
+      "qnum": 10,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A charge of is to be divided into two parts. The distance between the two divided charges is constant. The magnitude of the divided charges so that the force between them is maximum, will be:[July 27, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "A charge of is to be divided into two parts. The distance between the two divided charges is constant. The magnitude of the divided charges so that the force between them is maximum, will be:[July 27, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 13,
+      "qnum": 11,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Two point charges each are placed at a distance apart. A third point charge is placed at a distance x from mid-point on the perpendicular bisector. The value of at which charge will experience the maximum Coulomb's force is :[June 29, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two point charges each are placed at a distance apart. A third point charge is placed at a distance x from mid-point on the perpendicular bisector. The value of at which charge will experience the maximum Coulomb's force is :[June 29, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 10,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 14,
+      "qnum": 12,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Three identical charged balls each of charge 2 C are suspended from a common point P by silk threads of 2 m each (as shown in figure). They form an equilateral triangle of side 1 m . The ratio of net force on a charged ball to the force between any two charged balls will be: [June 27, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Three identical charged balls each of charge 2 C are suspended from a common point P by silk threads of 2 m each (as shown in figure). They form an equilateral triangle of side 1 m . The ratio of net force on a charged ball to the force between any two charged balls will be: [June 27, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 15,
+      "qnum": 13,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Sixty four conducting drops each of radius 0.02 m and each carrying a charge of are combined to form a bigger drop. The ratio of surface density of bigger drop to the smaller drop will be :[June 26, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Sixty four conducting drops each of radius 0.02 m and each carrying a charge of are combined to form a bigger drop. The ratio of surface density of bigger drop to the smaller drop will be :[June 26, 2022 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 16,
+      "qnum": 14,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical charged particles each having a mass10 g and charge placed on a horizontal table with a separation of between thensuch that they stay in limited equilibrium. If the coefficient of friction between each particle and the table is 0.25 , find the value of .[June 24, 2022 (II)][Use ](A) 12 cm(B) 10 cm(C) 8 cm(D) 5 cm",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical charged particles each having a mass10 g and charge placed on a horizontal table with a separation of between thensuch that they stay in limited equilibrium. If the coefficient of friction between each particle and the table is 0.25 , find the value of .[June 24, 2022 (II)][Use ](A) 12 cm(B) 10 cm(C) 8 cm(D) 5 cm",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 17,
+      "qnum": 15,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two particles and having charges and respectively are held fixed with a separation of 5 cm . At what position a third charged particle should be placed so that it does not experience a net electric force?[Aug. 31, 2021 (I)](A) At 5 cm from on the left side of system(B) At 5 cm from on the right side(C) At 1.25 cm from between two charges(D) At midpoint between two charges",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two particles and having charges and respectively are held fixed with a separation of 5 cm . At what position a third charged particle should be placed so that it does not experience a net electric force?[Aug. 31, 2021 (I)](A) At 5 cm from on the left side of system(B) At 5 cm from on the right side(C) At 1.25 cm from between two charges(D) At midpoint between two charges",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 18,
+      "qnum": 16,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical tennis balls each having mass ' ' and charge ' ' are suspended from a fixed point by threads of length ' '. What is the equilibrium separation when each thread makes a small angle ' ' with the vertical ? [July27,2021 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical tennis balls each having mass ' ' and charge ' ' are suspended from a fixed point by threads of length ' '. What is the equilibrium separation when each thread makes a small angle ' ' with the vertical ? [July27,2021 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 19,
+      "qnum": 17,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A certain charge is divided into two parts and . How should the charges Q and q be divided so that q and placed at a certain distance apart experience maximum electrostatic repulsion?[July 20, 2021 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "A certain charge is divided into two parts and . How should the charges Q and q be divided so that q and placed at a certain distance apart experience maximum electrostatic repulsion?[July 20, 2021 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 20,
+      "qnum": 18,
+      "status": "success",
+      "stemSimilarity": 0.9887005649717514,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Three charges are placed respectively, at origin, and d from the origin, on the -axis. If the net force experienced by , placed at , is zero, then value of is:[Jan 9,2019 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Three charges are placed respectively, at origin, and d from the origin, on $the -axis.$ If the net force experienced by , placed at , is zero, then value of is:[Jan 9,2019 (I)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 21,
+      "qnum": 19,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Charge is distributed within a sphere of radius with a volume charge density where and a are constants. If is the total charge of this charge distribution, the radius is:[Jan 9,2019 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Charge is distributed within a sphere of radius with a volume charge density where and a are constants. If is the total charge of this charge distribution, the radius is:[Jan 9,2019 (II)]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 22,
+      "qnum": 20,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical conducting spheres A and B,carry equal charge. They are separated by a distance much larger than their diameter, and the force between them is F. A third identical conducting sphere, C , is uncharged. Sphere C is first touched to , then to , and then removed. As a result, the force between A and B would be equal to[Online April 16, 2018]",
+        "optionsCount": 3,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical conducting spheres A and B,carry equal charge. They are separated by a distance much larger than their diameter, and the force between them is F. A third identical conducting sphere, C , is uncharged. Sphere C is first touched to , then to , and then removed. As a result, the force between A and B would be equal to[Online April 16, 2018]",
+        "optionsCount": 3,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 23,
+      "qnum": 21,
+      "status": "success",
+      "stemSimilarity": 0.9886363636363636,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Shown in the figure are two point charges +Q and -Q inside the cavity of a spherical shell. The charges are kept near the surface of the cavity on opposite sides of the centreof the shell.If is the surface charge on the inner surface and net charge on it and the surface charge on the outer surface and net charge on it then:[Online April 10, 2015]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Shown in the figure are two point $charges +Q$ $and -Q$ inside the cavity of a spherical shell. The charges are kept near the surface of the cavity on opposite sides of the centreof the shell.If is the surface charge on the inner surface and net charge on it and the surface charge on the outer surface and net charge on it then:[Online April 10, 2015]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 24,
+      "qnum": 9,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Numeric Value Questions",
+        "optionsCount": 0,
+        "questionType": "numerical",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "numerical"
+        }
+      },
+      "pipelineB": {
+        "stem": "Numeric Value Questions",
+        "optionsCount": 0,
+        "questionType": "numerical",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "easy",
+          "type": "numerical"
+        }
+      }
+    },
+    {
+      "index": 25,
+      "qnum": 22,
+      "status": "success",
+      "stemSimilarity": 0.9941520467836257,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "A positive ion A and a negative ion B has charges and , and masses and respectively At an instant, the ions are separated by a certain distance r . At that instant the ratio of the magnitudes of electrostatic force to gravitational force is , where the value of P is _____.(Take 'and universal gravitational constant as )[Jan, 23, 2025 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "A positive ion A and a negative ion B has charges and , and masses and respectively At an instant, the ions are separated by a certain distance r . At that instant the ratio of the magnitudes of electrostatic force to gravitational force is , where the value of P is $_____$.(Take 'and universal gravitational constant as )[Jan, 23, 2025 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 26,
+      "qnum": 23,
+      "status": "success",
+      "stemSimilarity": 0.987220447284345,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical charged spheres are suspended by strings of equal tengths. The strings makeanangle 0 with each other When suspended in water the angle remains the same. If density of the material of the sphere is , the dielectric constant of water will be _____.(Take density of water == I g/cc)[Feb1, 2024 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical charged spheres are suspended by strings of equal tengths. The strings makeanangle 0 with each other When suspended in water the angle remains the same. If density of the material of the sphere is , the dielectric constant of water will be $_____$.(Take density of water == I $g/cc)[Feb1$, 2024 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 27,
+      "qnum": 24,
+      "status": "success",
+      "stemSimilarity": 0.9933110367892977,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Suppose a uniformly charged wall provides a uniform electric field of normally. A charged particle of mass 2 g being suspended through a silk thread of length20 cm and remain stayed at a distance of 10cm from the wall. Then the charge on the particle willbe , C where ____. [use ][Feb1, 2024 (II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Suppose a uniformly charged wall provides a uniform electric field of normally. A charged particle of mass 2 g being suspended through a silk thread of length20 cm and remain stayed at a distance of 10cm from the wall. Then the charge on the particle willbe , C where $____$. [use ][Feb1, 2024 (II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 28,
+      "qnum": 25,
+      "status": "success",
+      "stemSimilarity": 0.9931740614334471,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle of with each other. When suspended in a liquid of density , the angle remains same. If density of material of the sphere is , the diefectricconstant of the liquid is _____.[Jan. 30, 2024 (II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle of with each other. When suspended in a liquid of density , the angle remains same. If density of material of the sphere is , the diefectricconstant of the liquid is $_____$.[Jan. 30, 2024 (II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 29,
+      "qnum": 27,
+      "status": "success",
+      "stemSimilarity": 0.9792746113989638,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Three point charges and are placed on -axis at a distance and respectively from origin as shown. If and , the magnitude of net force experienced by the charge is _____N.[April 13, 2023(II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Three point charges and are placed $on -axis$ at a distance and respectively from origin as shown. If and , the magnitude of net force experienced by the charge is $_____N$.[April 13, 2023(II)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 30,
+      "qnum": 28,
+      "status": "success",
+      "stemSimilarity": 0.9876543209876543,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "As shown in the figure, a configuration of two equal point charges is placed on an inclined plane. Mass of each point charge is 20 g . Assume that there is no frictionbetween charge and plane for the system of two pointcharges to be in equilibrium (at rest) the heighth=. The value of is _____. [April 112023(II)](Take )",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "As shown in the figure, a configuration of two equal point charges is placed on an inclined plane. Mass of each point charge is 20 g . Assume that there is no frictionbetween charge and plane for the system of two pointcharges to be in equilibrium (at rest) the $heighth=.$ The value of is $_____$. [April 112023(II)](Take )",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 31,
+      "qnum": 29,
+      "status": "success",
+      "stemSimilarity": 0.9931506849315068,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Two equal positive point charges are separated by a distance 2a. The distance of a point from the centreof the line joining two charges on the equatorial line (perpendicular bisector) at which force experienced by a test charge becomes maximum is . The value of x is_____.[Feb. 1, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two equal positive point charges are separated by a distance 2a. The distance of a point from the centreof the line joining two charges on the equatorial line (perpendicular bisector) at which force experienced by a test charge becomes maximum is . The value of x $is_____$.[Feb. 1, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 10,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 32,
+      "qnum": 30,
+      "status": "success",
+      "stemSimilarity": 0.9856115107913669,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "A point charge is placed at origin. Another point charge is placed at . Charge of proton is . The proton is placed on x -axis so that the electrostatic force on the proton is zero. In this situation, the position of the proton from the origin is _____cm .[Jan. 29, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "A point charge is placed at origin. Another point charge is placed at . Charge of proton is . The proton is placed on $x -axis$ so that the electrostatic force on the proton is zero. In this situation, the position of the proton from the origin is $_____cm$ .[Jan. 29, 2023 (I)]",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 10,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 33,
+      "qnum": 31,
+      "status": "success",
+      "stemSimilarity": 0.983402489626556,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "An infinite number of point charges, each carrying charge, are placed along the -axis at , 8 m .The total force on a 1 C point charge, placed at the origin, is .The value of , to the nearest integer, is _____.[March 18, 2021 (II)][Take ]",
+        "optionsCount": 0,
+        "questionType": "integer",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "integer"
+        }
+      },
+      "pipelineB": {
+        "stem": "An infinite number of point charges, each carrying charge, are placed along $the -axis$ at , 8 m .The total force on a 1 C point charge, placed at the origin, is .The value of , to the nearest integer, is $_____$.[March 18, 2021 (II)][Take ]",
+        "optionsCount": 0,
+        "questionType": "integer",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "index": 34,
+      "qnum": 32,
+      "status": "success",
+      "stemSimilarity": 0.9864864864864865,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Two identical conducting spheres with negligible volume have 2.1 nCand -0.1 nCcharges, respectively. They are brought into contact and then separated by a distance of 0.5m . The electrostatic force acting between the spheres is_____.[Given : SI unit][Feb. 25, 2021 (II)]\nPart B (JEE Advanced)",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical conducting spheres with negligible volume have 2.1 $nCand -0.1$ nCcharges, respectively. They are brought into contact and then separated by a distance of 0.5m . The electrostatic force acting between the spheres $is_____$.[Given : SI unit][Feb. 25, 2021 (II)]\nPart B (JEE Advanced)",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "hard",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 35,
+      "qnum": 1,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Multiple choice questions",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Multiple choice questions",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "easy",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 36,
+      "qnum": 1,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": true,
+      "pipelineA": {
+        "stem": "Two beads, each with charge and mass , are on a horizontal, frictionless, non-conducting, circular hoop of radius R . One of the beads is glued to the hoop at some point, while the other one performs small oscillations about its equilibrium position along the hoop. The square of the angular frequency of the small oscillations is given by [ is the permittivity of free space.][Adv. 2024]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two beads, each with charge and mass , are on a horizontal, frictionless, non-conducting, circular hoop of radius R . One of the beads is glued to the hoop at some point, while the other one performs small oscillations about its equilibrium position along the hoop. The square of the angular frequency of the small oscillations is given by [ is the permittivity of free space.][Adv. 2024]",
+        "optionsCount": 4,
+        "questionType": "mcq",
+        "warnings": [
+          "⚠ Reconstruction uncertain",
+          "MCQ contains empty option texts",
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 37,
+      "qnum": 6,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Mcqswith One or More than One Correct Answer",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "descriptive"
+        }
+      },
+      "pipelineB": {
+        "stem": "Mcqswith One or More than One Correct Answer",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "easy",
+          "type": "descriptive"
+        }
+      }
+    },
+    {
+      "index": 38,
+      "qnum": 2,
+      "status": "success",
+      "stemSimilarity": 1,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Two identical non-conducting solid spheres of same mass and charge are suspended in air from a common point by two nonconducting, massless strings of same length. At equilibrium, the angle between the strings is . The spheres are now immersed in a dielectric liquid of density and dielectric constant 21 . If the angle between the strings remains the same after the immersion, then[Adv. 2020](A) electric force between the spheres remains unchanged(B) electric force between the spheres reduces(C) mass density of the spheres is (D) the tension in the strings holding the spheres remains unchanged",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "mcq"
+        }
+      },
+      "pipelineB": {
+        "stem": "Two identical non-conducting solid spheres of same mass and charge are suspended in air from a common point by two nonconducting, massless strings of same length. At equilibrium, the angle between the strings is . The spheres are now immersed in a dielectric liquid of density and dielectric constant 21 . If the angle between the strings remains the same after the immersion, then[Adv. 2020](A) electric force between the spheres remains unchanged(B) electric force between the spheres reduces(C) mass density of the spheres is (D) the tension in the strings holding the spheres remains unchanged",
+        "optionsCount": 0,
+        "questionType": "mcq",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "hard",
+          "type": "mcq"
+        }
+      }
+    },
+    {
+      "index": 39,
+      "qnum": 3,
+      "status": "success",
+      "stemSimilarity": 0.9216300940438872,
+      "optionsCountMatch": true,
+      "classificationMatch": false,
+      "pipelineA": {
+        "stem": "Four charges and of same magnitude are fixed along the axis at and , respectively. A positive charge is placed on the positive axis at a distance . Four options of the signs of these charges are given in List-I. The direction of the forces on the charge is given in List-II. Match List-I with List-II and select the correct answer using the code given below the lists.[Adv. 2014]\n[TABLE]\nList-I | List - II\nP.all positive | 1\nQ.positive;negative | 2\nR.positive;negative | 3\nS.positive;negative | 4\nCodes:(A) P-3, Q-1, R-4, S-2(B) P-4, Q-2, R-3, S-1(C) P-3, Q-1, R-2, S-4(D) P-4, Q-2, R-1, S-3",
+        "optionsCount": 0,
+        "questionType": "match_columns",
+        "warnings": [],
+        "classification": {
+          "class": 11,
+          "difficulty": "medium",
+          "type": "match_columns"
+        }
+      },
+      "pipelineB": {
+        "stem": "Four charges and of same magnitude are fixed along the axis at and , respectively. A positive charge is placed on the positive axis at a distance . Four options of the signs of these charges are given in $List-I.$ The direction of the forces on the charge is given in $List-II.$ Match List-I with List-II and select the correct answer using the code given below the lists.[Adv. 2014]\n[TABLE] $List-I | List - II$ P.all $positive | 1$ Q.positive;$negative | 2$\nR.positive;$negative | 3$ S.positive;$negative | 4$\nCodes:(A) $P-3$, $Q-1$, $R-4$, $S-2(B)$ $P-4$, $Q-2$, $R-3$, $S-1(C)$ $P-3$, $Q-1$, $R-2$, $S-4(D)$ $P-4$, $Q-2$, $R-1$, $S-3$",
+        "optionsCount": 0,
+        "questionType": "descriptive",
+        "warnings": [
+          "Local semantic refinement unavailable — using deterministic parser.",
+          "Local semantic refinement unavailable — using deterministic parser."
+        ],
+        "classification": {
+          "class": 11,
+          "difficulty": "hard",
+          "type": "descriptive"
+        }
+      }
+    }
+  ]
+}

@@ -114,19 +114,14 @@ export function cleanupWordHtml(html) {
   // 2. Convert OMML/MathML tags to LaTeX
   h = convertHtmlMathToLatex(h);
 
-  // 3. Word Nuclear Clean Regexes
-  
-  // Strip conditional comments (standard and downlevel-revealed)
-  h = h.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  h = h.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  h = h.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  h = h.replace(/<!--\[if[\s\S]*?endif\]-->/gi, '');
-  h = h.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
-  h = h.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  // 3. Word Non-Destructive Clean: Unwrap conditional comments to expose OLE/VML contents
+  h = h.replace(/<!--\[if[^\]]*\]>\s*<xml>/gi, '<xml>');
+  h = h.replace(/<\/xml>\s*<!\[endif\]-->/gi, '</xml>');
+  h = h.replace(/<!--\[if[^\]]*\]>/gi, '');
+  h = h.replace(/<!\[endif\]-->/gi, '');
+  h = h.replace(/<!\[if[^\]]*\]>/gi, '');
+  h = h.replace(/<!\[endif\]>/gi, '');
   h = h.replace(/<!--[\s\S]*?-->/g, '');
-
-  // Strip XML islands
-  h = h.replace(/<xml>[\s\S]*?<\/xml>/gi, '');
 
   // Strip style blocks
   h = h.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
@@ -141,22 +136,8 @@ export function cleanupWordHtml(html) {
   // Strip triple dollar garbage
   h = h.replace(/\$\$\$/g, '');
 
-  // Strip VML elements completely (both tags and content)
-  const vmlTags = [
-    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
-    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
-    'shapetype'
-  ];
-  for (const tag of vmlTags) {
-    h = h.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:v|o):${tag}>`, 'gi'), '');
-    h = h.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
-  }
-
-  // Strip leftover Office namespace tags
-  h = h.replace(/<\/?(?:o|w|m|x):[^>]*>/gi, '');
-
-  // Strip equation fallback images (clip_image)
-  h = h.replace(/<img[^>]+src=["'][^"']*clip_image[^"']*["'][^>]*>/gi, '');
+  // Preserve VML elements and leftover namespace tags for reconstructionPipeline.js to process!
+  // We do NOT strip vmlTags or namespaced tags here.
 
   // Capture real images
   const images = [];
@@ -169,9 +150,15 @@ export function cleanupWordHtml(html) {
     }
   }
 
-  // Strip attributes: style, class, lang, width, height, mso-*, face, align
-  h = h.replace(/<([a-zA-Z0-9]+)(?:\s+[^>]*?)>/g, (match, tag) => {
+  // Strip attributes and non-allowed tags except for namespaced/vml/math ones
+  h = h.replace(/<([a-zA-Z0-9_:]+)(?:\s+[^>]*?)>/g, (match, tag) => {
     const lowerTag = tag.toLowerCase();
+    
+    // If it's a namespaced tag or VML/Office tag, preserve it fully
+    if (lowerTag.includes(':') || ['shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow', 'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image', 'shapetype', 'xml'].includes(lowerTag)) {
+      return match;
+    }
+    
     const allowedTags = ['p', 'span', 'b', 'i', 'u', 'strong', 'em', 'sup', 'sub', 'table', 'tr', 'td', 'th', 'ul', 'ol', 'li', 'br', 'img', 'a', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
     if (!allowedTags.includes(lowerTag)) {
       return ''; // Strip non-allowed tags
@@ -180,7 +167,11 @@ export function cleanupWordHtml(html) {
     let attrs = '';
     if (lowerTag === 'img') {
       const srcMatch = match.match(/\bsrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      const altMatch = match.match(/\balt\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
+      const shapesMatch = match.match(/\bv:shapes\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i) || match.match(/\bshapes\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
       if (srcMatch) attrs += ' ' + srcMatch[0];
+      if (altMatch) attrs += ' ' + altMatch[0];
+      if (shapesMatch) attrs += ' ' + shapesMatch[0];
     } else if (lowerTag === 'a') {
       const hrefMatch = match.match(/\bhref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i);
       if (hrefMatch) attrs += ' ' + hrefMatch[0];

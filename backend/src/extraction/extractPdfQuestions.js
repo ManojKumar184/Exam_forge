@@ -18,6 +18,19 @@ export async function extractPdfWithOcrFallback(filePath, context = {}) {
   const ocr = await ocrService.recognizePdfPages(filePath, { maxPages: context.maxOcrPages ?? 25 });
 
   const blocks = splitTextIntoBlocks(preprocessDocumentText(ocr.text));
+  if (context.returnRawBlocks) {
+    return {
+      blocks,
+      questions: [],
+      warnings: ocr.warnings || [],
+      usedOcr: true,
+      rawText: ocr.rawText || ocr.text,
+      rawTextLength: (ocr.rawText || ocr.text || '').length,
+      pageCount: ocr.pageCount,
+      ocrConfidence: ocr.confidence,
+    };
+  }
+
   const questions = await normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf_ocr',
@@ -77,6 +90,18 @@ export async function extractPdfQuestions(filePath, context = {}) {
   }
 
   const blocks = splitTextIntoBlocks(preprocessDocumentText(text));
+  if (context.returnRawBlocks) {
+    return {
+      blocks,
+      questions: [],
+      warnings: [],
+      usedOcr: false,
+      rawText: text,
+      rawTextLength: text.length,
+      pageCount: data.numpages,
+    };
+  }
+
   const questions = await normalizeQuestions(blocks, {
     ...context,
     extractedFrom: 'pdf',

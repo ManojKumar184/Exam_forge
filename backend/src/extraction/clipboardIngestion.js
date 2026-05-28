@@ -20,13 +20,13 @@ function removeOptionPrefix(html, prefixText) {
  * Walk a DOM tree and clean all class, style, and Microsoft-specific attributes.
  */
 function cleanElementDom(el) {
-  // Remove junk nodes (XML tags, scripts, styles)
+  // Remove junk nodes (XML tags, scripts, styles) - preserving shape, imagedata, oleobject, math
   const junkTags = [
     'o:p', 'xml', 'script', 'style', 'meta', 'link',
     'officedocumentsettings', 'worddocument', 'latentstyles', 
     'themedata', 'colorschememapping', 'background', 'formulas',
-    'path', 'stroke', 'shadow', 'fill', 'shape', 'imagedata',
-    'textbox', 'oleobject', 'rect', 'line', 'oval', 'arc',
+    'path', 'stroke', 'shadow', 'fill',
+    'textbox', 'rect', 'line', 'oval', 'arc',
     'curve', 'polyline', 'group', 'image', 'shapetype'
   ];
   for (const tag of junkTags) {
@@ -36,10 +36,11 @@ function cleanElementDom(el) {
     }
   }
 
-  // Also remove elements starting with o:, w:, m:, v:, x: (except math)
+  // Also remove elements starting with o:, w:, m:, v:, x: (except math and preserved VML/OLE)
   const allElements = Array.from(el.getElementsByTagName('*'));
   for (const node of allElements) {
     const tag = node.tagName.toLowerCase();
+    const cleanTag = tag.includes(':') ? tag.slice(tag.indexOf(':') + 1) : tag;
     if (
       tag.startsWith('o:') ||
       tag.startsWith('w:') ||
@@ -47,6 +48,9 @@ function cleanElementDom(el) {
       tag.startsWith('x:') ||
       (tag.startsWith('m:') && tag !== 'm:omath' && tag !== 'm:omathpara')
     ) {
+      if (['shape', 'imagedata', 'oleobject', 'omath', 'omathpara', 'math'].includes(cleanTag)) {
+        continue;
+      }
       node.parentNode?.removeChild(node);
       continue;
     }
@@ -64,9 +68,14 @@ function cleanElementDom(el) {
     for (const attr of attrs) {
       const name = attr.name.toLowerCase();
       let allowed = false;
-      if (tagName === 'img' && name === 'src') allowed = true;
+      if (tagName === 'img' && (name === 'src' || name === 'v:shapes' || name === 'shapes')) allowed = true;
       if (tagName === 'a' && name === 'href') allowed = true;
       if ((tagName === 'td' || tagName === 'th') && (name === 'colspan' || name === 'rowspan' || name === 'align' || name === 'valign')) allowed = true;
+      
+      const cleanTagName = tagName.includes(':') ? tagName.slice(tagName.indexOf(':') + 1) : tagName;
+      if (cleanTagName === 'shape' && ['id', 'style', 'type', 'o:ole', 'ole'].includes(name)) allowed = true;
+      if (cleanTagName === 'imagedata' && ['src', 'title', 'o:title', 'title'].includes(name)) allowed = true;
+      if (cleanTagName === 'oleobject' && ['type', 'progid', 'shapeid', 'drawaspect', 'objectid'].includes(name)) allowed = true;
 
       if (!allowed) {
         node.removeAttribute(attr.name);
@@ -516,50 +525,45 @@ export function preParseNormalizeHtml(html) {
       .replace(/<link[^>]*>/gi, '');
   }
 
-  // 2. Remove conditional comments completely if they are fallback branches
-  // Handles: <!--[if !msEquation]--> ... <![endif]--> AND <![if !msEquation]> ... <![endif]>
-  out = out.replace(/(?:<!--)?<!\[if !msEquation\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  out = out.replace(/(?:<!--)?<!\[if gte vml[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-  out = out.replace(/(?:<!--)?<!\[if gte mso[\s\S]*?\]>(?:-->)?[\s\S]*?(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
+  // 2. Unwrap conditional comments to expose VML/OLE tags instead of deleting them!
+  out = out.replace(/<!--\[if[^\]]*\]>\s*<xml>/gi, '<xml>');
+  out = out.replace(/<\/xml>\s*<!\[endif\]-->/gi, '</xml>');
+  out = out.replace(/<!--\[if[^\]]*\]>/gi, '');
+  out = out.replace(/<!\[endif\]-->/gi, '');
+  out = out.replace(/<!\[if[^\]]*\]>/gi, '');
+  out = out.replace(/<!\[endif\]>/gi, '');
 
-  // 3. Remove conditional comment tags but preserve their inner contents for supportLists/other logic
-  out = out.replace(/(?:<!--)?<!\[if[^\]]*\]>(?:-->)?/gi, '');
-  out = out.replace(/(?:<!--)?<!\[endif\]>(?:-->)?/gi, '');
-
-  // 4. Remove all standard HTML comments
+  // 3. Remove all standard HTML comments
   out = out.replace(/<!--[\s\S]*?-->/g, '');
 
-  // 5. Remove VML shape/graphics nodes and tags completely (both start/end tags and content)
-  const vmlTags = [
-    'shape', 'imagedata', 'stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow',
-    'lock', 'oleobject', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'image',
-    'shapetype'
-  ];
-  for (const tag of vmlTags) {
-    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/` + `(?:v|o):${tag}>`, 'gi'), '');
+  // 4. Preserve VML shape/graphics nodes and tags (do NOT strip them here)
+  // We only strip empty helper tags
+  const vmlHelperTags = ['stroke', 'path', 'formulas', 'f', 'handles', 'textbox', 'shadow', 'lock', 'rect', 'line', 'oval', 'arc', 'curve', 'polyline', 'group', 'shapetype'];
+  for (const tag of vmlHelperTags) {
+    out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*>[\\s\\S]*?<\\/(?:v|o):${tag}>`, 'gi'), '');
     out = out.replace(new RegExp(`<(?:v|o):${tag}\\b[^>]*\\/?>`, 'gi'), '');
   }
 
-  // 6. Strip any other namespaced tags from w:, o:, v:, x: namespace, preserving contents
-  // Crucial: we do NOT touch m: (Office Math)
-  out = out.replace(/<\/?(?:w|o|v|x):[^>]*>/gi, '');
+  // 5. Strip non-semantic namespaced tags, preserving contents
+  // Crucial: we do NOT touch m: (Office Math), v: (VML), o: (Office)
+  out = out.replace(/<\/?(?:w|x):[^>]*>/gi, '');
 
-  // 7. Strip Office XML/metadata attributes and CSS styles
+  // 6. Safe quote and boundary-constrained attribute cleaning
   out = out.replace(/behavior\s*:\s*url\([^)]*\);?/gi, '');
-  out = out.replace(/mso-[^:;"]+:[^;"]+;?/gi, '');
+  out = out.replace(/\bmso-[^:;'"\s>]+:[^;'"\s>]+;?/gi, '');
   out = out.replace(/\s*class="Mso[^"]*"/gi, '');
   out = out.replace(/\s*class='Mso[^']*'/gi, '');
-  out = out.replace(/\s*style="[^"]*mso[^"]*"/gi, '');
-  out = out.replace(/\s*style='[^']*mso[^']*'/gi, '');
+  out = out.replace(/\s*style="[^"<>]*mso[^"<>]*"/gi, '');
+  out = out.replace(/\s*style='[^'<>]*mso[^'<>]*'/gi, '');
 
-  // 8. Clean up any empty paragraphs, divs, or spans recursively (up to 3 levels)
+  // 7. Clean up any empty paragraphs, divs, or spans recursively
   for (let i = 0; i < 3; i++) {
     out = out.replace(/<span[^>]*>\s*<\/span>/gi, '');
     out = out.replace(/<p[^>]*>\s*<\/p>/gi, '');
     out = out.replace(/<div[^>]*>\s*<\/div>/gi, '');
   }
 
-  // 9. Normalize multiple spaces
+  // 8. Normalize multiple spaces
   out = out.replace(/[ \t]{2,}/g, ' ');
 
   return out.trim();

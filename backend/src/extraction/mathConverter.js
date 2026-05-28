@@ -24,12 +24,17 @@ export function parseXml(xmlStr) {
         const closeEnd = cleanXml.indexOf('>', pos);
         if (closeEnd !== -1) {
           pos = closeEnd + 1;
+        } else {
+          pos = cleanXml.length;
         }
         return null;
       }
 
       const tagEnd = cleanXml.indexOf('>', pos);
-      if (tagEnd === -1) return null;
+      if (tagEnd === -1) {
+        pos = cleanXml.length;
+        return null;
+      }
 
       let tagContent = cleanXml.slice(pos + 1, tagEnd);
       pos = tagEnd + 1;
@@ -79,11 +84,17 @@ export function parseXml(xmlStr) {
             const closeEnd = cleanXml.indexOf('>', pos);
             if (closeEnd !== -1) {
               pos = closeEnd + 1;
+            } else {
+              pos = cleanXml.length;
             }
             break;
           }
+          const startPos = pos;
           const child = parseNode();
           if (child) node.children.push(child);
+          if (pos === startPos) {
+            pos++;
+          }
         } else {
           let nextTag = cleanXml.indexOf('<', pos);
           if (nextTag === -1) nextTag = cleanXml.length;
@@ -106,10 +117,12 @@ export function parseXml(xmlStr) {
 
   const rootNodes = [];
   while (pos < cleanXml.length) {
+    const startPos = pos;
     const node = parseNode();
     if (node && typeof node !== 'string') {
       rootNodes.push(node);
-    } else {
+    }
+    if (pos === startPos) {
       pos++;
     }
   }
@@ -472,10 +485,25 @@ export function astToLatex(node) {
         }
         const greek = {
           alpha: '\\alpha', beta: '\\beta', gamma: '\\gamma', delta: '\\delta',
-          theta: '\\theta', pi: '\\pi', sigma: '\\sigma', omega: '\\omega',
-          lambda: '\\lambda', mu: '\\mu', phi: '\\phi', psi: '\\psi'
+          epsilon: '\\epsilon', varepsilon: '\\varepsilon', zeta: '\\zeta',
+          eta: '\\eta', theta: '\\theta', vartheta: '\\vartheta', iota: '\\iota',
+          kappa: '\\kappa', lambda: '\\lambda', mu: '\\mu', nu: '\\nu',
+          xi: '\\xi', pi: '\\pi', varpi: '\\varpi', rho: '\\rho',
+          varrho: '\\varrho', sigma: '\\sigma', varsigma: '\\varsigma',
+          tau: '\\tau', upsilon: '\\upsilon', phi: '\\phi', varphi: '\\varphi',
+          chi: '\\chi', psi: '\\psi', omega: '\\omega',
+          Alpha: '\\Alpha', Beta: '\\Beta', Gamma: '\\Gamma', Delta: '\\Delta',
+          Epsilon: '\\Epsilon', Zeta: '\\Zeta', Eta: '\\Eta', Theta: '\\Theta',
+          Iota: '\\Iota', Kappa: '\\Kappa', Lambda: '\\Lambda', Mu: '\\Mu',
+          Nu: '\\Nu', Xi: '\\Xi', Pi: '\\Pi', Rho: '\\Rho',
+          Sigma: '\\Sigma', Tau: '\\Tau', Upsilon: '\\Upsilon', Phi: '\\Phi',
+          Chi: '\\Chi', Psi: '\\Psi', Omega: '\\Omega'
         };
-        const greekSymbol = greek[text.toLowerCase()];
+        const greekSymbol = greek[text];
+        if (!greekSymbol && text.length > 1) {
+          const lowerSymbol = greek[text.toLowerCase()];
+          if (lowerSymbol) return lowerSymbol;
+        }
         if (greekSymbol) return greekSymbol;
         return text;
       }
@@ -573,10 +601,7 @@ export function astToLatex(node) {
 
   if (!validateBraces(result)) {
     console.warn("Unbalanced braces in LaTeX node compilation fallback to plain text:", result);
-    if (node.children) {
-      return (node.children || []).map(c => typeof c === 'string' ? c : c.rawSourceContent || '').join(' ');
-    }
-    return node.rawSourceContent || '';
+    return getAstPlainText(node);
   }
 
   return result;
@@ -674,4 +699,39 @@ export function convertHtmlMathToLatex(html) {
     restored = restored.split(key).join(map[key]);
   }
   return restored;
+}
+
+export function getAstPlainText(node) {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (node.type === 'text' || node.type === 'mi' || node.type === 'mn' || node.type === 'mo' || node.type === 'mtext') {
+    return node.value || '';
+  }
+  let parts = [];
+  if (node.children) {
+    for (const child of node.children) {
+      parts.push(getAstPlainText(child));
+    }
+  }
+  if (node.num) parts.push(getAstPlainText(node.num));
+  if (node.den) parts.push(getAstPlainText(node.den));
+  if (node.base) parts.push(getAstPlainText(node.base));
+  if (node.sup) parts.push(getAstPlainText(node.sup));
+  if (node.sub) parts.push(getAstPlainText(node.sub));
+  if (node.expr) parts.push(getAstPlainText(node.expr));
+  if (node.deg) parts.push(getAstPlainText(node.deg));
+  if (node.under) parts.push(getAstPlainText(node.under));
+  if (node.over) parts.push(getAstPlainText(node.over));
+  if (node.rows) {
+    for (const row of node.rows) {
+      if (Array.isArray(row)) {
+        for (const cell of row) {
+          parts.push(getAstPlainText(cell));
+        }
+      } else {
+        parts.push(getAstPlainText(row));
+      }
+    }
+  }
+  return parts.filter(Boolean).join(' ');
 }

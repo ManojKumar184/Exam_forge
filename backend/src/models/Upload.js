@@ -52,6 +52,18 @@ const uploadSchema = new mongoose.Schema(
       ref: 'Question',
       default: [],
     },
+    checkpoint: {
+      type: mongoose.Schema.Types.Mixed,
+      default: { chunkIndex: 0 },
+    },
+    telemetry: {
+      type: mongoose.Schema.Types.Mixed,
+      default: { peakMemory: 0, maxLoopLag: 0 },
+    },
+    uploadOptions: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

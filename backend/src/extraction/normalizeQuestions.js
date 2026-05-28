@@ -190,8 +190,16 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         answerText = answerMatch[1].toUpperCase();
       }
 
-      const status =
-        warnings.length > 0 ? 'needs_review' : 'pending';
+      const hasMalformedOrUnresolved = (pipeline.unresolvedMath && pipeline.unresolvedMath.length > 0) || 
+                                       (pipeline.warnings && pipeline.warnings.some(w => /unresolved|malformed|failed to restore/i.test(w)));
+      
+      const lowConfidence = (pipeline.confidence < 0.70) ||
+                            (pipeline.reconstructionFidelity < 0.70) ||
+                            (pipeline.semanticConfidence < 0.70) ||
+                            (pipeline.mathPreservationConfidence < 0.70) ||
+                            (pipeline.metadataConfidence < 0.70);
+
+      const status = (warnings.length > 0 || lowConfidence || hasMalformedOrUnresolved) ? 'needs_review' : 'pending';
 
       const base = {
         questionText: finalQuestionText,

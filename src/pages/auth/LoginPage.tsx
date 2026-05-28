@@ -71,6 +71,7 @@ export function LoginPage() {
               label="Email Address"
               type="email"
               placeholder="you@example.com"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               leftIcon={<Mail className="w-5 h-5" />}
@@ -81,6 +82,7 @@ export function LoginPage() {
               label="Password"
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               leftIcon={<Lock className="w-5 h-5" />}

@@ -1,13 +1,13 @@
 {
   "summary": {
     "totalQuestions": 106,
-    "pipelineATimeMs": 6922,
-    "pipelineBTimeMs": 1975,
-    "avgStemSimilarityPercent": "94.70",
+    "pipelineATimeMs": 5460,
+    "pipelineBTimeMs": 2565,
+    "avgStemSimilarityPercent": "96.71",
     "optionsMatchRatePercent": "100.00",
     "classificationMatchRatePercent": "64.15",
     "totalWarningsCount": 222,
-    "timestamp": "2026-05-27T16:38:29.780Z"
+    "timestamp": "2026-05-28T04:31:13.420Z"
   },
   "evaluations": [
     {
@@ -640,12 +640,12 @@
     {
       "index": 20,
       "qnum": 19,
-      "status": "review_needed",
-      "stemSimilarity": 0.14772727272727273,
+      "status": "success",
+      "stemSimilarity": 0.8913043478260869,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "Let  $S=\\left\\{ M=\\left[ a_ij \\right],a_ij∈{0,1,2},1≤i,j≤2 \\right\\}$ be asample space and  $<r><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>A</t></r> <r><rPr><sty val=\"p\"></sty></rPr><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>={</t></r> <r><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>M</t></r> <r><rPr><sty val=\"p\"></sty></rPr><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>∈</t></r> <r><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>S</t></r> <r><rPr><sty val=\"p\"></sty></rPr><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>:</t></r> <r><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>M</t></r>$ is invertible  $<r><rPr><sty val=\"p\"></sty></rPr><rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr><t>}</t></r>$ be an event. Then  $P(A)$ is equal to[April 11, 2023 (I)]",
+        "stem": "Let  $S=\\left\\{ M=\\left[ a_ij \\right],a_ij∈{0,1,2},1≤i,j≤2 \\right\\}$ be asample space and  $A ={ M ∈ S : M$ is invertible  $}$ be an event. Then  $P(A)$ is equal to[April 11, 2023 (I)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -939,12 +939,12 @@
     {
       "index": 29,
       "qnum": 28,
-      "status": "review_needed",
-      "stemSimilarity": 0.1947449768160742,
+      "status": "success",
+      "stemSimilarity": 0.9763779527559056,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "The probability that a relation  $R$ from  $<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>{</t>x,y<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>}</t>$ to  $<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>{</t>x,y<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>}</t>$ isboth symmetric and transitive, is equal to[June 29, 2022 (II)]",
+        "stem": "The probability that a relation  $R$ from  ${x,y}$ to  ${x,y}$ isboth symmetric and transitive, is equal to[June 29, 2022 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -955,7 +955,7 @@
         }
       },
       "pipelineB": {
-        "stem": "The probability that a relation $R$ from ${ x,y }$ to ${ x,y }$ isboth symmetric and transitive, is equal to[June 29, 2022 (II)]",
+        "stem": "The probability that a relation $R$ from ${x,y}$ to ${x,y}$ isboth symmetric and transitive, is equal to[June 29, 2022 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
@@ -972,12 +972,12 @@
     {
       "index": 30,
       "qnum": 29,
-      "status": "review_needed",
-      "stemSimilarity": 0.3835294117647059,
+      "status": "success",
+      "stemSimilarity": 0.9818181818181818,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "The probability that a randomly chosen one-onefunction from the set  $<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>{</t>a,b,c,d<rPr><sty val=\"p\"></sty></rPr> <rPr><rFonts ascii=\"Cambria Math\" hAnsi=\"Cambria Math\" cs=\"Times New Roman\"></rFonts></rPr> <t>}</t>$ to the set  ${1,2,3,4,5}$ satisfies  $f(a)+2f(b)-f(c)=f(d)$ is :[June 28, 2022 (II)]",
+        "stem": "The probability that a randomly chosen one-onefunction from the set  ${a,b,c,d}$ to the set  ${1,2,3,4,5}$ satisfies  $f(a)+2f(b)-f(c)=f(d)$ is :[June 28, 2022 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -988,7 +988,7 @@
         }
       },
       "pipelineB": {
-        "stem": "The probability that a randomly chosen one-onefunction from the set ${ a,b,c,d }$ to the set ${1,2,3,4,5}$ satisfies $f(a)+2f(b)-f(c)=f(d)$ is :[June 28, 2022 (II)]",
+        "stem": "The probability that a randomly chosen one-onefunction from the set ${a,b,c,d}$ to the set ${1,2,3,4,5}$ satisfies $f(a)+2f(b)-f(c)=f(d)$ is :[June 28, 2022 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
