@@ -129,6 +129,8 @@ export function QuestionEditorForm({
   const [classLevel, setClassLevel] = useState(11);
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
+  const [customChapterName, setCustomChapterName] = useState('');
+  const [isCustomChapter, setIsCustomChapter] = useState(false);
   const [examTypeId, setExamTypeId] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [correctOption, setCorrectOption] = useState<number | null>(0);
@@ -172,6 +174,9 @@ export function QuestionEditorForm({
           setOptions(d.options || defaultOptions());
           setSubtype(d.subtype || 'mcq_single');
           setSubjectId(d.subjectId || '');
+          setChapterId(d.chapterId || '');
+          setCustomChapterName(d.customChapterName || '');
+          setIsCustomChapter(d.isCustomChapter || false);
           setExamTypeId(d.examTypeId || '');
           setOcrText(d.ocrText || '');
         } catch {
@@ -219,12 +224,15 @@ export function QuestionEditorForm({
         options,
         subtype,
         subjectId,
+        chapterId,
+        customChapterName,
+        isCustomChapter,
         examTypeId,
         ocrText,
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, examTypeId, ocrText]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -385,7 +393,8 @@ export function QuestionEditorForm({
       question_type: sub.questionType,
       class: classLevel,
       subject_id: subjectId,
-      chapter_id: chapterId || null,
+      chapter_id: isCustomChapter ? null : (chapterId || null),
+      chapter_name: isCustomChapter ? customChapterName || null : null,
       exam_type_id: examTypeId,
       difficulty,
       marks: 4,
@@ -640,29 +649,61 @@ export function QuestionEditorForm({
             options={[{ value: '', label: 'Select…' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
             className="py-1 text-xs"
           />
-          <Select
-            label="Chapter / topic"
-            value={chapterId}
-            onChange={(e) => {
-              setChapterId(e.target.value);
-              setAutosaveStatus('saving');
-            }}
-            options={[
-              {
-                value: '',
-                label: !subjectId
-                  ? 'Select subject first'
-                  : filteredChapters.length
-                    ? 'No chapter (optional)'
-                    : 'Loading chapters…',
-              },
-              ...filteredChapters.map((c) => ({
-                value: c.id,
-                label: c.chapter_number != null ? `${c.chapter_number}. ${c.name}` : c.name,
-              })),
-            ]}
-            className="py-1 text-xs"
-          />
+          <div className="flex flex-col space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="block text-sm font-medium text-slate-700 dark:text-slate-350 select-none">
+                Chapter / topic
+              </span>
+              {subjectId && (
+                <button
+                  type="button"
+                  className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                  onClick={() => {
+                    setIsCustomChapter(!isCustomChapter);
+                    setChapterId('');
+                    setCustomChapterName('');
+                    setAutosaveStatus('saving');
+                  }}
+                >
+                  {isCustomChapter ? 'Select existing' : 'Type new'}
+                </button>
+              )}
+            </div>
+            {isCustomChapter ? (
+              <Input
+                value={customChapterName}
+                onChange={(e) => {
+                  setCustomChapterName(e.target.value);
+                  setAutosaveStatus('saving');
+                }}
+                placeholder="Type new chapter/topic name"
+                className="py-1 text-xs"
+              />
+            ) : (
+              <Select
+                value={chapterId}
+                onChange={(e) => {
+                  setChapterId(e.target.value);
+                  setAutosaveStatus('saving');
+                }}
+                options={[
+                  {
+                    value: '',
+                    label: !subjectId
+                      ? 'Select subject first'
+                      : filteredChapters.length
+                        ? 'No chapter (optional)'
+                        : 'Loading chapters…',
+                  },
+                  ...filteredChapters.map((c) => ({
+                    value: c.id,
+                    label: c.chapter_number != null ? `${c.chapter_number}. ${c.name}` : c.name,
+                  })),
+                ]}
+                className="py-1 text-xs"
+              />
+            )}
+          </div>
           <Select
             label="Exam"
             value={examTypeId}

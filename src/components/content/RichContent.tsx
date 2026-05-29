@@ -86,7 +86,7 @@ export function RichContent({
           <img
             src={resolveMediaUrl(src)}
             alt={`Figure ${i + 1}`}
-            className="max-w-full rounded-lg border border-slate-200 dark:border-slate-600"
+            className="max-w-full max-h-44 md:max-h-56 object-contain rounded-lg border border-slate-200 dark:border-slate-600 w-auto"
             loading="lazy"
           />
         </figure>
@@ -95,12 +95,12 @@ export function RichContent({
   );
 }
 
-export function RichOptionContent({ option, index }: { option: QuestionOption | string; index: number }) {
+export function RichOptionContent({ option, index, isCorrect }: { option: QuestionOption | string; index: number; isCorrect?: boolean }) {
   if (typeof option === 'string') {
     const hasHtml = /<(table|img|p|div|span|br)\b/i.test(option);
     return (
-      <span className="break-words">
-        <span className="font-medium mr-2">{String.fromCharCode(65 + index)}.</span>
+      <span className={`break-words ${isCorrect ? 'text-green-600 dark:text-green-400 font-medium' : ''}`}>
+        <span className="font-semibold mr-2">{String.fromCharCode(65 + index)}.{isCorrect && ' ✓'}</span>
         {hasHtml ? (
           <span
             className="prose prose-sm dark:prose-invert max-w-none inline"
@@ -117,12 +117,12 @@ export function RichOptionContent({ option, index }: { option: QuestionOption | 
   const hasHtml = /<(table|img|p|div|span|br)\b/i.test(optText);
 
   return (
-    <div className="flex items-start gap-2 min-w-0">
-      <span className="font-medium shrink-0">{String.fromCharCode(65 + index)}.</span>
+    <div className={`flex items-start gap-2 min-w-0 w-full ${isCorrect ? 'text-green-600 dark:text-green-400 font-medium bg-green-50/50 dark:bg-green-950/10 p-1.5 rounded-lg border border-green-200/50 dark:border-green-800/30 shadow-sm' : ''}`}>
+      <span className="font-semibold shrink-0">{String.fromCharCode(65 + index)}.{isCorrect && ' ✓'}</span>
       <div className="flex-1 min-w-0">
         {hasHtml ? (
           <div
-            className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1"
+            className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1 inline-block"
             dangerouslySetInnerHTML={{ __html: optText }}
           />
         ) : (
@@ -130,6 +130,7 @@ export function RichOptionContent({ option, index }: { option: QuestionOption | 
             text={optText}
             latex={option.latex}
             images={option.image ? [option.image] : []}
+            className={isCorrect ? '[&_.rich-content]:text-green-600 dark:[&_.rich-content]:text-green-400' : ''}
             compact
           />
         )}
@@ -149,10 +150,12 @@ export function QuestionContentPreview({
   question,
   compact,
   showOptions,
+  showCorrect,
 }: {
   question: Question;
   compact?: boolean;
   showOptions?: boolean;
+  showCorrect?: boolean;
 }) {
   const opts = (question.options || []).filter((o) => o?.text?.trim());
   return (
@@ -166,9 +169,14 @@ export function QuestionContentPreview({
         compact={compact}
       />
       {showOptions && opts.length > 0 && (
-        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-700">
+        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700">
           {opts.map((opt, idx) => (
-            <RichOptionContent key={idx} option={opt} index={idx} />
+            <RichOptionContent
+              key={idx}
+              option={opt}
+              index={idx}
+              isCorrect={showCorrect && question.correct_option === idx}
+            />
           ))}
         </div>
       )}

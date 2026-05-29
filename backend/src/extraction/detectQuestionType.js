@@ -63,7 +63,7 @@ export function detectQuestionType(block) {
     return { questionType: 'numerical', tags, subtype: 'numerical' };
   }
 
-  if (/\([a-dA-D]\)/.test(fullText) && countOptionMarkers(fullText) === 1) {
+  if (/\([a-fA-F]\)/.test(fullText) && countOptionMarkers(fullText) === 1) {
     tags.push('possible_mcq_verify');
     return { questionType: 'mcq', tags, subtype: 'mcq_incomplete' };
   }

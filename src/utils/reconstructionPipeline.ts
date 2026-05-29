@@ -177,7 +177,7 @@ const QUESTION_START_RE =
   /^(?:Q(?:uestion)?\s*)?(\d{1,3})[\).:\-\s]+|^\((\d{1,3})\)\s+|^(\d{1,3})\.\s+(?=[A-Za-z(\\$])/i;
 
 const OPTION_LINE_START =
-  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)/i;
+  /^\s*(?:\(?\s*([a-fA-F])\s*\)?\s*[\).:\-–—]\s*|([a-fA-F])\s*[\).:\-–—]\s+)/i;
 
 const ENDS_WITH_CONTINUATION =
   /(?:such\s+that|where|and|or|is|are|if|then|=|\+|-|\*|\/|,|that)$/i;
@@ -211,12 +211,12 @@ export function normalizeOptionPrefixes(text: string): string {
   let result = text;
   
   // 1. Bracket formats: (A), [A], (a), [a]
-  result = result.replace(/(?<![a-zA-Z0-9_\$])[\(\[]\s*([a-dA-D])\s*[\)\]]/gi, (_, letter) => {
+  result = result.replace(/(?<![a-zA-Z0-9_\$])[\(\[]\s*([a-fA-F])\s*[\)\]]/gi, (_, letter) => {
     return `OPTION_${letter.toUpperCase()}`;
   });
   
   // 2. Trailing punctuation formats: A., A), A:, A - followed by space or end of line
-  result = result.replace(/(?<![\(\[a-zA-Z0-9_\$])\b([a-dA-D])\s*[\).:\-–—](?=\s|$)/gi, (_, letter) => {
+  result = result.replace(/(?<![\(\[a-zA-Z0-9_\$])\b([a-fA-F])\s*[\).:\-–—](?=\s|$)/gi, (_, letter) => {
     return `OPTION_${letter.toUpperCase()}`;
   });
   
@@ -226,7 +226,7 @@ export function normalizeOptionPrefixes(text: string): string {
 export function splitOptionsByMarkers(text: string): { stem: string; options: Array<{ label: string; text: string }>; success: boolean } {
   if (!text) return { stem: '', options: [], success: false };
   
-  const markerRegex = /\bOPTION_([A-D])\b/g;
+  const markerRegex = /\bOPTION_([A-F])\b/g;
   const matches: Array<{ label: string; index: number; length: number }> = [];
   let match;
   while ((match = markerRegex.exec(text)) !== null) {
@@ -237,7 +237,7 @@ export function splitOptionsByMarkers(text: string): { stem: string; options: Ar
     });
   }
   
-  const LABEL_ORDER = ['a', 'b', 'c', 'd'];
+  const LABEL_ORDER = ['a', 'b', 'c', 'd', 'e', 'f'];
   const sequences: Array<Array<{ label: string; index: number; length: number }>> = [];
   for (let i = 0; i < matches.length; i++) {
     const seq = [matches[i]];
@@ -685,7 +685,7 @@ function getParentBlockType(html: string | null, xmlMatch: string): string {
   const closeP = before.lastIndexOf('</p>');
   if (openP > closeP) {
     const pContent = before.slice(openP);
-    if (/(?:^[a-dA-D]\s*[\).:\-–—]|\(?\s*[a-dA-D]\s*\)\s*[\).:\-–—])/i.test(pContent.replace(/<[^>]+>/g, '').trim())) {
+    if (/(?:^[a-fA-F]\s*[\).:\-–—]|\(?\s*[a-fA-F]\s*\)\s*[\).:\-–—])/i.test(pContent.replace(/<[^>]+>/g, '').trim())) {
       return 'option';
     }
   }
@@ -956,14 +956,17 @@ export function extractOfficeSemantics(html: string | null | undefined, _plainTe
       } else if (cleanTag === 'imagedata') {
         let parent = node.parentNode;
         while (parent && parent !== body) {
-          const parentTag = parent.tagName.toLowerCase().split(':').pop();
-          if (parentTag === 'shape') {
-            const id = parent.getAttribute('id') || parent.getAttribute('o:spid');
-            if (id) {
-              const g = getOrCreateGroup(id);
-              if (g) g.imageDataNode = node;
+          if (parent.nodeType === 1) {
+            const parentEl = parent as Element;
+            const parentTag = parentEl.tagName.toLowerCase().split(':').pop();
+            if (parentTag === 'shape') {
+              const id = parentEl.getAttribute('id') || parentEl.getAttribute('o:spid');
+              if (id) {
+                const g = getOrCreateGroup(id);
+                if (g) g.imageDataNode = node;
+              }
+              break;
             }
-            break;
           }
           parent = parent.parentNode;
         }
@@ -984,17 +987,20 @@ export function extractOfficeSemantics(html: string | null | undefined, _plainTe
       if (cleanTag === 'omath' || cleanTag === 'omathpara' || cleanTag === 'math') {
         let parent = node.parentNode;
         while (parent && parent !== body) {
-          const parentTag = parent.tagName.toLowerCase().split(':').pop();
-          if (parentTag === 'shape') {
-            const id = parent.getAttribute('id') || parent.getAttribute('o:spid');
-            if (id) {
-              const g = shapeGroups.get(id.trim());
-              if (g) {
-                if (cleanTag === 'math') g.mathmlNode = node;
-                else g.ommlNode = node;
+          if (parent.nodeType === 1) {
+            const parentEl = parent as Element;
+            const parentTag = parentEl.tagName.toLowerCase().split(':').pop();
+            if (parentTag === 'shape') {
+              const id = parentEl.getAttribute('id') || parentEl.getAttribute('o:spid');
+              if (id) {
+                const g = shapeGroups.get(id.trim());
+                if (g) {
+                  if (cleanTag === 'math') g.mathmlNode = node;
+                  else g.ommlNode = node;
+                }
               }
+              break;
             }
-            break;
           }
           parent = parent.parentNode;
         }
@@ -1020,7 +1026,7 @@ export function extractOfficeSemantics(html: string | null | undefined, _plainTe
     };
 
     // Process Shape Groups
-    for (const [shapeId, g] of shapeGroups.entries()) {
+    for (const g of shapeGroups.values()) {
       let resolvedMath = null;
       let origin = null;
       const primaryNode = g.fallbackImgNode || g.shapeNode || g.oleNode;

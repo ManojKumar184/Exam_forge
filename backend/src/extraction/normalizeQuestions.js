@@ -183,7 +183,7 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
       let answerText = block.answerKey || null;
 
       const answerMatch = finalQuestionText.match(
-        /(?:answer|ans|correct)\s*[:\-]?\s*\(?([a-dA-D])\)?/i
+        /(?:answer|ans|correct)\s*[:\-]?\s*\(?([a-fA-F])\)?/i
       );
       if (answerMatch) {
         correctOption = answerMatch[1].toUpperCase().charCodeAt(0) - 65;

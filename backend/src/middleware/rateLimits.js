@@ -1,10 +1,12 @@
 import rateLimit from 'express-rate-limit';
+import { isProduction } from '../config/env.js';
 
 export const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 400,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => !isProduction,
   message: { success: false, error: { message: 'Too many requests', code: 'RATE_LIMIT' } },
 });
 
@@ -13,6 +15,7 @@ export const authLimiter = rateLimit({
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => !isProduction,
   message: { success: false, error: { message: 'Too many auth attempts', code: 'RATE_LIMIT' } },
 });
 
@@ -21,6 +24,7 @@ export const uploadLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => !isProduction,
   message: { success: false, error: { message: 'Upload limit exceeded', code: 'UPLOAD_RATE_LIMIT' } },
 });
 
@@ -29,5 +33,6 @@ export const heavyOperationLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => !isProduction,
   message: { success: false, error: { message: 'Too many heavy requests', code: 'THROTTLE' } },
 });

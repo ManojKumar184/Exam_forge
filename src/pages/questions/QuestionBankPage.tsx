@@ -41,8 +41,8 @@ export function QuestionBankPage() {
   const {
     subjects, chapters, examTypes, questions, isLoading,
     fetchSubjects, fetchChapters, fetchExamTypes, fetchQuestions,
-    approveQuestion, rejectQuestion, deleteQuestion, updateQuestion,
-    bulkApproveQuestions, bulkRejectQuestions, bulkUpdateQuestionsMetadata,
+    approveQuestion, deleteQuestion, updateQuestion,
+    bulkApproveQuestions, bulkDeleteQuestions, bulkUpdateQuestionsMetadata,
   } = useDataStore();
 
   const [filters, setFilters] = useState({
@@ -57,7 +57,6 @@ export function QuestionBankPage() {
   });
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Partial<Question>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -103,10 +102,9 @@ export function QuestionBankPage() {
   };
 
   const handleReject = async () => {
-    if (selectedQuestion && rejectReason) {
-      await rejectQuestion(selectedQuestion.id, rejectReason);
+    if (selectedQuestion) {
+      await deleteQuestion(selectedQuestion.id);
       setShowRejectModal(false);
-      setRejectReason('');
       setSelectedQuestion(null);
       applyFilters();
     }
@@ -174,79 +172,91 @@ export function QuestionBankPage() {
         )}
       </div>
 
-      <Card className="p-2 sm:p-3 sticky top-0 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="w-full sm:w-56 min-w-[12rem] flex-1 sm:flex-none">
+      <Card className="p-1.5 sm:p-2 sticky top-0 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="w-full sm:w-48 flex-1 sm:flex-none">
             <Input
               placeholder="Search questions..."
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
-              leftIcon={<Search className="w-4 h-4" />}
-              className="h-10"
+              leftIcon={<Search className="w-3.5 h-3.5" />}
+              className="h-8 text-xs py-1"
             />
           </div>
-          <Select
-            className="w-full sm:w-40 h-10"
-            placeholder="Subject"
-            options={[{ value: '', label: 'All Subjects' }, ...subjects.map(s => ({ value: s.id, label: s.name }))]}
-            value={filters.subject_id}
-            onChange={(e) => handleFilterChange('subject_id', e.target.value)}
-          />
-          <Select
-            className="w-full sm:w-40 h-10"
-            placeholder="Chapter"
-            options={[{ value: '', label: 'All Chapters' }, ...filteredChapters.map(c => ({ value: c.id, label: c.name }))]}
-            value={filters.chapter_id}
-            onChange={(e) => handleFilterChange('chapter_id', e.target.value)}
-          />
-          <Select
-            className="w-full sm:w-32 h-10"
-            placeholder="Class"
-            options={[
-              { value: '', label: 'All Classes' },
-              ...[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: c.toString(), label: `Class ${c}` }))
-            ]}
-            value={filters.class}
-            onChange={(e) => handleFilterChange('class', e.target.value)}
-          />
-          <Select
-            className="w-full sm:w-36 h-10"
-            placeholder="Difficulty"
-            options={[
-              { value: '', label: 'All Difficulties' },
-              { value: 'easy', label: 'Easy' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'hard', label: 'Hard' }
-            ]}
-            value={filters.difficulty}
-            onChange={(e) => handleFilterChange('difficulty', e.target.value)}
-          />
-          <Select
-            className="w-full sm:w-32 h-10"
-            placeholder="Type"
-            options={[
-              { value: '', label: 'All Types' },
-              { value: 'mcq', label: 'MCQ' },
-              { value: 'descriptive', label: 'Descriptive' },
-              { value: 'numerical', label: 'Numerical' }
-            ]}
-            value={filters.question_type}
-            onChange={(e) => handleFilterChange('question_type', e.target.value)}
-          />
-          <Select
-            className="w-full sm:w-36 h-10"
-            placeholder="Status"
-            options={[
-              { value: '', label: 'All Status' },
-              { value: 'pending', label: 'Pending' },
-              { value: 'needs_review', label: 'Needs Review' },
-              { value: 'approved', label: 'Approved' },
-              { value: 'rejected', label: 'Rejected' }
-            ]}
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-          />
-          <Button onClick={applyFilters} className="h-10 shrink-0">Apply</Button>
+          <div className="w-full sm:w-32 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Subject"
+              options={[{ value: '', label: 'All Subjects' }, ...subjects.map(s => ({ value: s.id, label: s.name }))]}
+              value={filters.subject_id}
+              onChange={(e) => handleFilterChange('subject_id', e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Chapter"
+              options={[{ value: '', label: 'All Chapters' }, ...filteredChapters.map(c => ({ value: c.id, label: c.name }))]}
+              value={filters.chapter_id}
+              onChange={(e) => handleFilterChange('chapter_id', e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-24 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Class"
+              options={[
+                { value: '', label: 'All Classes' },
+                ...[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: c.toString(), label: `Class ${c}` }))
+              ]}
+              value={filters.class}
+              onChange={(e) => handleFilterChange('class', e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-28 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Difficulty"
+              options={[
+                { value: '', label: 'All Difficulties' },
+                { value: 'easy', label: 'Easy' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'hard', label: 'Hard' }
+              ]}
+              value={filters.difficulty}
+              onChange={(e) => handleFilterChange('difficulty', e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-24 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Type"
+              options={[
+                { value: '', label: 'All Types' },
+                { value: 'mcq', label: 'MCQ' },
+                { value: 'descriptive', label: 'Descriptive' },
+                { value: 'numerical', label: 'Numerical' }
+              ]}
+              value={filters.question_type}
+              onChange={(e) => handleFilterChange('question_type', e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-28 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Status"
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'needs_review', label: 'Needs Review' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' }
+              ]}
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+            />
+          </div>
+          <Button onClick={applyFilters} className="h-8 shrink-0 py-1 text-xs" size="sm">Apply</Button>
         </div>
       </Card>
 
@@ -411,6 +421,7 @@ export function QuestionBankPage() {
                         size="sm"
                         onClick={() => handleDelete(question.id)}
                         leftIcon={<Trash2 className="w-4 h-4 text-red-500" />}
+                        title="Delete question"
                       />
                     </>
                   )}
@@ -446,10 +457,11 @@ export function QuestionBankPage() {
                 size="sm"
                 variant="danger"
                 onClick={async () => {
-                  const notes = prompt('Rejection reason for all selected?') || 'Bulk rejected';
-                  await bulkRejectQuestions(selectedIds, notes);
-                  setSelectedIds([]);
-                  applyFilters();
+                  if (confirm('Are you sure you want to reject and delete all selected questions?')) {
+                    await bulkDeleteQuestions(selectedIds);
+                    setSelectedIds([]);
+                    applyFilters();
+                  }
                 }}
               >
                 Reject all
@@ -490,37 +502,17 @@ export function QuestionBankPage() {
                 </Badge>
               )}
             </div>
-            <div>
-              <h4 className="font-medium text-slate-900 dark:text-white mb-2">Question</h4>
-              <QuestionContentPreview question={selectedQuestion} />
-            </div>
-            {selectedQuestion.question_type === 'mcq' && selectedQuestion.options && (
-              <div>
-                <h4 className="font-medium text-slate-900 dark:text-white mb-2">Options</h4>
-                <div className="space-y-2">
-                  {(selectedQuestion.options as any[]).map((opt, idx) => (
-                    <div
-                      key={idx}
-                      className={`px-4 py-2 rounded-lg ${
-                        selectedQuestion.correct_option === idx
-                          ? 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700'
-                          : 'bg-slate-50 dark:bg-slate-700'
-                      }`}
-                    >
-                      <QuestionContentPreview
-                        question={{
-                          ...selectedQuestion,
-                          question_text: typeof opt === 'string' ? opt : opt.text || '',
-                          question_latex: opt.latex,
-                          question_images: opt.image ? [opt.image] : [],
-                        }}
-                        compact
-                      />
-                    </div>
-                  ))}
-                </div>
+            <div className="space-y-4">
+              <div className="border border-slate-100 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/30 shadow-sm">
+                <QuestionContentPreview question={selectedQuestion} showOptions showCorrect />
               </div>
-            )}
+              {selectedQuestion.question_type === 'numerical' && selectedQuestion.numerical_answer != null && (
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="font-semibold text-slate-700 dark:text-slate-350 text-sm">Correct Answer:</span>
+                  <Badge variant="success" size="md">{selectedQuestion.numerical_answer}</Badge>
+                </div>
+              )}
+            </div>
             {selectedQuestion.explanation && (
               <div>
                 <h4 className="font-medium text-slate-900 dark:text-white mb-2">Explanation</h4>
@@ -630,23 +622,17 @@ export function QuestionBankPage() {
       <Modal
         isOpen={showRejectModal}
         onClose={() => setShowRejectModal(false)}
-        title="Reject Question"
+        title="Reject & Delete Question"
         size="md"
       >
         <div className="p-6 space-y-4">
-          <Alert variant="warning">
-            Please provide a reason for rejecting this question.
+          <Alert variant="error">
+            Are you sure you want to reject this question? Rejecting will delete it permanently from the database.
           </Alert>
-          <Textarea
-            label="Rejection Reason"
-            placeholder="Enter reason for rejection..."
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-          />
           <div className="flex justify-end gap-3">
             <Button variant="ghost" onClick={() => setShowRejectModal(false)}>Cancel</Button>
-            <Button variant="danger" onClick={handleReject} disabled={!rejectReason}>
-              Reject Question
+            <Button variant="danger" onClick={handleReject}>
+              Reject & Delete
             </Button>
           </div>
         </div>

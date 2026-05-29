@@ -107,7 +107,7 @@ export function mapOptionImagesFromHtml(html, options) {
   return options.map((opt, idx) => {
     const letter = String.fromCharCode(65 + idx);
     const optPattern = new RegExp(
-      `(?:\\(?\\s*${letter}\\s*\\)?[\\).:]\\s*)([\\s\\S]*?)(?=(?:\\(?\\s*[A-D]\\s*\\)?[\\).:])|$)`,
+      `(?:\\(?\\s*${letter}\\s*\\)?[\\).:]\\s*)([\\s\\S]*?)(?=(?:\\(?\\s*[A-F]\\s*\\)?[\\).:])|$)`,
       'i'
     );
     const match = html.match(optPattern);

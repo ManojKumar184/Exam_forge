@@ -14,3 +14,8 @@ export async function update(req, res) {
   const data = await userService.updateUser(req.params.id, req.body);
   res.json({ success: true, data });
 }
+
+export async function remove(req, res) {
+  await userService.deleteUser(req.params.id);
+  res.json({ success: true, message: 'User deleted successfully' });
+}

@@ -3,12 +3,12 @@
  * Protects equation regions before parsing options.
  */
 
-const INLINE_MCQ_MARKER = /(?<![A-Za-z0-9])(?:(\(\s*([a-dA-D])\s*\))|(\b([a-dA-D])\s*[\).]))/gi;
+const INLINE_MCQ_MARKER = /(?<![A-Za-z0-9])(?:(\(\s*([a-fA-F])\s*\))|(\b([a-fA-F])\s*[\).]))/gi;
 
 const OPTION_LINE_START =
-  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)(.+)$/;
+  /^\s*(?:\(?\s*([a-fA-F])\s*\)?\s*[\).:\-–—]\s*|([a-fA-F])\s*[\).:\-–—]\s+)(.+)$/;
 
-const LABEL_ORDER = ['a', 'b', 'c', 'd'];
+const LABEL_ORDER = ['a', 'b', 'c', 'd', 'e', 'f'];
 
 function protectMathRegions(text) {
   const placeholders = new Map();

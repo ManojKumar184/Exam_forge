@@ -33,11 +33,14 @@ router.patch(
       full_name: z.string().optional(),
       role: z.enum(['super_admin', 'faculty', 'student']).optional(),
       is_active: z.boolean().optional(),
+      approval_status: z.enum(['pending', 'approved', 'rejected']).optional(),
       school_institute: z.string().nullable().optional(),
       phone: z.string().nullable().optional(),
     })
   ),
   asyncHandler(userController.update)
 );
+
+router.delete('/:id', asyncHandler(userController.remove));
 
 export default router;

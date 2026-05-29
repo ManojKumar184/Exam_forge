@@ -76,7 +76,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<QuestionBankPage />} />
+        <Route
+          index
+          element={
+            <AdminRoute>
+              <QuestionBankPage />
+            </AdminRoute>
+          }
+        />
         <Route
           path="moderation"
           element={
@@ -86,7 +93,14 @@ function AppRoutes() {
           }
         />
         <Route path="new" element={<QuestionEditorPage />} />
-        <Route path=":questionId/edit" element={<QuestionEditorPage />} />
+        <Route
+          path=":questionId/edit"
+          element={
+            <AdminRoute>
+              <QuestionEditorPage />
+            </AdminRoute>
+          }
+        />
       </Route>
 
       <Route

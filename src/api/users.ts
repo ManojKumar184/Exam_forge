@@ -19,3 +19,7 @@ export async function updateUserApi(id: string, payload: Partial<Profile>): Prom
   const { data } = await apiClient.patch<{ success: boolean; data: Profile }>(`/users/${id}`, payload);
   return data.data;
 }
+
+export async function deleteUserApi(id: string): Promise<void> {
+  await apiClient.delete(`/users/${id}`);
+}

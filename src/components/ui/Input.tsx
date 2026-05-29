@@ -55,7 +55,7 @@ export function Input({
           {...props}
         />
         {rightIcon && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400">
             {rightIcon}
           </div>
         )}

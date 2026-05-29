@@ -9,7 +9,7 @@ import {
 } from './mcqOptionExtract.js';
 
 const OPTION_LINE_START =
-  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)(.+)$/;
+  /^\s*(?:\(?\s*([a-fA-F])\s*\)?\s*[\).:\-–—]\s*|([a-fA-F])\s*[\).:\-–—]\s+)(.+)$/;
 
 /** Lines that continue previous option (wrapped OCR / Word export). */
 const OPTION_CONTINUATION_RE = /^\s{2,}|^[a-z]/;

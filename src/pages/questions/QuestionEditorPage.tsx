@@ -39,8 +39,8 @@ export function QuestionEditorPage() {
     return (
       <div className="p-6">
         <p className="text-slate-600">You do not have permission to author questions.</p>
-        <Link to="/questions">
-          <Button className="mt-4">Back to Question Bank</Button>
+        <Link to="/dashboard">
+          <Button className="mt-4">Back to Dashboard</Button>
         </Link>
       </div>
     );
@@ -57,9 +57,9 @@ export function QuestionEditorPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">Manual authoring with LaTeX preview</p>
         </div>
-        <Link to="/questions">
+        <Link to={isAdmin ? "/questions" : "/dashboard"}>
           <Button variant="outline" size="sm">
-            Back to bank
+            {isAdmin ? 'Back to bank' : 'Back to dashboard'}
           </Button>
         </Link>
       </div>
@@ -70,14 +70,14 @@ export function QuestionEditorPage() {
         chapters={chapters}
         examTypes={examTypes}
         submitLabel={isEdit ? 'Update question' : 'Create question'}
-        onCancel={() => navigate('/questions')}
+        onCancel={() => navigate(isAdmin ? '/questions' : '/dashboard')}
         onSubmit={async (payload) => {
           if (isEdit && questionId) {
             await updateQuestion(questionId, payload as Partial<Question>);
           } else {
             await createQuestion(payload as Partial<Question>);
           }
-          navigate('/questions');
+          navigate(isAdmin ? '/questions' : '/dashboard');
         }}
       />
     </div>

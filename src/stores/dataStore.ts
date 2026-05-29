@@ -15,7 +15,7 @@ import {
 import { fetchPapersApi, createPaperApi, updatePaperApi, deletePaperApi } from '../api/papers';
 import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi } from '../api/tests';
 import { fetchAdminAnalyticsApi } from '../api/analytics';
-import { fetchUsersApi, updateUserApi } from '../api/users';
+import { fetchUsersApi, updateUserApi, deleteUserApi } from '../api/users';
 import { getApiErrorMessage } from '../api/client';
 import type {
   Subject,
@@ -49,6 +49,7 @@ interface DataState {
   fetchTestAttempts: (testId?: string) => Promise<void>;
   fetchUsers: (filters?: Record<string, unknown>) => Promise<void>;
   updateUser: (id: string, updates: Partial<Profile>) => Promise<{ error: unknown }>;
+  deleteUser: (id: string) => Promise<{ error: unknown }>;
   fetchAnalytics: () => Promise<AnalyticsData>;
   createQuestion: (question: Partial<Question>) => Promise<{ data: Question | null; error: any }>;
   updateQuestion: (id: string, updates: Partial<Question>) => Promise<{ error: any }>;
@@ -162,6 +163,16 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const data = await updateUserApi(id, updates);
       set({ users: get().users.map((u) => (u.id === id ? data : u)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  deleteUser: async (id) => {
+    try {
+      await deleteUserApi(id);
+      set({ users: get().users.filter((u) => u.id !== id) });
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };

@@ -1,4 +1,5 @@
 import { Question } from '../models/Question.js';
+import { Topic } from '../models/Topic.js';
 import { AppError } from '../utils/AppError.js';
 import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
@@ -122,6 +123,28 @@ export async function getQuestionById(id, user) {
 }
 
 export async function createQuestion(body, user) {
+  if (body.chapter_name && body.chapter_name.trim()) {
+    const trimmedName = body.chapter_name.trim();
+    const subjectId = body.subject_id;
+    const classLevel = body.class || 11;
+    if (subjectId) {
+      let topic = await Topic.findOne({
+        subjectId,
+        class: classLevel,
+        name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+      });
+      if (!topic) {
+        topic = await Topic.create({
+          subjectId,
+          class: classLevel,
+          name: trimmedName,
+          chapterNumber: null
+        });
+      }
+      body.chapter_id = topic._id.toString();
+    }
+  }
+
   const fields = bodyToQuestionFields(body);
   fields.createdBy = user._id;
   fields.duplicateHash = computeDuplicateHash(fields.questionText || body.question_text);
@@ -188,6 +211,28 @@ export async function createQuestion(body, user) {
 export async function updateQuestion(id, body, user) {
   const question = await Question.findById(id);
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
+
+  if (body.chapter_name && body.chapter_name.trim()) {
+    const trimmedName = body.chapter_name.trim();
+    const subjectId = body.subject_id || question.subjectId;
+    const classLevel = body.class || question.class || 11;
+    if (subjectId) {
+      let topic = await Topic.findOne({
+        subjectId,
+        class: classLevel,
+        name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+      });
+      if (!topic) {
+        topic = await Topic.create({
+          subjectId,
+          class: classLevel,
+          name: trimmedName,
+          chapterNumber: null
+        });
+      }
+      body.chapter_id = topic._id.toString();
+    }
+  }
 
   const fields = bodyToQuestionFields(body);
   if (fields.questionText) {

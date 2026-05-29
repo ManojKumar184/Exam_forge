@@ -5,10 +5,21 @@ import { Users, Search } from 'lucide-react';
 import type { Profile } from '../../types';
 
 export function UsersPage() {
-  const { users, fetchUsers, updateUser } = useDataStore();
+  const { users, fetchUsers, updateUser, deleteUser } = useDataStore();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleDeleteUser = async (user: Profile) => {
+    if (confirm(`Are you sure you want to delete user ${user.full_name || user.email}?`)) {
+      const res = await deleteUser(user.id);
+      if (res?.error) {
+        alert(typeof res.error === 'string' ? res.error : (res.error as any).message || 'Failed to delete user');
+      } else {
+        fetchUsers({ search: search || undefined, role: roleFilter || undefined });
+      }
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -130,6 +141,11 @@ export function UsersPage() {
                   ) : (
                     <Button variant="outline" size="sm" onClick={() => toggleActive(user)}>
                       {user.is_active ? 'Suspend' : 'Activate'}
+                    </Button>
+                  )}
+                  {user.role !== 'super_admin' && (
+                    <Button variant="danger" size="sm" onClick={() => handleDeleteUser(user)}>
+                      Delete
                     </Button>
                   )}
                 </div>

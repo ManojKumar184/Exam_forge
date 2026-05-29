@@ -23,7 +23,7 @@ function getParentBlockType(html, xmlMatch) {
   const closeP = before.lastIndexOf('</p>');
   if (openP > closeP) {
     const pContent = before.slice(openP);
-    if (/(?:^[a-dA-D]\s*[\).:\-–—]|\(?\s*[a-dA-D]\s*\)\s*[\).:\-–—])/i.test(pContent.replace(/<[^>]+>/g, '').trim())) {
+    if (/(?:^[a-fA-F]\s*[\).:\-–—]|\(?\s*[a-fA-F]\s*\)\s*[\).:\-–—])/i.test(pContent.replace(/<[^>]+>/g, '').trim())) {
       return 'option';
     }
   }
@@ -67,7 +67,7 @@ const QUESTION_START_RE =
   /^(?:Q(?:uestion)?\s*)?(\d{1,3})[\).:\-\s]+|^\((\d{1,3})\)\s+|^(\d{1,3})\.\s+(?=[A-Za-z(\\$])/i;
 
 const OPTION_LINE_START =
-  /^\s*(?:\(?\s*([a-dA-D])\s*\)?\s*[\).:\-–—]\s*|([a-dA-D])\s*[\).:\-–—]\s+)/i;
+  /^\s*(?:\(?\s*([a-fA-F])\s*\)?\s*[\).:\-–—]\s*|([a-fA-F])\s*[\).:\-–—]\s+)/i;
 
 const ENDS_WITH_CONTINUATION =
   /(?:such\s+that|where|and|or|is|are|if|then|=|\+|-|\*|\/|,|that)$/i;
@@ -147,11 +147,15 @@ export function normalizeOptionPrefixes(text) {
   if (!text) return '';
   let result = text;
   
-  result = result.replace(/(?<![a-zA-Z0-9_\$])[\(\[]\s*([a-dA-D])\s*[\)\]]/gi, (match, letter) => {
+  // Insert space before run-together option parentheses, e.g. "Only(B)" -> "Only (B)"
+  // but avoid single letter math/probability functions like "P(B)" or "f(x)"
+  result = result.replace(/\b([a-zA-Z]{2,})\((?=[a-fA-F]\))/g, '$1 (');
+  
+  result = result.replace(/(?<![a-zA-Z0-9_\$])[\(\[]\s*([a-fA-F])\s*[\)\]]/gi, (match, letter) => {
     return `OPTION_${letter.toUpperCase()}`;
   });
   
-  result = result.replace(/(?<![\(\[a-zA-Z0-9_\$])\b([a-dA-D])\s*[\).:\-–—](?=\s|$)/gi, (match, letter) => {
+  result = result.replace(/(?<=^|\s)\b([a-fA-F])\s*[\).:\-–—]/gi, (match, letter) => {
     return `OPTION_${letter.toUpperCase()}`;
   });
   
@@ -161,7 +165,7 @@ export function normalizeOptionPrefixes(text) {
 export function splitOptionsByMarkers(text) {
   if (!text) return { stem: '', options: [], success: false };
   
-  const markerRegex = /\bOPTION_([A-D])\b/g;
+  const markerRegex = /\bOPTION_([A-F])\b/g;
   const matches = [];
   let match;
   while ((match = markerRegex.exec(text)) !== null) {
@@ -172,7 +176,7 @@ export function splitOptionsByMarkers(text) {
     });
   }
   
-  const LABEL_ORDER = ['a', 'b', 'c', 'd'];
+  const LABEL_ORDER = ['a', 'b', 'c', 'd', 'e', 'f'];
   const sequences = [];
   for (let i = 0; i < matches.length; i++) {
     const seq = [matches[i]];
@@ -685,13 +689,13 @@ function semanticClassify(stemText, optionsCount) {
   }
   
   // Count inline option markers in stem text
-  const optionMatches = [...stemText.matchAll(/(?:^|[^a-zA-Z0-9_\$])(?:OPTION_([A-D])|[\(\[]\s*([A-D])\s*[\)\]]|\b([A-D])\s*[\).:\-–—])(?=\s|$)/gi)];
+  const optionMatches = [...stemText.matchAll(/(?:^|[^a-zA-Z0-9_\$])(?:OPTION_([A-F])|[\(\[]\s*([A-F])\s*[\)\]]|\b([A-F])\s*[\).:\-–—])(?=\s|$)/gi)];
   const distinctLabels = new Set(optionMatches.map(m => (m[1] || m[2] || m[3]).toUpperCase()));
   const effectiveOptionsCount = Math.max(optionsCount, distinctLabels.size);
 
   if (effectiveOptionsCount >= 2) {
     const hasStatementLayer = /\b(statement|i|ii|iii|iv|a|b|c)\b/i.test(lower) && 
-                              /(?:only\s+[a-d]\s+and\s+[a-d]|[a-d]\s*,\s*[a-d]\s*only)/i.test(lower);
+                              /(?:only\s+[a-f]\s+and\s+[a-f]|[a-f]\s*,\s*[a-f]\s*only)/i.test(lower);
     if (hasStatementLayer) {
       return 'NESTED_OPTION_MCQ';
     }
@@ -1579,8 +1583,29 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
 
   if (optionBlocks.length >= 2) {
     options = optionBlocks.map(o => ({ text: o.content }));
+  } else if (optionBlocks.length === 1) {
+    // Try to split the single option block
+    const label = optionBlocks[0].label || 'A';
+    const textToSplit = `${label}. ${optionBlocks[0].content}`;
+    const splitResult = splitOptionsByMarkers(normalizeOptionPrefixes(textToSplit));
+    if (splitResult.success && splitResult.options.length >= 2) {
+      options = splitResult.options.map(o => ({ text: o.text }));
+    } else {
+      // Use the single option block as is
+      options = optionBlocks.map(o => ({ text: o.content }));
+      
+      // Fallback split on stem if option block wasn't inline-split and stem has inline options
+      const stemSplit = splitOptionsByMarkers(normalizeOptionPrefixes(stem));
+      if (stemSplit.success) {
+        stem = stemSplit.stem.replace(QUESTION_START_RE, '').trim();
+        options = stemSplit.options.map(o => ({ text: o.text }));
+        if (stages.stage6.classified_type === 'DESCRIPTIVE' || stages.stage6.classified_type === 'mcq') {
+          stages.stage6.classified_type = 'MCQ_SINGLE';
+        }
+      }
+    }
   } else {
-    // Attempt fallback split
+    // optionBlocks.length === 0, try splitting the stem
     const splitResult = splitOptionsByMarkers(normalizeOptionPrefixes(stem));
     if (splitResult.success) {
       stem = splitResult.stem.replace(QUESTION_START_RE, '').trim();

@@ -50,7 +50,7 @@ export function autoWrapEquations(text: string): string {
     out = lines
       .map((line) => {
         const t = line.trim();
-        if (!t || /\$/.test(t) || /P\s*\([A-D]\)/i.test(t)) return line;
+        if (!t || /\$/.test(t) || /P\s*\([A-F]\)/i.test(t)) return line;
         if (LATEX_HINT.test(t) || UNICODE_MATH.test(t)) {
           return line.replace(t, `$${t}$`);
         }

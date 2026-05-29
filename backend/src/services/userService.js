@@ -56,3 +56,14 @@ export async function updateUser(id, body) {
   await user.save();
   return toProfile(user);
 }
+
+export async function deleteUser(id) {
+  const user = await User.findById(id);
+  if (!user) throw new AppError('User not found', 404, 'NOT_FOUND');
+
+  if (user.role === 'super_admin') {
+    throw new AppError('Cannot delete a super administrator', 400, 'BAD_REQUEST');
+  }
+
+  await User.findByIdAndDelete(id);
+}
