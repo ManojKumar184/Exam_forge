@@ -3,6 +3,7 @@ import { recognizeImage } from '../ocr/tesseractOcr.js';
 import { geminiReconstructCleanup } from '../ai/geminiReconstructCleanup.js';
 import { mergePasteSources, cleanPlainText } from '../extraction/wordHtmlCleanup.js';
 import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
+import { splitTextIntoBlocks } from '../extraction/normalizeQuestions.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { logger } from '../utils/logger.js';
 import { performance } from 'perf_hooks';
@@ -121,6 +122,7 @@ async function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, 
     extractionWarnings: pipeline.warnings,
     confidence: pipeline.confidence,
     debugInfo: pipeline.debugInfo || null,
+    explanation: pipeline.explanation || null,
     
     // SaaS semantic fields mapping
     correctAnswers: pipeline.correctAnswers || [],
@@ -171,6 +173,7 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
     questionImages: imageUrls || row.questionImages || [],
     numericalAnswer: row.numericalAnswer ?? null,
     correctOption: row.correctOption ?? null,
+    explanation: row.explanation || null,
     warnings: [...(row.extractionWarnings || []), ...extraWarnings],
     sources,
     hasEquation: Boolean(row.hasEquation || row.questionLatex),
@@ -255,7 +258,54 @@ export async function reconstructQuestionInput(body) {
   }
 
   const tReconstructStart = performance.now();
-  const { row, cleanedHtml } = await buildFromCleanedPlain(mergedPlain, cleaned.html, ocrText, blocks, rawHtml || html);
+  
+  let extractedExplanation = null;
+  let customBlocks = null;
+  let customTags = [];
+  let customMetadata = {};
+  const hasTags = /\[Question_start\]/i.test(mergedPlain);
+  if (hasTags) {
+    const parsedBlocks = splitTextIntoBlocks(mergedPlain);
+    if (parsedBlocks && parsedBlocks.length > 0) {
+      const block = pickBestBlock(parsedBlocks) || parsedBlocks[0];
+      customBlocks = [];
+      if (block.passage) {
+        customBlocks.push({ type: 'passage', content: block.passage });
+      }
+      customBlocks.push({ type: 'text', content: block.lines.join('\n').trim() });
+      if (block.options && block.options.length > 0) {
+        block.options.forEach((opt, idx) => {
+          const label = opt.label || ['A', 'B', 'C', 'D'][idx] || String.fromCharCode(65 + idx);
+          customBlocks.push({ type: 'option', label: label.toUpperCase(), content: opt.text });
+        });
+      }
+      mergedPlain = block.lines.join('\n').trim();
+      extractedExplanation = block.explanation || null;
+      customTags = block.tags || [];
+      customMetadata = {
+        questionType: block.questionType,
+        difficulty: block.difficulty,
+        class: block.class
+      };
+    }
+  }
+
+  const { row, cleanedHtml } = await buildFromCleanedPlain(mergedPlain, cleaned.html, ocrText, customBlocks || blocks, rawHtml || html);
+  if (extractedExplanation) {
+    row.explanation = extractedExplanation;
+  }
+  if (customTags && customTags.length > 0) {
+    row.tags = [...new Set([...(row.tags || []), ...customTags])];
+  }
+  if (customMetadata.questionType) {
+    row.questionType = customMetadata.questionType;
+  }
+  if (customMetadata.difficulty) {
+    row.difficulty = customMetadata.difficulty;
+  }
+  if (customMetadata.class) {
+    row.class = customMetadata.class;
+  }
 
   const reconstructionMs = Math.round(performance.now() - tReconstructStart);
 

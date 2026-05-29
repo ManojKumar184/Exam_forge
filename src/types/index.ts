@@ -76,7 +76,7 @@ export interface Question {
   numerical_tolerance: number;
   answer_text: string | null;
   difficulty: Difficulty;
-  marks: number;
+  marks: number | null;
   class: number;
   explanation: string | null;
   explanation_latex: string | null;

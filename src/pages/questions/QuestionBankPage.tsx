@@ -7,7 +7,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
 import type { Question } from '../../types';
-import { QuestionContentPreview } from '../../components/content/RichContent';
+import { QuestionContentPreview, RichContent } from '../../components/content/RichContent';
 
 function getConfidenceVariant(confidence: number): 'success' | 'warning' | 'error' | 'default' {
   if (confidence >= 75) return 'success';
@@ -323,7 +323,6 @@ export function QuestionBankPage() {
                       {question.difficulty}
                     </Badge>
                     <Badge size="sm">C{question.class}</Badge>
-                    <Badge size="sm">{question.marks}M</Badge>
                     {question.ai_confidence > 0 && (
                       <Badge variant={getConfidenceVariant(question.ai_confidence)} size="sm">
                         AI {question.ai_confidence}%
@@ -516,7 +515,7 @@ export function QuestionBankPage() {
             {selectedQuestion.explanation && (
               <div>
                 <h4 className="font-medium text-slate-900 dark:text-white mb-2">Explanation</h4>
-                <p className="text-slate-600 dark:text-slate-400">{selectedQuestion.explanation}</p>
+                <RichContent text={selectedQuestion.explanation} compact />
               </div>
             )}
             {(selectedQuestion.extraction_warnings?.length ?? 0) > 0 && (
@@ -606,10 +605,6 @@ export function QuestionBankPage() {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Marks</p>
-                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.marks}</p>
-              </div>
-              <div>
                 <p className="text-sm text-slate-500">AI Confidence</p>
                 <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.ai_confidence}%</p>
               </div>
@@ -692,12 +687,6 @@ export function QuestionBankPage() {
               options={examTypes.map((e) => ({ value: e.id, label: e.name }))}
               value={editData.exam_type_id || ''}
               onChange={(e) => setEditData(prev => ({ ...prev, exam_type_id: e.target.value }))}
-            />
-            <Input
-              label="Marks"
-              type="number"
-              value={editData.marks?.toString() || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, marks: parseInt(e.target.value, 10) }))}
             />
           </div>
           <Input

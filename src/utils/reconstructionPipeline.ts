@@ -1403,6 +1403,7 @@ export function runStagesReconstruction(
   lineage: Record<string, any>;
   unresolvedMath: string[];
   debugInfo: ReconstructionDebugInfo;
+  explanation?: string | null;
 } {
   const stages: any = {
     stage0: {
@@ -1881,6 +1882,7 @@ export function runStagesReconstruction(
       lineage: semanticRes.lineage,
       unresolvedMath: semanticRes.unresolvedMath,
       debugInfo,
+      explanation: null,
     };
   }
 
@@ -2135,5 +2137,6 @@ export function runStagesReconstruction(
     lineage: semanticRes.lineage,
     unresolvedMath: semanticRes.unresolvedMath,
     debugInfo,
+    explanation: null,
   };
 }

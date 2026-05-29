@@ -1833,6 +1833,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   return {
     stem,
     options,
+    explanation,
     questionType: (questionType === "MCQ_SINGLE" || questionType === "MCQ_MULTI") ? "mcq" : questionType.toLowerCase(),
     subtype: questionType.toLowerCase(),
     warnings: stages.stage10.warnings,

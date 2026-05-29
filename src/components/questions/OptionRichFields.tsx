@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { ImagePlus, Trash2, Plus } from 'lucide-react';
-import { Input, Button } from '../ui';
+import { Button, Textarea } from '../ui';
 import { RichOptionContent } from '../content/RichContent';
 import type { QuestionOption } from '../../types';
 import { autoWrapEquations } from '../../utils/equationAutoWrap';
@@ -66,7 +66,7 @@ export function OptionRichFields({
               {String.fromCharCode(65 + idx)}.
             </span>
             <div className="flex-1 min-w-0 space-y-1">
-              <Input
+              <Textarea
                 value={opt.text}
                 onChange={(e) => {
                   const text = autoWrapEquations(e.target.value);
@@ -77,7 +77,8 @@ export function OptionRichFields({
                   updateOption(idx, { text });
                 }}
                 placeholder={`Option ${String.fromCharCode(65 + idx)} text`}
-                className="py-1 text-sm"
+                className="py-1 text-sm min-h-[48px] resize-y"
+                rows={1}
               />
               {opt.text?.trim() && (
                 <div className="text-[11px] bg-slate-50 dark:bg-slate-900/40 rounded p-1.5 border border-slate-100 dark:border-slate-800">

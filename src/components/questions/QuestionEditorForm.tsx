@@ -14,6 +14,7 @@ import {
 import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAutoWrap';
 import { useDataStore } from '../../stores/dataStore';
 import type { SemanticBlock } from '../../utils/clipboardIngestion';
+import { useAuth } from '../../hooks/useAuth';
 
 const DRAFT_KEY = 'examforge_question_draft';
 
@@ -118,6 +119,7 @@ export function QuestionEditorForm({
   onCancel,
   submitLabel = 'Save question',
 }: QuestionEditorFormProps) {
+  const { isFaculty } = useAuth();
   const [subtype, setSubtype] = useState<EditorSubtype>('mcq_single');
   const [bodyHtml, setBodyHtml] = useState('');
   const [bodyPlain, setBodyPlain] = useState('');
@@ -136,6 +138,15 @@ export function QuestionEditorForm({
   const [correctOption, setCorrectOption] = useState<number | null>(0);
   const [numericalAnswer, setNumericalAnswer] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [marks, setMarks] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (initial?.id) {
+      setMarks(initial.marks !== undefined ? initial.marks : null);
+    } else {
+      setMarks(isFaculty ? 4 : null);
+    }
+  }, [initial, isFaculty]);
   const [showPreview, setShowPreview] = useState(true);
   const [showAdvancedMath, setShowAdvancedMath] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -397,7 +408,7 @@ export function QuestionEditorForm({
       chapter_name: isCustomChapter ? customChapterName || null : null,
       exam_type_id: examTypeId,
       difficulty,
-      marks: 4,
+      marks: isFaculty ? (marks ?? 4) : null,
       options: isMcq ? options.filter((o) => o.text?.trim()) : [],
       correct_option: isMcq ? correctOption : null,
       numerical_answer:
@@ -426,7 +437,7 @@ export function QuestionEditorForm({
     numerical_tolerance: 0,
     answer_text: null,
     difficulty,
-    marks: 4,
+    marks: isFaculty ? (marks ?? 4) : null,
     class: classLevel,
     explanation: explanation || null,
     explanation_latex: null,
@@ -728,6 +739,19 @@ export function QuestionEditorForm({
             ]}
             className="py-1 text-xs"
           />
+          {isFaculty && (
+            <Input
+              label="Marks"
+              type="number"
+              value={marks === null ? '' : String(marks)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setMarks(val === '' ? null : Number(val));
+                setAutosaveStatus('saving');
+              }}
+              className="py-1 text-xs"
+            />
+          )}
           <Input
             label="Tags"
             value={tagsInput}

@@ -77,6 +77,7 @@ export const reconstructionResponsePayloadSchema = z.object({
   questionImages: z.array(z.string()).default([]),
   numericalAnswer: z.number().nullable().optional(),
   correctOption: z.number().nullable().optional(),
+  explanation: z.string().nullable().optional(),
   warnings: z.array(z.string()).default([]),
   sources: z.object({
     parser: z.boolean().default(true),

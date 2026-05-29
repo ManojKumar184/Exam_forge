@@ -1,7 +1,7 @@
 import { computeDuplicateHash } from '../utils/duplicateHash.js';
 import { preprocessDocumentText } from './columnReadingOrder.js';
 import { detectSectionHeader } from './sectionParser.js';
-import { isOptionLine, parseOptionLine, appendOptionContinuation } from './optionParser.js';
+import { isOptionLine, parseOptionLine, appendOptionContinuation, hasMcqOptionPattern } from './optionParser.js';
 import { runStagesReconstruction } from './reconstructionPipeline.js';
 
 const QUESTION_START_RE =
@@ -27,6 +27,151 @@ function extractQuestionNumber(line) {
 export function splitTextIntoBlocks(rawText) {
   if (!rawText?.trim()) return [];
 
+  const hasTags = /\[Question_start\]/i.test(rawText);
+  if (hasTags) {
+    const blocks = [];
+    const ordered = preprocessDocumentText(rawText);
+    const lines = ordered
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((l) => l.trimEnd());
+
+    let currentSection = 'General';
+    let currentBlock = null;
+    let isParsingQuestion = false;
+    let isParsingSolution = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed && !isParsingQuestion && !isParsingSolution) continue;
+
+      const tagMatch = trimmed.match(/^\[([a-zA-Z0-9_-]+)(?::\s*([^\]]*))?\]$/);
+      if (tagMatch) {
+        const tagKey = tagMatch[1].toLowerCase();
+        const tagValue = tagMatch[2] ? tagMatch[2].trim() : null;
+
+        if (tagKey === 'question_start') {
+          currentBlock = {
+            questionLines: [],
+            solutionLines: [],
+            metadata: {},
+            section: currentSection,
+            options: [],
+            lines: [],
+            explanation: '',
+            questionNumber: null,
+            tags: [],
+          };
+          isParsingQuestion = true;
+          isParsingSolution = false;
+          continue;
+        }
+
+        if (tagKey === 'solution') {
+          isParsingQuestion = false;
+          isParsingSolution = true;
+          continue;
+        }
+
+        if (tagKey === 'question_end') {
+          if (currentBlock) {
+            // Process block questions and options
+            const qLines = [];
+            for (const qLine of currentBlock.questionLines) {
+              const qLineTrimmed = qLine.trim();
+              if (!qLineTrimmed) continue;
+
+              if (isOptionLine(qLineTrimmed) && !hasMcqOptionPattern(qLineTrimmed)) {
+                const opt = parseOptionLine(qLineTrimmed);
+                if (opt) {
+                  currentBlock.options.push({ text: opt.text, label: opt.label, image: null, latex: null });
+                }
+              } else if (currentBlock.options.length > 0) {
+                const merged = appendOptionContinuation(currentBlock.options, qLineTrimmed);
+                currentBlock.options = merged.map((o) => ({
+                  text: o.text,
+                  label: o.label || null,
+                  image: o.image ?? null,
+                  latex: o.latex ?? null,
+                }));
+              } else {
+                qLines.push(qLine);
+              }
+            }
+
+            // Extract question number from first line
+            if (qLines.length > 0) {
+              const firstLine = qLines[0];
+              const qNum = extractQuestionNumber(firstLine);
+              if (qNum) {
+                currentBlock.questionNumber = qNum;
+                qLines[0] = stripQuestionPrefix(firstLine);
+              }
+            }
+
+            currentBlock.lines = qLines;
+            currentBlock.explanation = currentBlock.solutionLines.join('\n').trim();
+
+            // Extensible Tag Mapping
+            if (currentBlock.metadata.type) {
+              currentBlock.questionType = currentBlock.metadata.type.toLowerCase();
+              currentBlock.tags.push(currentBlock.metadata.type.toLowerCase());
+            }
+            if (currentBlock.metadata.class) {
+              currentBlock.class = Number(currentBlock.metadata.class) || undefined;
+              currentBlock.tags.push(`class:${currentBlock.metadata.class}`);
+            }
+            if (currentBlock.metadata.difficulty) {
+              currentBlock.difficulty = currentBlock.metadata.difficulty.toLowerCase();
+              currentBlock.tags.push(`difficulty:${currentBlock.metadata.difficulty}`);
+            }
+            if (currentBlock.metadata.subject) {
+              currentBlock.tags.push(`subject:${currentBlock.metadata.subject}`);
+            }
+            if (currentBlock.metadata.chapter) {
+              currentBlock.tags.push(`chapter:${currentBlock.metadata.chapter}`);
+            }
+            // Preserve all extra metadata tags in tags array
+            for (const [k, v] of Object.entries(currentBlock.metadata)) {
+              if (!['type', 'class', 'difficulty', 'subject', 'chapter'].includes(k)) {
+                currentBlock.tags.push(v ? `${k}:${v}` : k);
+              }
+            }
+
+            blocks.push(currentBlock);
+          }
+          currentBlock = null;
+          isParsingQuestion = false;
+          isParsingSolution = false;
+          continue;
+        }
+
+        // Generic metadata tag [key:value] or [key]
+        if (currentBlock) {
+          currentBlock.metadata[tagKey] = tagValue;
+        }
+        continue;
+      }
+
+      if (currentBlock) {
+        if (isParsingQuestion) {
+          currentBlock.questionLines.push(line);
+        } else if (isParsingSolution) {
+          currentBlock.solutionLines.push(line);
+        }
+      } else {
+        const sectionHeader = detectSectionHeader(trimmed);
+        if (sectionHeader) {
+          currentSection = sectionHeader.name;
+        } else if (/^(topic|part|section|class|chapter)\b/i.test(trimmed) || (trimmed.length > 0 && trimmed.length < 80)) {
+          currentSection = trimmed;
+        }
+      }
+    }
+    return blocks;
+  }
+
+  // Fallback to legacy split logic:
   const ordered = preprocessDocumentText(rawText);
   const lines = ordered
     .replace(/\r\n/g, '\n')
@@ -64,7 +209,7 @@ export function splitTextIntoBlocks(rawText) {
       continue;
     }
 
-    if (isOptionLine(trimmed)) {
+    if (isOptionLine(trimmed) && !hasMcqOptionPattern(trimmed)) {
       const opt = parseOptionLine(trimmed);
       if (opt) {
         inComprehensionPassage = false;
@@ -91,7 +236,7 @@ export function splitTextIntoBlocks(rawText) {
       continue;
     }
 
-    if (current.options.length > 0 && !isQuestionStart(trimmed) && !isOptionLine(trimmed)) {
+    if (current.options.length > 0 && !isQuestionStart(trimmed) && !(isOptionLine(trimmed) && !hasMcqOptionPattern(trimmed))) {
       const merged = appendOptionContinuation(current.options, trimmed);
       if (merged !== current.options) {
         current.options = merged.map((o) => ({
@@ -173,9 +318,10 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
           pipeline.subtype,
           ...(block.section ? [`section:${block.section}`] : []),
           ...(block.passage ? ['comprehension'] : []),
-          ...(block.questionNumber ? [`qnum:${block.questionNumber}`] : [])
+          ...(block.questionNumber ? [`qnum:${block.questionNumber}`] : []),
+          ...(block.tags || [])
         ])
-      ];
+      ].filter(Boolean);
 
       const warnings = [...(block.extractionWarnings || []), ...pipeline.warnings];
 
@@ -209,9 +355,10 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         correctOption,
         answerText,
         answerKey: answerText,
-        class: context.class || 11,
-        difficulty: context.difficulty || 'medium',
+        class: block.class || context.class || 11,
+        difficulty: block.difficulty || context.difficulty || 'medium',
         marks: null, // Detached marks during ingestion
+        explanation: block.explanation || pipeline.explanation || null,
         status,
         tags,
         extractionWarnings: warnings,

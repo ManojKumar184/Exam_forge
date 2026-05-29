@@ -24,6 +24,7 @@ export const reconstructResultSchema = z.object({
   questionImages: z.array(z.string()).default([]),
   numericalAnswer: z.number().nullable().optional(),
   correctOption: z.number().nullable().optional(),
+  explanation: z.string().nullable().optional(),
   warnings: z.array(z.string()).default([]),
   sources: z.object({
     parser: z.boolean().default(true),
@@ -59,6 +60,7 @@ export interface ReconstructResult {
   questionImages: string[];
   numericalAnswer: number | null;
   correctOption: number | null;
+  explanation: string | null;
   warnings: string[];
   sources: { parser: boolean; ocr: boolean; gemini: boolean; ollama?: boolean };
   
@@ -124,6 +126,7 @@ function localReconstruct(input: ReconstructInput): ReconstructResult {
     questionImages: images,
     numericalAnswer,
     correctOption,
+    explanation: pipeline.explanation || null,
     warnings,
     sources: { parser: true, ocr: Boolean(input.ocrText), gemini: false },
     raw_stem: pipeline.stem,
@@ -164,6 +167,7 @@ function mapApiToResult(data: any): ReconstructResult {
     questionImages: validated.questionImages || [],
     numericalAnswer: validated.numericalAnswer ?? null,
     correctOption: validated.correctOption ?? null,
+    explanation: validated.explanation ?? null,
     warnings: validated.warnings || [],
     sources: validated.sources || { parser: true, ocr: false, gemini: false },
     raw_stem: validated.raw_stem || validated.questionText || '',

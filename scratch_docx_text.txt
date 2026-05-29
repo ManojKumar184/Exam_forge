@@ -1,0 +1,572 @@
+Part A (JEE Main)
+
+Topic 1 – Electric charges and coulombs law
+
+1) Multiple choice questions
+
+[Question_start]
+
+1. 	Electric charge is transferred to an irregular metallic disk as shown in figure. If  and  are charge densities at given points then, choose the correct answer from the opions given below:(A) (B) (C) (D) (E) 
+
+
+
+	[April 8, 2025 (II)]
+
+	(A) A, B and C Only(B) A and C only(C) D and E only(D) B and C only
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+2. 	A small bob of mass 100 mg and charge  is connected to an insulating string of length 1 m . It is brought near to an infinitely long non-conducting sheet of charge density '  ' as shown in figure. If string subtends an angle of  with the sheet at equilibrium the charge density of sheet will be :(Given  add acceleration due to gravity,  )
+
+[April 2, 2025 (I)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+3. 	A small uncharged conducting sphere is placed in contact with an identical sphere but having  charge and then removed to a distance such that the force of repulsion between them is . The distance between them is(Take  as  in Sl units)
+
+[Jan 24, 2025 (II)]
+
+	(A) 2 cm	(B) 3 cm(C) 4 cm	(D) 1 cm
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+4. 	Two identical conducting spheres  and  with charge  on each, repel each other with a force 16 N . A third identical uncharged conducting sphere  is successively brought in contact with the two spheres. The new force of repulsion between P and S is :
+
+[April 6, 2024 (II)]
+
+	(A) 4 N	(B) 6 N(C) 1 N	(D) 12 N
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+5. 	Force between two point charges  and  placed in vacuum at '  ' cm apart is . Force between them when placed in a medium having dielectric  at '  ' cm apart will be:
+
+[Jan. 31, 2024 (II)]
+
+	(A) 	(B) 5 F(C) 	(D) 25 F
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+6. 	A  charge is divided into two parts and placed at 1 cm distance so that the repulsive force between them is maximum. The charges of the two parts are :
+
+[April 13, 2023 (II)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+7. 	If two charges  and  are separated with distance '  ' and placed in a medium of dielectric constant . What will be the equivalent distance between charges in air for the same electrostatic force?
+
+[Jan. 24, 2023 (1)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+8. 	Two identical metallic spheres A and B when placed at certain distance in air repel each other with a force of F . Another identical uncharged sphere  is first placed in contact with A and then in contact with B and finally placed at midpoint between spheres A and B . The force experienced by sphere C will be :
+
+[July 29, 2022 (II)]
+
+	(A) 	(B) (C) F	(D) 2 F
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+9. 	Two identical positive charges  each are fixed at a distance of '  ' apart from each other. Another point charge  with mass '  ' is placed at midpoint between two fixed charges. For a small displacement along the line joining the fixed charges, the charge  executes SHM. The time period of oscillation of charge  will be :
+
+[July 27, 2022 (I)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+10. 	A darge of  is to be divided intotwo parts. The distance between the fwodivided charges is constant. The magnifude of the divided charges so that the force between them is maximum, will be:
+
+[July 27, 2022 (II)]
+
+	(A)  and 	(B)  and (C) 0 and 	(D)  and 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+11. 	Two point charges  each are placed at a distance  apart. A third point charge  is placed at a distance  from mid-point on the perpendicular briector. The value of  at which charge a will experience the muximum Coulomb's force is
+
+[June 29, 2022 (II)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+12. 	Three identical charged balls each of charge 2 C are suspended from a common point  by silk threads of 2 m each (as shown in figure). They form an equilateral triangle of side im. The ratio of net force on a charged ball to the force between any two charged balls will be :
+
+
+
+[June 27, 2022 (11)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+13. 	Sixty four conducting drops sach of radius 0.02 m and each carrying a charge of  are combined to form a bigger drop. The ratio of surface density of bigger drop to the smaller drop will be:
+
+[June 26, 2022 (II)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+14. 	Two identical charged particles each having a mass 10 g and charge  C placed on a horizontal table with a separation of  between then such that they stay in limited equilibrium. If the coefficient of friction between each particle and the table is 0.25 , find the value of . [ Use g =  ]
+
+[June 24, 2022 (II)]
+
+	(A) 12 cm	(B) 10 cm(C) 8 cm	(D) 5 cm
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+15. 	Two particles A and B having charges  and  respectively are held fixed with a separation of 5 cm . At what position a third chargod particle should be placed so that it does not experience a net electric force?
+
+
+
+[Aug. 31, 2021 (I)]
+
+	(A) 	At 5 cm from  on the left side of system(B) 	At 5 cm from  on the right side(C) 	At 1.25 cm from  between two charges(D) 	At midpoint between two charges
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+16. 	Two identical tennis balls each having mass ‘m’ and charge ‘q’ are suspended from a fixed point by threads of length ‘l’. What is the equilibrium separation when each thread makes a small angle '' with the vertical ?
+
+	[July 27, 2021 (II)]
+
+	 (A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+17. 	A certain charge  is divided into two parts  mid if, How should the charges  and  be divided so that Ge (  - q) placed at a certain distance apari experiencesting electrostatic tepulsion?
+
+[July 26 2021(II)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+18. 	Three charjes + Q.9. Oare placed respotively at (Ry)  and d from the origin. on the . If the nutue experienced by , placed at , is zero, then value (1) is.
+
+[9 Jan 2019 (I)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+19. 	Charge is distributed within a sphere of radius it which volume charge density  where  and  constants. If  is the total charge of this that distribution, the radius  is:
+
+[9 Jan 2019 (I)]
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+20. 	Two identical conducting spheres A and B, carry charge. They are separated by a distance much larger their diameter, and the force between them is F A identical conducting sphere, , is uncharged. Sphere first touched to A, then to B, and then removed. Asar the force between A and B would be equal to
+
+[Online April 16, 2018]
+
+	(A) 	(B) 
+
+	(C) F	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+21. 	Shown in the figure are two point charges  and  inside the cavity of a spherical shell. The charges are kept near the surface of the cavity on opposite sides of the centre of the shell.
+
+
+
+	If  is the surface charge on the inner surface and charge on it and  the surface charge on the outer and  net charge on it then:
+
+[Online April 10, 2015]
+
+	(A) 		
+
+		
+
+	(B) 	
+
+		
+
+	(C)		
+
+		 
+
+	(D) 	
+
+		
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+2) Numeric value questions
+
+
+
+[Question_start]
+
+22. 	A positive ion  and a negative ion  has charges  and , ind masses  and  respectively. At an instant, the ions are separated by a certain distance . At that instant the ratio of the magnitudes of electrostatic force to gravitational force is , where the value of P is _____.(Take  and universal gravitational constant as  )
+
+[Jan 23, 2025 (I)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+23. 	Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle 0 with cacti other When suspended in water the angle remains the same. If density of the material of the sphere is , the dielectric constant of water will be _____. (Take density of water = 1  )
+
+[Feb, 1, 2024 (II)] 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+24. 	Suppose a uniformly charged wall provides a uniform electric field of  normally: A charged particle of mass 2 g being suspended through a silk thread of length 20 cm and remain stayed at a distance of 10 cm from the wall. Then the charge on the particle will be  where  _____. [use  ]
+
+[Feb. 1, 2024 (II)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+25. 	Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle of  with each other. When suspended in a liquid of density , the angle remains same. If density of material of the sphere is , the dielectric constant of the liquid is _____. 
+
+[Jan. 30, 2024 (II)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+26. 	A thin metallic wire having cross sectional area of  is used to make a ring of radius 30 cm . A positive charge of  C is uniformly distributed over the ring, while another positive charge of 30 pC is kept at the centre of the ring. The tension in the ring is _____N. provided that the ring does not get deformed (neglect the influence of gravity).(given,  Slunits)
+
+[Jan. 27, 2024 (I)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+27. 	Three point charges  and  are placed on -axis at a distance  and  R respectively from origin a shown. If  and , the magnitude of  force experienced by the charge  is  _____N.
+
+
+
+[April 13, 2023 (II)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+28. 	As shown in the figure, a configuration of two equal  charges  is placed on an inclined plane. Ma each point charge is 20 g . Assume that there is no fric between charge and plane. For the system of two charges to be in equilibrium (at rest) the heighth . The value of  is _____.
+
+[April 11, 2022 (II)]
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+Part B (JEE Mains)
+
+Topic 1 - Electric Charges and Coulomb's Law
+
+1 MCQs with One Correct Answer
+
+[Question_start]
+
+1.	Two beads, each with charge  and mass , are on a horizontal, frictionless, non - conducting, circular hoop of radius R . One of the beads is glued to the hoop at some point, while the other one performs small oscillations about its equilibrium position along the hoop. The square of the angular frequency of the small oscillations is given by [  is the permittivity of free space.]
+
+[Adv. 2024]
+
+(A)  	(B) (C)  	(D)  
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+6 MCQs with One or More than One Correct Answer
+
+[Question_start]
+
+2.	Two identical non-conducting solid spheres of same mass and charge are susponded in air from a common point by two nonconducting, massless strings of same length. At equilibrium, the angle between the strings is . The splieres are now immersed in adieketric liquid of density  and dielectric constant 21. If the angle between the strings remains the same affer the immersion, then
+
+[Adv. 2020]
+
+(A) 	electric force between the spheres remains unchanged(B) 	electric force between the spheres reduces(C) 	mass density of the spheres is (D) 	the tension in the strings holding the spheres remains unchanged
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+[Question_start]
+
+3.	Four charges  and  of same magnitude are fixed along the  axis at  and , reppectively  positive charge  is placed on the positive  axis at a distunce . Four options of the signs of these charges are given in List-I. The direction of the forces on the charge  is given in List-II. Match List-I with List-II and select the correct answer using the code given below the lists.
+
+[Adv. 2014]
+
+List-I
+
+List-II
+
+P) Q1, Q2, Q3, Q4 all positive
+
+1. 
+
+
+
+Q)  positive:  negative
+
+2. 
+
+R)  positive: negative
+
+3. 
+
+S.  positive: tregative
+
+4. 
+
+	Codes:(A) (B) (C) (D) P4, Q2, R1, S3
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+
+Topic 2 - Electric Field and Field Lines
+
+1 MCQ- with One Correct Answer
+
+[Question_start]
+
+4. 	Charges  and  are uniformly distributed in three dielectric solid spheres 1,2 and 3 of radii  and  respectively, as shown in figure. If magnitude of the electric fields at point  at a distance  from the centre of sphere  and  and  respectively, then
+
+[Adv, 2014]
+
+
+
+	(A) 	(B) (C) 	(D) 
+
+[solution]
+
+Option A
+
+[Question_end]
+
+
+

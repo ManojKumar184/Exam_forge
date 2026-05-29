@@ -49,20 +49,33 @@ function extractTablesFromHtml(html) {
 export function splitHtmlIntoQuestionSegments(html) {
   if (!html?.trim()) return [];
 
-  const parts = html.split(
-    /(?=<p[^>]*>\s*(?:<strong>)?\s*(?:(?:SECTION|PART)\s+[A-Z0-9]+|(?:Q(?:uestion)?\s*)?\d{1,3}[\).:\-\s]))/i
-  );
+  const hasTags = /\[Question_start\]/i.test(html);
+  let parts;
+  if (hasTags) {
+    parts = html.split(/\[Question_start\]/i);
+    // Keep only parts that have a closing tag
+    parts = parts.filter((p) => p.includes('[Question_end]'));
+  } else {
+    parts = html.split(
+      /(?=<p[^>]*>\s*(?:<strong>)?\s*(?:(?:SECTION|PART)\s+[A-Z0-9]+|(?:Q(?:uestion)?\s*)?\d{1,3}[\).:\-\s]))/i
+    );
+  }
 
   return parts
     .map((part) => part.trim())
     .filter((part) => part.length > 20)
     .map((part, index) => {
-      const images = extractImagesFromHtml(part);
-      const tables = extractTablesFromHtml(part);
-      const text = stripTags(part);
+      let cleanPart = part;
+      if (hasTags) {
+        // Strip the solution and question_end tags and everything after them
+        cleanPart = cleanPart.split(/\[solution\]/i)[0].split(/\[Question_end\]/i)[0];
+      }
+      const images = extractImagesFromHtml(cleanPart);
+      const tables = extractTablesFromHtml(cleanPart);
+      const text = stripTags(cleanPart);
       return {
         index,
-        html: part,
+        html: cleanPart,
         text,
         images: images.map((img) => img.url),
         diagrams: [
