@@ -196,38 +196,59 @@ export function QuestionEditorForm({
       }
       return;
     }
-    const text = initial.question_text || '';
+
+    // Check if an edit draft exists for this specific question
+    const editDraftKey = `${DRAFT_KEY}_${initial.id}`;
+    const draft = localStorage.getItem(editDraftKey);
+    let d: any = null;
+    if (draft) {
+      try {
+        d = JSON.parse(draft);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const text = d?.bodyHtml || initial.question_text || '';
     setBodyHtml(text);
     setBodyPlain(text.replace(/<[^>]+>/g, ' '));
-    setQuestionLatex(initial.question_latex || '');
-    setQuestionImages(initial.question_images || []);
+    setQuestionLatex(d?.questionLatex || initial.question_latex || '');
+    setQuestionImages(d?.questionImages || initial.question_images || []);
     setOptions(
-      (initial.options as QuestionOption[])?.length
+      d?.options ||
+      ((initial.options as QuestionOption[])?.length
         ? (initial.options as QuestionOption[])
-        : defaultOptions()
+        : defaultOptions())
     );
-    setExplanation(initial.explanation || '');
-    setClassLevel(initial.class || 11);
-    setSubjectId(initial.subject_id || '');
-    setChapterId(initial.chapter_id || '');
-    setExamTypeId(initial.exam_type_id || '');
-    setDifficulty(initial.difficulty || 'medium');
-    setCorrectOption(initial.correct_option ?? 0);
+    setExplanation(d?.explanation || initial.explanation || '');
+    setClassLevel(d?.classLevel || initial.class || 11);
+    setSubjectId(d?.subjectId || initial.subject_id || '');
+    setChapterId(d?.chapterId || initial.chapter_id || '');
+    setCustomChapterName(d?.customChapterName || '');
+    setIsCustomChapter(d?.isCustomChapter || false);
+    setExamTypeId(d?.examTypeId || initial.exam_type_id || '');
+    setDifficulty(d?.difficulty || initial.difficulty || 'medium');
+    setCorrectOption(d?.correctOption !== undefined ? d.correctOption : (initial.correct_option ?? 0));
     setNumericalAnswer(
-      initial.numerical_answer != null ? String(initial.numerical_answer) : ''
+      d?.numericalAnswer != null
+        ? String(d.numericalAnswer)
+        : (initial.numerical_answer != null ? String(initial.numerical_answer) : '')
     );
-    setTagsInput((initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', '));
-    const sub = initial.tags?.find((t) =>
+    setTagsInput(
+      d?.tagsInput ||
+      (initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', ')
+    );
+    const sub = d?.subtype || (initial.tags?.find((t) =>
       SUBTYPE_OPTIONS.some((o) => o.value === t)
-    ) as EditorSubtype | undefined;
+    ) as EditorSubtype | undefined);
     if (sub) setSubtype(sub);
   }, [initial?.id]);
 
   const persistDraft = useCallback(() => {
-    if (initial?.id) return;
+    const key = initial?.id ? `${DRAFT_KEY}_${initial.id}` : DRAFT_KEY;
     setAutosaveStatus('saving');
     localStorage.setItem(
-      DRAFT_KEY,
+      key,
       JSON.stringify({
         bodyHtml,
         bodyPlain,
@@ -240,10 +261,16 @@ export function QuestionEditorForm({
         isCustomChapter,
         examTypeId,
         ocrText,
+        explanation,
+        classLevel,
+        difficulty,
+        correctOption,
+        numericalAnswer,
+        tagsInput,
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, classLevel, difficulty, correctOption, numericalAnswer, tagsInput]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -475,7 +502,8 @@ export function QuestionEditorForm({
       const payload = buildPayload();
       if (asDraft) payload.status = 'needs_review';
       await onSubmit(payload);
-      if (!initial?.id) localStorage.removeItem(DRAFT_KEY);
+      const key = initial?.id ? `${DRAFT_KEY}_${initial.id}` : DRAFT_KEY;
+      localStorage.removeItem(key);
       toast.success(asDraft ? 'Draft saved' : 'Question saved');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Save failed');

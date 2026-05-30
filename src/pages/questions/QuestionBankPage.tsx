@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -119,10 +120,15 @@ export function QuestionBankPage() {
 
   const handleEdit = async () => {
     if (selectedQuestion) {
-      await updateQuestion(selectedQuestion.id, editData);
-      setShowEditModal(false);
-      setSelectedQuestion(null);
-      applyFilters();
+      const res = await updateQuestion(selectedQuestion.id, editData);
+      if (res?.error) {
+        toast.error(res.error.message || 'Update failed');
+      } else {
+        toast.success('Question updated successfully');
+        setShowEditModal(false);
+        setSelectedQuestion(null);
+        applyFilters();
+      }
     }
   };
 

@@ -73,9 +73,15 @@ export function QuestionEditorPage() {
         onCancel={() => navigate(isAdmin ? '/questions' : '/dashboard')}
         onSubmit={async (payload) => {
           if (isEdit && questionId) {
-            await updateQuestion(questionId, payload as Partial<Question>);
+            const res = await updateQuestion(questionId, payload as Partial<Question>);
+            if (res?.error) {
+              throw new Error(res.error.message || 'Update failed');
+            }
           } else {
-            await createQuestion(payload as Partial<Question>);
+            const res = await createQuestion(payload as Partial<Question>);
+            if (res?.error) {
+              throw new Error(res.error.message || 'Create failed');
+            }
           }
           navigate(isAdmin ? '/questions' : '/dashboard');
         }}
