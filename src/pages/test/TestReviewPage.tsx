@@ -30,13 +30,14 @@ export function TestReviewPage() {
       setError(null);
       try {
         const attempts = await fetchTestAttemptsApi(testId);
-        const submitted = attempts.find(
+        const submittedAttempts = attempts.filter(
           (a) => a.status === 'submitted' || a.status === 'auto_submitted'
         );
-        if (!submitted) {
+        if (submittedAttempts.length === 0) {
           setError('No submitted attempt found for this test.');
           return;
         }
+        const submitted = submittedAttempts[0];
         const detail = await fetchAttemptReviewApi(testId, submitted.id);
         setAttempt(detail.attempt);
         setShowAnswers(detail.show_answers !== false);
@@ -97,8 +98,9 @@ export function TestReviewPage() {
   }
 
   const answer = current.answer;
-  const resultLabel =
-    answer?.is_correct === true
+  const resultLabel = !showAnswers
+    ? 'Submitted'
+    : answer?.is_correct === true
       ? 'Correct'
       : answer?.is_correct === false
         ? 'Incorrect'
@@ -106,8 +108,9 @@ export function TestReviewPage() {
           ? 'Pending grading'
           : 'Skipped';
 
-  const resultVariant =
-    answer?.is_correct === true ? 'success' : answer?.is_correct === false ? 'error' : 'warning';
+  const resultVariant = !showAnswers
+    ? 'default'
+    : answer?.is_correct === true ? 'success' : answer?.is_correct === false ? 'error' : 'warning';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -133,9 +136,11 @@ export function TestReviewPage() {
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Badge>Q{currentIndex + 1}</Badge>
             <Badge variant={resultVariant}>{resultLabel}</Badge>
-            <Badge>
-              {answer?.marks_obtained ?? 0}/{current.marks} marks
-            </Badge>
+            {showAnswers && (
+              <Badge>
+                {answer?.marks_obtained ?? 0}/{current.marks} marks
+              </Badge>
+            )}
           </div>
 
           <QuestionContentPreview question={current.question} />
@@ -308,11 +313,13 @@ export function TestReviewPage() {
                 className={`w-9 h-9 rounded text-sm font-medium ${
                   idx === currentIndex
                     ? 'bg-blue-600 text-white'
-                    : item.answer?.is_correct === true
+                    : showAnswers && item.answer?.is_correct === true
                       ? 'bg-green-500 text-white'
-                      : item.answer?.is_correct === false
+                      : showAnswers && item.answer?.is_correct === false
                         ? 'bg-red-500 text-white'
-                        : 'bg-slate-200 dark:bg-slate-600'
+                        : item.answer?.selected_option != null || item.answer?.numerical_answer != null || item.answer?.text_answer
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800'
+                          : 'bg-slate-200 dark:bg-slate-600'
                 }`}
               >
                 {idx + 1}

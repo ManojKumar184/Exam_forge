@@ -21,9 +21,13 @@ export async function updateTestApi(id: string, payload: Record<string, unknown>
   return data.data;
 }
 
-export async function startTestApi(id: string): Promise<{ test: OnlineTest; attempt: TestAttempt }> {
+export async function startTestApi(
+  id: string,
+  accessCode?: string
+): Promise<{ test: OnlineTest; attempt: TestAttempt }> {
   const { data } = await apiClient.post<{ success: boolean; data: { test: OnlineTest; attempt: TestAttempt } }>(
-    `/tests/${id}/start`
+    `/tests/${id}/start`,
+    { accessCode }
   );
   return data.data;
 }

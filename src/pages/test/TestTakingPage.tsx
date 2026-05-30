@@ -118,15 +118,15 @@ export function TestTakingPage() {
   }, [currentIndex]);
 
   useEffect(() => {
-    if (isReviewMode || !attempt || !test || timeLeft <= 0) return;
+    if (isReviewMode || !attempt || !test || timeLeft <= 0 || isLoading || showResultModal) return;
 
-    const timer = setInterval(() => {
+    const timer = setTimeout(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
+        const next = prev - 1;
+        if (next <= 0) {
           void finalizeSubmit(true);
           return 0;
         }
-        const next = prev - 1;
         if (next % 30 === 0) {
           void persistProgress();
         }
@@ -137,8 +137,8 @@ export function TestTakingPage() {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [isReviewMode, attempt?.id, test?.id]);
+    return () => clearTimeout(timer);
+  }, [isReviewMode, attempt?.id, test?.id, timeLeft, isLoading, showResultModal]);
 
   useEffect(() => {
     if (isReviewMode) return;
@@ -205,9 +205,14 @@ export function TestTakingPage() {
         q.id === list[currentIndexRef.current]?.id ? getQuestionTimeSpent(q) : q.time_spent_seconds,
     }));
 
-  const loadTest = async () => {
+  const [requiresAccessCode, setRequiresAccessCode] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessCodeError, setAccessCodeError] = useState<string | null>(null);
+
+  const loadTest = async (code?: string) => {
     if (!testId) return;
     setIsLoading(true);
+    setAccessCodeError(null);
     try {
       if (isReviewMode) {
         const [testData, attempts] = await Promise.all([
@@ -228,10 +233,11 @@ export function TestTakingPage() {
         return;
       }
 
-      const started = await startTestApi(testId);
+      const started = await startTestApi(testId, code);
       const testData = started.test;
       setTest(testData);
       setAttempt(started.attempt);
+      setRequiresAccessCode(false);
 
       const serverElapsed = started.attempt.time_spent_seconds || 0;
       const fullDuration = testData.duration_minutes * 60;
@@ -265,9 +271,21 @@ export function TestTakingPage() {
         };
       });
       setQuestions(questionsWithShuffled);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading test:', error);
-      navigate('/tests');
+      const isAccessCodeError =
+        error?.response?.data?.errorCode === 'INVALID_ACCESS_CODE' ||
+        error?.response?.status === 403 &&
+          String(error?.response?.data?.message || '').toLowerCase().includes('code');
+
+      if (isAccessCodeError) {
+        setRequiresAccessCode(true);
+        if (code) {
+          setAccessCodeError('Invalid access code. Please try again.');
+        }
+      } else {
+        navigate('/tests');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -442,6 +460,45 @@ export function TestTakingPage() {
     const s = seconds % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
+  if (requiresAccessCode) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full p-6 space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Access Code Required</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              This test is protected. Please enter the access code provided by your instructor.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void loadTest(accessCodeInput);
+            }}
+            className="space-y-4"
+          >
+            <Input
+              label="Access Code"
+              type="password"
+              placeholder="Enter access code"
+              value={accessCodeInput}
+              onChange={(e) => setAccessCodeInput(e.target.value)}
+              error={accessCodeError || undefined}
+              required
+            />
+            <div className="flex gap-3 justify-end">
+              <Button type="button" variant="outline" onClick={() => navigate('/tests')}>
+                Cancel
+              </Button>
+              <Button type="submit">Submit</Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    );
+  }
 
   if (!isInitialized || isLoading || !test) {
     return <Loading fullScreen text={isReviewMode ? 'Loading review...' : 'Loading test...'} />;
@@ -706,7 +763,11 @@ export function TestTakingPage() {
                 key={q.id}
                 type="button"
                 onClick={() => setCurrentIndex(index)}
-                className={`w-10 h-10 rounded-lg font-medium text-sm ${STATUS_COLORS[getQuestionStatus(q)]}`}
+                className={`w-10 h-10 rounded-lg font-bold text-sm ${STATUS_COLORS[getQuestionStatus(q)]} ${
+                  index === currentIndex
+                    ? 'ring-4 ring-blue-500 ring-offset-2 scale-110 dark:ring-offset-slate-900 border-2 border-white'
+                    : 'border border-transparent'
+                } transition-all`}
               >
                 {index + 1}
               </button>

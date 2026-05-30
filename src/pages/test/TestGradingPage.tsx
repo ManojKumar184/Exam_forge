@@ -116,8 +116,9 @@ export function TestGradingPage() {
             {queue.map((row) => (
               <Card key={row.id} className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{row.user?.full_name || row.user?.email || row.user_id}</p>
-                  <p className="text-sm text-slate-500">
+                  <p className="font-medium">{row.user?.full_name || 'Student'}</p>
+                  {row.user?.email && <p className="text-sm text-slate-500">{row.user.email}</p>}
+                  <p className="text-xs text-slate-400 mt-1">
                     Score {row.score}/{row.max_score} · {row.grading_status}
                   </p>
                 </div>
@@ -141,7 +142,7 @@ export function TestGradingPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Grade attempt</h1>
           <p className="text-slate-500 mt-1">
-            {attempt?.user?.full_name || attempt?.user?.email} · {testCode}
+            {attempt?.user?.full_name || 'Student'}{attempt?.user?.email ? ` (${attempt.user.email})` : ''} · {testCode}
           </p>
         </div>
         <div className="flex gap-2">

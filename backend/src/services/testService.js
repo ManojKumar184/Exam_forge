@@ -120,7 +120,7 @@ export async function deleteTest(id, user) {
   await Leaderboard.deleteMany({ testId: id });
 }
 
-export async function startAttempt(testId, user) {
+export async function startAttempt(testId, user, accessCode = null) {
   const test = await OnlineTest.findById(testId).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }, 'subjectId', 'examTypeId'],
@@ -142,6 +142,11 @@ export async function startAttempt(testId, user) {
   }).populate('testId');
 
   if (!attempt) {
+    if (test.accessCode && test.accessCode.trim() !== '') {
+      if (!accessCode || accessCode.trim() !== test.accessCode.trim()) {
+        throw new AppError('Access code required or invalid', 403, 'INVALID_ACCESS_CODE');
+      }
+    }
     const count = await TestAttempt.countDocuments({ testId: test._id, userId: user._id });
     if (count >= (test.maxAttempts || 1)) {
       throw new AppError('Maximum attempts reached', 400, 'MAX_ATTEMPTS_REACHED');

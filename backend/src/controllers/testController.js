@@ -28,7 +28,7 @@ export async function remove(req, res) {
 }
 
 export async function start(req, res) {
-  const data = await testService.startAttempt(req.params.id, req.user);
+  const data = await testService.startAttempt(req.params.id, req.user, req.body.accessCode);
   res.json({ success: true, data });
 }
 
