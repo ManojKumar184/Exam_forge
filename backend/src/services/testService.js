@@ -51,11 +51,18 @@ export async function createTest(body, user) {
   if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
+
+  const startTime = body.start_time || body.startTime || null;
+  const endTime = body.end_time || body.endTime || null;
+  if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+    throw new AppError('Start time must be before end time', 400, 'INVALID_SCHEDULE');
+  }
+
   const doc = await OnlineTest.create({
     paperId: paper._id,
     testCode: body.test_code || body.testCode,
-    startTime: body.start_time || body.startTime || null,
-    endTime: body.end_time || body.endTime || null,
+    startTime: startTime,
+    endTime: endTime,
     durationMinutes: Number(body.duration_minutes || body.durationMinutes || paper.durationMinutes),
     maxAttempts: Number(body.max_attempts || body.maxAttempts || 1),
     shuffleQuestions: Boolean(body.shuffle_questions ?? body.shuffleQuestions ?? true),
@@ -80,6 +87,12 @@ export async function updateTest(id, body, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
+  const startTime = body.start_time !== undefined ? (body.start_time || null) : test.startTime;
+  const endTime = body.end_time !== undefined ? (body.end_time || null) : test.endTime;
+  if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+    throw new AppError('Start time must be before end time', 400, 'INVALID_SCHEDULE');
+  }
+
   if (body.start_time !== undefined) test.startTime = body.start_time || null;
   if (body.end_time !== undefined) test.endTime = body.end_time || null;
   if (body.status !== undefined) test.status = body.status;
@@ -94,6 +107,17 @@ export async function updateTest(id, body, user) {
   await test.save();
   await test.populate('paperId');
   return mapOnlineTest(test);
+}
+
+export async function deleteTest(id, user) {
+  const test = await OnlineTest.findById(id);
+  if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString()) {
+    throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  }
+  await OnlineTest.findByIdAndDelete(id);
+  await TestAttempt.deleteMany({ testId: id });
+  await Leaderboard.deleteMany({ testId: id });
 }
 
 export async function startAttempt(testId, user) {

@@ -451,9 +451,14 @@ export function QuestionBankPage() {
               <Button
                 size="sm"
                 onClick={async () => {
-                  await bulkApproveQuestions(selectedIds);
-                  setSelectedIds([]);
-                  applyFilters();
+                  const res = await bulkApproveQuestions(selectedIds);
+                  if (res?.error) {
+                    toast.error(res.error.message || 'Failed to approve questions');
+                  } else {
+                    toast.success('Approved selected questions successfully');
+                    setSelectedIds([]);
+                    applyFilters();
+                  }
                 }}
               >
                 Approve all
@@ -463,9 +468,14 @@ export function QuestionBankPage() {
                 variant="danger"
                 onClick={async () => {
                   if (confirm('Are you sure you want to reject and delete all selected questions?')) {
-                    await bulkDeleteQuestions(selectedIds);
-                    setSelectedIds([]);
-                    applyFilters();
+                    const res = await bulkDeleteQuestions(selectedIds);
+                    if (res?.error) {
+                      toast.error(res.error.message || 'Failed to delete questions');
+                    } else {
+                      toast.success('Deleted selected questions successfully');
+                      setSelectedIds([]);
+                      applyFilters();
+                    }
                   }
                 }}
               >
@@ -773,11 +783,16 @@ export function QuestionBankPage() {
                 if (bulkMeta.chapter_id) updates.chapter_id = bulkMeta.chapter_id;
                 if (bulkMeta.exam_type_id) updates.exam_type_id = bulkMeta.exam_type_id;
                 if (bulkMeta.tags?.length) updates.tags = bulkMeta.tags;
-                await bulkUpdateQuestionsMetadata(selectedIds, updates);
-                setShowBulkMetaModal(false);
-                setBulkMeta({});
-                setSelectedIds([]);
-                applyFilters();
+                const res = await bulkUpdateQuestionsMetadata(selectedIds, updates);
+                if (res?.error) {
+                  toast.error(res.error.message || 'Failed to update metadata');
+                } else {
+                  toast.success('Updated metadata successfully');
+                  setShowBulkMetaModal(false);
+                  setBulkMeta({});
+                  setSelectedIds([]);
+                  applyFilters();
+                }
               }}
             >
               Apply to selected

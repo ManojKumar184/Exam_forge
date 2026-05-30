@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Edit } from 'lucide-react';
+import { Edit, Trash2 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { Card, Button, Badge, Loading, EmptyState, Modal, Input } from '../../components/ui';
 import { FileText, Plus, PlayCircle, Calendar, Clock, Download } from 'lucide-react';
@@ -8,11 +8,13 @@ import toast from 'react-hot-toast';
 import { downloadPaperPdfApi } from '../../api/papers';
 import { downloadBlob } from '../../utils/downloadBlob';
 import { getApiErrorMessage } from '../../api/client';
+import { useAuth } from '../../hooks/useAuth';
 import type { Paper } from '../../types';
 
 export function PapersListPage() {
   const navigate = useNavigate();
-  const { papers, fetchPapers, createOnlineTest, isLoading } = useDataStore();
+  const { profile, isAdmin, isFaculty } = useAuth();
+  const { papers, fetchPapers, createOnlineTest, deletePaper, isLoading } = useDataStore();
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [showCreateTestModal, setShowCreateTestModal] = useState(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
@@ -46,12 +48,32 @@ export function PapersListPage() {
     }
   };
 
+  const handleDeletePaper = async (paperId: string) => {
+    if (!window.confirm('Are you sure you want to delete this question paper? This will permanently delete the paper and cannot be undone.')) {
+      return;
+    }
+    const { error } = await deletePaper(paperId);
+    if (error) {
+      toast.error(error.message || 'Failed to delete paper');
+    } else {
+      toast.success('Paper deleted successfully');
+      fetchPapers();
+    }
+  };
+
   useEffect(() => {
     fetchPapers();
   }, []);
 
   const handleCreateOnlineTest = async () => {
     if (!selectedPaper) return;
+
+    if (testStartTime && testEndTime) {
+      if (new Date(testStartTime) >= new Date(testEndTime)) {
+        toast.error('Start time must be before end time');
+        return;
+      }
+    }
 
     const testCode = `TEST-${Date.now().toString(36).toUpperCase()}`;
 
@@ -108,94 +130,121 @@ export function PapersListPage() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {papers.map((paper) => (
-            <Card key={paper.id} className="p-5 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-white">{paper.title}</h3>
-                  <p className="text-sm text-slate-500 mt-1">{paper.paper_code}</p>
-                </div>
-                <Badge variant={paper.status === 'published' ? 'success' : 'default'}>
-                  {paper.status}
-                </Badge>
-              </div>
+          {papers.map((paper) => {
+            const canManagePaper = isAdmin || (isFaculty && paper.created_by === profile?.id);
 
-              <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400 mb-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  {paper.subject?.name || 'No Subject'} | Class {paper.class}
+            return (
+              <Card key={paper.id} className="p-5 hover:shadow-lg transition-shadow">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{paper.title}</h3>
+                    <p className="text-sm text-slate-500 mt-1">{paper.paper_code}</p>
+                  </div>
+                  <Badge variant={paper.status === 'published' ? 'success' : 'default'}>
+                    {paper.status}
+                  </Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  {paper.total_questions}Q | {paper.total_marks}M | {paper.duration_minutes} min
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  {new Date(paper.created_at).toLocaleDateString()}
-                </div>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
-                  <Link to={`/papers/${paper.id}/edit`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full" leftIcon={<Edit className="w-4 h-4" />}>
-                      Edit
+                <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    {paper.subject?.name || 'No Subject'} | Class {paper.class}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    {paper.total_questions}Q | {paper.total_marks}M | {paper.duration_minutes} min
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(paper.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Link to={`/papers/${paper.id}/edit`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full" leftIcon={<Edit className="w-4 h-4" />}>
+                        Edit
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      leftIcon={<PlayCircle className="w-4 h-4" />}
+                      onClick={() => {
+                        setSelectedPaper(paper);
+                        const now = new Date();
+                        const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                        const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+                        
+                        const toLocalISO = (d: Date) => {
+                          const pad = (n: number) => n.toString().padStart(2, '0');
+                          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                        };
+                        
+                        setTestStartTime(toLocalISO(start));
+                        setTestEndTime(toLocalISO(end));
+                        setShuffleQuestions(true);
+                        setShuffleOptions(true);
+                        setShowResults(true);
+                        setAllowReview(true);
+                        setIsPublic(true);
+                        setAccessCode('');
+                        setShowCreateTestModal(true);
+                      }}
+                    >
+                      Create Test
                     </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    leftIcon={<PlayCircle className="w-4 h-4" />}
-                    onClick={() => {
-                      setSelectedPaper(paper);
-                      const now = new Date();
-                      const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-                      const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
-                      
-                      const toLocalISO = (d: Date) => {
-                        const pad = (n: number) => n.toString().padStart(2, '0');
-                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                      };
-                      
-                      setTestStartTime(toLocalISO(start));
-                      setTestEndTime(toLocalISO(end));
-                      setShuffleQuestions(true);
-                      setShuffleOptions(true);
-                      setShowResults(true);
-                      setAllowReview(true);
-                      setIsPublic(true);
-                      setAccessCode('');
-                      setShowCreateTestModal(true);
-                    }}
-                  >
-                    Create Test
-                  </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      disabled={exportingId === paper.id}
+                      leftIcon={<Download className="w-4 h-4" />}
+                      onClick={() => void handleExportPdf(paper, 'paper')}
+                    >
+                      Export PDF
+                    </Button>
+                    {canManagePaper ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        leftIcon={<Trash2 className="w-4 h-4" />}
+                        onClick={() => void handleDeletePaper(paper.id)}
+                      >
+                        Delete
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1"
+                        disabled={exportingId === paper.id}
+                        onClick={() => void handleExportPdf(paper, 'answer_key')}
+                      >
+                        Answer key
+                      </Button>
+                    )}
+                  </div>
+                  {canManagePaper && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-slate-500 hover:text-slate-700"
+                      disabled={exportingId === paper.id}
+                      onClick={() => void handleExportPdf(paper, 'answer_key')}
+                    >
+                      Export Answer Key
+                    </Button>
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    disabled={exportingId === paper.id}
-                    leftIcon={<Download className="w-4 h-4" />}
-                    onClick={() => void handleExportPdf(paper, 'paper')}
-                  >
-                    Export PDF
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1"
-                    disabled={exportingId === paper.id}
-                    onClick={() => void handleExportPdf(paper, 'answer_key')}
-                  >
-                    Answer key
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 

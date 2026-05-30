@@ -28,8 +28,30 @@ export function StudentDashboard() {
     ? Math.round(completedTests.reduce((sum, a) => sum + (a.percentage || 0), 0) / completedTests.length)
     : 0;
 
+  const getTestStatus = (test: any) => {
+    const now = new Date();
+    const start = test.start_time ? new Date(test.start_time) : null;
+    const end = test.end_time ? new Date(test.end_time) : null;
+
+    if (test.status === 'draft' || test.status === 'archived' || test.status === 'completed') {
+      return test.status;
+    }
+    if (start && now < start) return 'scheduled';
+    if (end && now > end) return 'completed';
+    return 'active';
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'success';
+      case 'scheduled': return 'warning';
+      case 'completed': return 'default';
+      default: return 'default';
+    }
+  };
+
   const availableTests = onlineTests.filter(
-    test => test.status === 'active' && !attempts.some(a => a.test_id === test.id)
+    test => getTestStatus(test) === 'active' && !attempts.some(a => a.test_id === test.id)
   );
 
   return (
@@ -84,23 +106,26 @@ export function StudentDashboard() {
           </CardHeader>
           <CardBody>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {availableTests.slice(0, 4).map((test) => (
-                <div
-                  key={test.id}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">{test.test_code}</p>
-                      <p className="text-sm text-slate-500">{test.duration_minutes} minutes</p>
+              {availableTests.slice(0, 4).map((test) => {
+                const status = getTestStatus(test);
+                return (
+                  <div
+                    key={test.id}
+                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{test.test_code}</p>
+                        <p className="text-sm text-slate-500">{test.duration_minutes} minutes</p>
+                      </div>
+                      <Badge variant={getStatusColor(status)} size="sm">{status}</Badge>
                     </div>
-                    <Badge variant="info" size="sm">{test.status}</Badge>
+                    <Link to={`/test/${test.id}`}>
+                      <Button size="sm" className="w-full">Start Test</Button>
+                    </Link>
                   </div>
-                  <Link to={`/test/${test.id}`}>
-                    <Button size="sm" className="w-full">Start Test</Button>
-                  </Link>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardBody>
         </Card>

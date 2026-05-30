@@ -19,6 +19,16 @@ import {
   SortableSectionQuestions,
   type SelectedQuestion,
 } from '../../components/paper/SortableSectionQuestions';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import {
   DEFAULT_SECTIONS,
@@ -398,6 +408,118 @@ export function PaperGeneratorPage() {
     }
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+
+    // Find source section
+    let sourceSectionId = '';
+    let draggedQuestion: SelectedQuestion | null = null;
+
+    for (const section of sections) {
+      const q = section.questions.find((q) => q.id === activeId);
+      if (q) {
+        sourceSectionId = section.id;
+        draggedQuestion = q;
+        break;
+      }
+    }
+
+    if (!draggedQuestion) return;
+
+    // Find target section and target question
+    let targetSectionId = '';
+    let targetQuestionId = '';
+
+    // Check if overId is a section ID directly (meaning we dropped onto the empty section droppable container)
+    const targetSectionDirect = sections.find((s) => s.id === overId);
+    if (targetSectionDirect) {
+      targetSectionId = targetSectionDirect.id;
+    } else {
+      // Find which section contains the target question
+      for (const section of sections) {
+        const q = section.questions.find((q) => q.id === overId);
+        if (q) {
+          targetSectionId = section.id;
+          targetQuestionId = q.id;
+          break;
+        }
+      }
+    }
+
+    if (!targetSectionId) return;
+
+    // Case 1: Dragging within the same section
+    if (sourceSectionId === targetSectionId) {
+      const targetSec = sections.find((s) => s.id === sourceSectionId)!;
+      const oldIndex = targetSec.questions.findIndex((q) => q.id === activeId);
+      const newIndex = targetQuestionId
+        ? targetSec.questions.findIndex((q) => q.id === targetQuestionId)
+        : targetSec.questions.length - 1;
+
+      if (oldIndex !== newIndex && oldIndex >= 0 && newIndex >= 0) {
+        const reordered = arrayMove(targetSec.questions, oldIndex, newIndex).map((q, i) => ({
+          ...q,
+          orderIndex: i,
+        }));
+        reorderSectionQuestions(sourceSectionId, reordered);
+      }
+      return;
+    }
+
+    // Case 2: Dragging from one section to another
+    const sourceSection = sections.find((s) => s.id === sourceSectionId)!;
+    const targetSection = sections.find((s) => s.id === targetSectionId)!;
+
+    // Remove from source
+    const newSourceQuestions = sourceSection.questions.filter((q) => q.id !== activeId).map((q, i) => ({
+      ...q,
+      orderIndex: i,
+    }));
+
+    // Construct the updated question with target section defaults and sectionId
+    const updatedQuestion: SelectedQuestion = {
+      ...draggedQuestion,
+      sectionId: targetSectionId,
+      customMarks: targetSection.marksPerQuestion,
+      customNegativeMarks: targetSection.negativeMarksPerQuestion ?? null,
+    };
+
+    // Insert into target
+    let newTargetQuestions = [...targetSection.questions];
+    if (targetQuestionId) {
+      const targetIndex = targetSection.questions.findIndex((q) => q.id === targetQuestionId);
+      newTargetQuestions.splice(targetIndex, 0, updatedQuestion);
+    } else {
+      newTargetQuestions.push(updatedQuestion);
+    }
+
+    newTargetQuestions = newTargetQuestions.map((q, i) => ({
+      ...q,
+      orderIndex: i,
+    }));
+
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.id === sourceSectionId) {
+          return { ...s, questions: newSourceQuestions };
+        }
+        if (s.id === targetSectionId) {
+          return { ...s, questions: newTargetQuestions };
+        }
+        return s;
+      })
+    );
+  };
+
   if (!canGeneratePapers) {
     return (
       <Alert variant="error" title="Access Denied">
@@ -686,49 +808,44 @@ export function PaperGeneratorPage() {
               }
             />
           ) : (
-            <div className="space-y-6">
-              {sections.map((section) => (
-                <div key={section.id}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-slate-700 dark:text-slate-300">{section.name}</h3>
-                    <div className="flex items-center gap-3">
-                      <Badge>
-                        {section.questions.length}/{section.targetCount} Q |{' '}
-                        {section.questions.reduce((s, q) => s + q.customMarks, 0)} M
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setCurrentSectionId(section.id);
-                          setShowAddModal(true);
-                        }}
-                        leftIcon={<Plus className="w-4 h-4" />}
-                      >
-                        Add
-                      </Button>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <div className="space-y-6">
+                {sections.map((section) => (
+                  <div key={section.id}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-700 dark:text-slate-300">{section.name}</h3>
+                      <div className="flex items-center gap-3">
+                        <Badge>
+                          {section.questions.length}/{section.targetCount} Q |{' '}
+                          {section.questions.reduce((s, q) => s + q.customMarks, 0)} M
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentSectionId(section.id);
+                            setShowAddModal(true);
+                          }}
+                          leftIcon={<Plus className="w-4 h-4" />}
+                        >
+                          Add
+                        </Button>
+                      </div>
                     </div>
-                  </div>
 
-                  {section.questions.length > 0 ? (
                     <SortableSectionQuestions
                       sectionId={section.id}
                       questions={section.questions}
-                      onReorder={reorderSectionQuestions}
                       onUpdateMarks={updateQuestionMarks}
                       onUpdateNegativeMarks={updateQuestionNegativeMarks}
                       onRemove={removeQuestionFromSection}
                       onReplace={replaceQuestion}
                       replacingId={replacingId}
                     />
-                  ) : (
-                    <div className="text-center py-6 bg-slate-50 dark:bg-slate-700/30 rounded-lg">
-                      <p className="text-sm text-slate-500">No questions in this section</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                  </div>
+                ))}
+              </div>
+            </DndContext>
           )}
         </Card>
       </div>

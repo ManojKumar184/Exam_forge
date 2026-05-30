@@ -6,23 +6,31 @@ export async function recomputeLeaderboard(testId) {
     testId,
     status: { $in: ['submitted', 'auto_submitted'] },
     gradingStatus: { $in: ['not_required', 'complete'] },
-  }).sort({ score: -1, timeSpentSeconds: 1, submittedAt: 1 });
+  }).populate('userId').sort({ score: -1, timeSpentSeconds: 1, submittedAt: 1 });
 
   await Leaderboard.deleteMany({ testId });
   const docs = [];
+  let rank = 1;
+
   for (let i = 0; i < attempts.length; i += 1) {
-    const rank = i + 1;
-    attempts[i].rank = rank;
-    await attempts[i].save();
-    docs.push({
-      testId,
-      userId: attempts[i].userId,
-      attemptId: attempts[i]._id,
-      score: attempts[i].score,
-      percentage: attempts[i].percentage,
-      timeSpentSeconds: attempts[i].timeSpentSeconds,
-      rank,
-    });
+    const attempt = attempts[i];
+    if (attempt.userId && attempt.userId.role === 'student') {
+      attempt.rank = rank;
+      await attempt.save();
+      docs.push({
+        testId,
+        userId: attempt.userId._id,
+        attemptId: attempt._id,
+        score: attempt.score,
+        percentage: attempt.percentage,
+        timeSpentSeconds: attempt.timeSpentSeconds,
+        rank,
+      });
+      rank += 1;
+    } else {
+      attempt.rank = null;
+      await attempt.save();
+    }
   }
   if (docs.length) await Leaderboard.insertMany(docs);
 }

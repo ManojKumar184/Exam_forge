@@ -103,3 +103,7 @@ export async function gradeAttemptApi(
   return data.data;
 }
 
+export async function deleteTestApi(id: string): Promise<void> {
+  await apiClient.delete(`/tests/${id}`);
+}
+

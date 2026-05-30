@@ -8,9 +8,11 @@ async function loadPaperForExport(paperId, user) {
   const paper = await Paper.findById(paperId)
     .populate('subjectId', 'name code icon color')
     .populate('examTypeId', 'name code description isActive createdAt')
+    .populate('createdBy', 'fullName schoolInstitute')
     .populate('questions.questionId');
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
+  const creatorId = paper.createdBy?._id?.toString() || paper.createdBy?.toString();
+  if (user.role === 'faculty' && creatorId !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
   return mapPaper(paper);

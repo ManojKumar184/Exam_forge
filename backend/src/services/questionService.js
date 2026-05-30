@@ -337,6 +337,15 @@ export async function rejectQuestion(id, user, notes) {
 export async function bulkApprove(ids, user) {
   const questions = await Question.find({ _id: { $in: ids } });
   for (const q of questions) {
+    if (!q.subjectId || !q.examTypeId) {
+      throw new AppError(
+        'Set subject and exam type before approving',
+        400,
+        'INCOMPLETE_METADATA'
+      );
+    }
+  }
+  for (const q of questions) {
     q.status = 'approved';
     q.reviewedBy = user._id;
     q.reviewedAt = new Date();

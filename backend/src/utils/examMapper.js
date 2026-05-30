@@ -31,6 +31,13 @@ export function mapPaper(doc) {
     is_online: d.isOnline ?? false,
     status: d.status,
     created_by: idStr(d.createdBy?._id || d.createdBy),
+    created_by_profile: d.createdBy?.fullName
+      ? {
+          id: idStr(d.createdBy._id || d.createdBy),
+          full_name: d.createdBy.fullName,
+          school_institute: d.createdBy.schoolInstitute || null,
+        }
+      : undefined,
     created_at: d.createdAt?.toISOString?.(),
     updated_at: d.updatedAt?.toISOString?.(),
     published_at: d.publishedAt?.toISOString?.() || null,

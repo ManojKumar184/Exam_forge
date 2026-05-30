@@ -13,7 +13,7 @@ import {
   bulkUpdateQuestionsMetadataApi,
 } from '../api/questions';
 import { fetchPapersApi, createPaperApi, updatePaperApi, deletePaperApi } from '../api/papers';
-import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi } from '../api/tests';
+import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi, deleteTestApi } from '../api/tests';
 import { fetchAdminAnalyticsApi } from '../api/analytics';
 import { fetchUsersApi, updateUserApi, deleteUserApi } from '../api/users';
 import { getApiErrorMessage } from '../api/client';
@@ -65,6 +65,7 @@ interface DataState {
   deletePaper: (id: string) => Promise<{ error: any }>;
   createOnlineTest: (test: Partial<OnlineTest>) => Promise<{ data: OnlineTest | null; error: any }>;
   updateOnlineTest: (id: string, updates: Partial<OnlineTest>) => Promise<{ error: any }>;
+  deleteOnlineTest: (id: string) => Promise<{ error: any }>;
   clearError: () => void;
 }
 
@@ -236,6 +237,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   bulkApproveQuestions: async (ids) => {
     try {
       await bulkApproveQuestionsApi(ids);
+      set({
+        questions: get().questions.map((q) =>
+          ids.includes(q.id) ? { ...q, status: 'approved' } : q
+        ),
+      });
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };
@@ -245,6 +251,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   bulkRejectQuestions: async (ids, notes) => {
     try {
       await bulkRejectQuestionsApi(ids, notes);
+      set({
+        questions: get().questions.map((q) =>
+          ids.includes(q.id) ? { ...q, status: 'rejected', review_notes: notes ?? null } : q
+        ),
+      });
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };
@@ -264,6 +275,11 @@ export const useDataStore = create<DataState>((set, get) => ({
   bulkUpdateQuestionsMetadata: async (ids, updates) => {
     try {
       await bulkUpdateQuestionsMetadataApi(ids, updates);
+      set({
+        questions: get().questions.map((q) =>
+          ids.includes(q.id) ? { ...q, ...updates } : q
+        ),
+      });
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };
@@ -314,6 +330,16 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const data = await updateTestApi(id, updates);
       set({ onlineTests: get().onlineTests.map((t) => (t.id === id ? data : t)) });
+      return { error: null };
+    } catch (error) {
+      return { error: { message: getApiErrorMessage(error) } };
+    }
+  },
+
+  deleteOnlineTest: async (id) => {
+    try {
+      await deleteTestApi(id);
+      set({ onlineTests: get().onlineTests.filter((t) => t.id !== id) });
       return { error: null };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };

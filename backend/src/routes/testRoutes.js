@@ -33,11 +33,16 @@ router.patch(
   validate(updateTestSchema),
   asyncHandler(testController.update)
 );
+router.delete(
+  '/:id',
+  authorize('super_admin', 'faculty'),
+  asyncHandler(testController.remove)
+);
 
-router.post('/:id/start', authorize('student'), asyncHandler(testController.start));
-router.post('/:id/autosave', authorize('student'), validate(autosaveSchema), asyncHandler(testController.autosave));
-router.post('/:id/submit', authorize('student'), asyncHandler(testController.submit));
-router.post('/:id/auto-submit', authorize('student'), asyncHandler(testController.autoSubmit));
+router.post('/:id/start', authorize('student', 'faculty', 'super_admin'), asyncHandler(testController.start));
+router.post('/:id/autosave', authorize('student', 'faculty', 'super_admin'), validate(autosaveSchema), asyncHandler(testController.autosave));
+router.post('/:id/submit', authorize('student', 'faculty', 'super_admin'), asyncHandler(testController.submit));
+router.post('/:id/auto-submit', authorize('student', 'faculty', 'super_admin'), asyncHandler(testController.autoSubmit));
 router.get('/:id/attempts', authorize('super_admin', 'faculty', 'student'), asyncHandler(testController.attempts));
 router.get('/:id/leaderboard', asyncHandler(testController.leaderboard));
 router.get(

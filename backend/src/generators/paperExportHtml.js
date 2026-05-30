@@ -20,22 +20,29 @@ function renderMath(text, displayLatex) {
     }
   }
   if (!text) return '';
-  let out = escapeHtml(text);
+  
+  const hasHtml = /<(table|tr|td|th|p|div|span|br|img)\b/i.test(text);
+  let out = hasHtml ? text : escapeHtml(text);
+  
   out = out.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
     try {
       return katex.renderToString(tex.trim(), { throwOnError: false, displayMode: true });
     } catch {
-      return escapeHtml(tex);
+      return hasHtml ? tex : escapeHtml(tex);
     }
   });
   out = out.replace(/\$([^$\n]+?)\$/g, (_, tex) => {
     try {
       return katex.renderToString(tex.trim(), { throwOnError: false, displayMode: false });
     } catch {
-      return escapeHtml(tex);
+      return hasHtml ? tex : escapeHtml(tex);
     }
   });
-  return out.replace(/\n/g, '<br/>');
+  
+  if (!hasHtml) {
+    out = out.replace(/\n/g, '<br/>');
+  }
+  return out;
 }
 
 function diskPathForUrl(url) {
@@ -130,6 +137,7 @@ export function buildPaperExportHtml(paper, options = {}) {
   const sections = groupBySection(paper);
   const subjectName = paper.subject?.name || 'Subject';
   const examName = paper.exam_type?.name || 'Exam';
+  const institutionName = paper.created_by_profile?.school_institute || 'ExamForge Academy';
 
   const bodySections = sections
     .map((sec) => {
@@ -169,42 +177,64 @@ export function buildPaperExportHtml(paper, options = {}) {
   <title>${escapeHtml(paper.title)} — Set ${paperSet}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
   <style>
-    @page { margin: 18mm 15mm; }
-    body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11pt; color: #111; line-height: 1.45; }
+    @page { margin: 24mm 15mm 20mm 15mm; }
+    body { font-family: Georgia, 'Times New Roman', Times, serif; font-size: 11pt; color: #111; line-height: 1.5; }
     .watermark { position: fixed; top: 40%; left: 15%; font-size: 72pt; color: rgba(200,0,0,0.12); transform: rotate(-30deg); z-index: 0; pointer-events: none; }
-    .header { border-bottom: 2px solid #1e40af; padding-bottom: 8px; margin-bottom: 20px; position: relative; z-index: 1; }
-    .header h1 { margin: 0 0 4px; font-size: 18pt; color: #1e3a8a; }
-    .meta { font-size: 10pt; color: #475569; }
-    .instructions { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 16px; border-radius: 6px; }
-    .paper-section { margin-bottom: 22px; page-break-inside: avoid; }
-    .section-title { font-size: 13pt; color: #1e40af; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
-    .question-block { margin: 14px 0; padding-left: 4px; page-break-inside: avoid; }
-    .q-header { font-weight: 600; margin-bottom: 6px; }
+    
+    .header { text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 20px; position: relative; z-index: 1; }
+    .institution-name { font-size: 18pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-family: 'Segoe UI', Arial, sans-serif; }
+    .exam-name { font-size: 13pt; font-weight: 600; text-transform: uppercase; color: #334155; margin-bottom: 6px; font-family: 'Segoe UI', Arial, sans-serif; }
+    .paper-title { font-size: 14pt; font-style: italic; margin-bottom: 12px; }
+    
+    .meta-table { border-collapse: collapse; width: 100%; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 8px; }
+    .meta-table td { border: none; padding: 4px 0; color: #334155; }
+    
+    .instructions { border: 1.5px solid #111; padding: 12px; margin-bottom: 20px; border-radius: 4px; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.45; }
+    .instructions strong { font-size: 10pt; text-transform: uppercase; }
+    
+    .paper-section { margin-bottom: 24px; }
+    .section-title { font-size: 11pt; font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #111; padding-bottom: 3px; margin-top: 20px; margin-bottom: 14px; font-family: 'Segoe UI', Arial, sans-serif; letter-spacing: 0.5px; }
+    
+    .question-block { margin: 16px 0; padding-left: 4px; page-break-inside: avoid; }
+    .q-header { font-weight: bold; margin-bottom: 6px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; }
     .q-num { margin-right: 8px; }
-    .q-marks { float: right; color: #64748b; font-size: 10pt; }
-    .q-body { margin-bottom: 8px; }
-    .q-figure img { max-width: 100%; max-height: 280px; margin: 8px 0; display: block; }
-    .options { margin: 8px 0 0 20px; padding: 0; }
-    .option { margin: 6px 0; list-style: none; }
-    .opt-label { font-weight: 600; margin-right: 6px; }
-    .correct { color: #15803d; }
-    .footer-note { margin-top: 24px; font-size: 9pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-    table.data-table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; }
-    table.data-table td, table.data-table th { border: 1px solid #cbd5e1; padding: 4px 8px; }
-    .katex-display { margin: 0.5em 0; overflow-x: auto; }
+    .q-marks { float: right; font-weight: normal; color: #475569; font-size: 9.5pt; }
+    .q-body { margin-bottom: 8px; word-wrap: break-word; }
+    
+    .q-figure img { max-width: 100%; max-height: 250px; margin: 8px 0; display: block; object-fit: contain; }
+    
+    .options { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 10px 0 10px 24px; padding: 0; }
+    .option { flex: 1 1 45%; min-width: 250px; margin: 0; list-style: none; display: flex; align-items: flex-start; }
+    .opt-label { font-weight: bold; margin-right: 8px; font-family: 'Segoe UI', Arial, sans-serif; }
+    .correct { color: #166534; font-weight: bold; margin-left: 4px; }
+    
+    .footer-note { margin-top: 30px; font-size: 8.5pt; color: #64748b; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-family: 'Segoe UI', Arial, sans-serif; }
+    
+    table.data-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }
+    table.data-table td, table.data-table th { border: 1px solid #111; padding: 6px 10px; text-align: left; }
+    table.data-table th { background-color: #f1f5f9; font-weight: bold; }
+    
+    .katex-display { margin: 0.6em 0; overflow-x: auto; }
   </style>
 </head>
 <body>
   ${watermark}
   <div class="header">
-    <h1>${escapeHtml(paper.title)}</h1>
-    <div class="meta">
-      ${escapeHtml(subjectName)} · Class ${paper.class} · ${escapeHtml(examName)} ·
-      Set ${paperSet} · ${includeAnswers ? 'Answer Key' : 'Question Paper'} ·
-      ${paper.total_questions} Questions · ${paper.total_marks} Marks ·
-      Time: ${paper.duration_minutes} min
-    </div>
-    <div class="meta">Code: ${escapeHtml(paper.paper_code)} · Status: ${escapeHtml(paper.status)}</div>
+    <div class="institution-name">${escapeHtml(institutionName)}</div>
+    <div class="exam-name">${escapeHtml(examName)}</div>
+    <div class="paper-title">${escapeHtml(paper.title)}</div>
+    <table class="meta-table">
+      <tr>
+        <td style="width: 35%;"><strong>Subject:</strong> ${escapeHtml(subjectName)}</td>
+        <td style="width: 30%; text-align: center;"><strong>Class:</strong> ${paper.class}</td>
+        <td style="width: 35%; text-align: right;"><strong>Set:</strong> ${paperSet} ${includeAnswers ? '(Answer Key)' : ''}</td>
+      </tr>
+      <tr>
+        <td><strong>Time Allowed:</strong> ${paper.duration_minutes} Mins</td>
+        <td style="text-align: center;"><strong>Total Questions:</strong> ${paper.total_questions}</td>
+        <td style="text-align: right;"><strong>Max. Marks:</strong> ${paper.total_marks}</td>
+      </tr>
+    </table>
   </div>
   ${paper.instructions ? `<div class="instructions"><strong>Instructions:</strong> ${escapeHtml(paper.instructions)}</div>` : ''}
   ${bodySections}

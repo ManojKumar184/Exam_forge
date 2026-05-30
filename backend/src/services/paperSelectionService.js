@@ -87,7 +87,7 @@ function computeDifficultyTargets(total, distribution = {}, sectionOverride = nu
 }
 
 function pickFromPool(pool, needed, state) {
-  const { excludeIds, usedHashes, usedUploadIds, usedQuestionIds } = state;
+  const { excludeIds, usedHashes, usedQuestionIds } = state;
   const exclude = excludeIds;
 
   const candidates = shuffle(
@@ -96,7 +96,6 @@ function pickFromPool(pool, needed, state) {
       if (exclude.has(id)) return false;
       if (usedQuestionIds.has(id)) return false;
       if (q.duplicateHash && usedHashes.has(q.duplicateHash)) return false;
-      if (q.uploadId && usedUploadIds.has(q.uploadId.toString())) return false;
       return true;
     })
   );
@@ -105,11 +104,9 @@ function pickFromPool(pool, needed, state) {
   for (const q of candidates) {
     if (picked.length >= needed) break;
     if (q.duplicateHash && usedHashes.has(q.duplicateHash)) continue;
-    if (q.uploadId && usedUploadIds.has(q.uploadId.toString())) continue;
     picked.push(q);
     usedQuestionIds.add(q._id.toString());
     if (q.duplicateHash) usedHashes.add(q.duplicateHash);
-    if (q.uploadId) usedUploadIds.add(q.uploadId.toString());
   }
   return picked;
 }
@@ -146,11 +143,9 @@ function pickBalancedSection(pool, count, distribution, state, sectionDifficulty
         const id = q._id.toString();
         if (state.usedQuestionIds.has(id)) continue;
         if (q.duplicateHash && state.usedHashes.has(q.duplicateHash)) continue;
-        if (q.uploadId && state.usedUploadIds.has(q.uploadId.toString())) continue;
         selected.push(q);
         state.usedQuestionIds.add(id);
         if (q.duplicateHash) state.usedHashes.add(q.duplicateHash);
-        if (q.uploadId) state.usedUploadIds.add(q.uploadId.toString());
       }
       round += 1;
     }
@@ -173,7 +168,6 @@ export async function selectQuestionsForPaper(config) {
   const state = {
     excludeIds,
     usedHashes: new Set(),
-    usedUploadIds: new Set(),
     usedQuestionIds: new Set(),
   };
 
@@ -221,13 +215,7 @@ export async function selectQuestionsForPaper(config) {
       sectionDifficulty
     );
 
-    if (picked.length < count) {
-      throw new AppError(
-        `Not enough questions for section "${spec.name}" (need ${count}, found ${picked.length})`,
-        400,
-        'INSUFFICIENT_QUESTIONS'
-      );
-    }
+
 
     resultSections.push({
       sectionId: spec.id || spec.sectionId,

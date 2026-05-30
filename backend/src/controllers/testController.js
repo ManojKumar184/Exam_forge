@@ -22,6 +22,11 @@ export async function update(req, res) {
   res.json({ success: true, data });
 }
 
+export async function remove(req, res) {
+  await testService.deleteTest(req.params.id, req.user);
+  res.json({ success: true, message: 'Test deleted successfully' });
+}
+
 export async function start(req, res) {
   const data = await testService.startAttempt(req.params.id, req.user);
   res.json({ success: true, data });

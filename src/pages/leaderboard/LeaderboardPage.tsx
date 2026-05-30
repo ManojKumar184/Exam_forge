@@ -103,9 +103,14 @@ export function LeaderboardPage() {
                 <div className="w-8 flex justify-center">{rankIcon(entry.rank)}</div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-900 dark:text-white truncate">
-                    {entry.profile?.full_name || entry.profile?.email || 'Student'}
+                    {entry.profile?.full_name || 'Student'}
                   </p>
-                  <p className="text-sm text-slate-500 flex items-center gap-1">
+                  {entry.profile?.email && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      {entry.profile.email}
+                    </p>
+                  )}
+                  <p className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
                     <Clock className="w-3.5 h-3.5" />
                     {formatDuration(entry.time_spent_seconds)}
                   </p>

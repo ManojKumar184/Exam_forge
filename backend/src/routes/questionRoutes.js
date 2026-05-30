@@ -28,27 +28,6 @@ router.post(
   asyncHandler(questionController.reconstruct)
 );
 
-router.get('/:id', asyncHandler(questionController.getOne));
-
-router.post(
-  '/',
-  authorize('super_admin', 'faculty'),
-  validate(createQuestionSchema),
-  asyncHandler(questionController.create)
-);
-
-router.patch(
-  '/:id',
-  authorize('super_admin'),
-  validate(updateQuestionSchema),
-  asyncHandler(questionController.update)
-);
-
-router.delete('/:id', authorize('super_admin'), asyncHandler(questionController.remove));
-
-router.post('/:id/approve', authorize('super_admin'), asyncHandler(questionController.approve));
-router.post('/:id/reject', authorize('super_admin'), asyncHandler(questionController.reject));
-
 router.post(
   '/bulk/approve',
   authorize('super_admin'),
@@ -73,5 +52,26 @@ router.post(
   validate(bulkUpdateMetadataSchema),
   asyncHandler(questionController.bulkUpdateMetadata)
 );
+
+router.get('/:id', asyncHandler(questionController.getOne));
+
+router.post(
+  '/',
+  authorize('super_admin', 'faculty'),
+  validate(createQuestionSchema),
+  asyncHandler(questionController.create)
+);
+
+router.patch(
+  '/:id',
+  authorize('super_admin'),
+  validate(updateQuestionSchema),
+  asyncHandler(questionController.update)
+);
+
+router.delete('/:id', authorize('super_admin'), asyncHandler(questionController.remove));
+
+router.post('/:id/approve', authorize('super_admin'), asyncHandler(questionController.approve));
+router.post('/:id/reject', authorize('super_admin'), asyncHandler(questionController.reject));
 
 export default router;

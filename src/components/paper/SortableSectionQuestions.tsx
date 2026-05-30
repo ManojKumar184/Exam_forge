@@ -1,16 +1,6 @@
+import { useDroppable } from '@dnd-kit/core';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
   SortableContext,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
@@ -30,7 +20,6 @@ export interface SelectedQuestion extends Question {
 interface SortableSectionQuestionsProps {
   sectionId: string;
   questions: SelectedQuestion[];
-  onReorder: (sectionId: string, questions: SelectedQuestion[]) => void;
   onUpdateMarks: (sectionId: string, questionId: string, marks: number) => void;
   onUpdateNegativeMarks?: (sectionId: string, questionId: string, negMarks: number | null) => void;
   onRemove: (sectionId: string, questionId: string) => void;
@@ -71,21 +60,22 @@ function SortableQuestionRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg group"
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-4 relative group hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
     >
-      <button
-        type="button"
-        className="mt-1 p-1 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Drag to reorder"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="w-4 h-4" />
-      </button>
-      <span className="text-sm font-medium text-slate-500 w-6">Q{index + 1}</span>
-      <div className="flex-1 min-w-0 max-h-48 overflow-y-auto">
-        <QuestionContentPreview question={question} compact />
-        <div className="flex items-center gap-2 mt-1">
+      <div className="flex items-start justify-between gap-4 mb-3 pb-2 border-b border-slate-100 dark:border-slate-700 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            className="p-1 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing touch-none rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+            aria-label="Drag to reorder"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+            Question {index + 1}
+          </span>
           <Badge
             size="sm"
             variant={
@@ -98,57 +88,73 @@ function SortableQuestionRow({
           >
             {question.difficulty}
           </Badge>
-          <Badge size="sm">{question.marks}M</Badge>
+          <Badge size="sm" variant="info" className="uppercase">
+            {question.question_type}
+          </Badge>
+          {question.subject?.name && (
+            <Badge size="sm" variant="default">
+              {question.subject.name}
+            </Badge>
+          )}
         </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[8px] uppercase font-bold text-slate-400 block">Marks</span>
-          <Input
-            type="number"
-            value={question.customMarks.toString()}
-            onChange={(e) => {
-              const marks = parseInt(e.target.value, 10) || 0;
-              onUpdateMarks(sectionId, question.id, marks);
-            }}
-            className="w-12 h-7 text-xs px-1 text-center"
-          />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[8px] uppercase font-bold text-slate-400 block">Neg M</span>
-          <Input
-            type="number"
-            value={(question.customNegativeMarks ?? '').toString()}
-            onChange={(e) => {
-              const val = e.target.value === '' ? null : Number(e.target.value);
-              onUpdateNegativeMarks?.(sectionId, question.id, val);
-            }}
-            placeholder="0"
-            className="w-12 h-7 text-xs px-1 text-center font-medium text-red-600 dark:text-red-400"
-          />
-        </div>
-        <div className="flex items-center gap-0.5 mt-4">
-          {onReplace && (
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900/50 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500">Marks:</span>
+              <Input
+                type="number"
+                value={question.customMarks.toString()}
+                onChange={(e) => {
+                  const marks = parseInt(e.target.value, 10) || 0;
+                  onUpdateMarks(sectionId, question.id, marks);
+                }}
+                className="w-12 h-7 text-xs px-1 text-center font-bold"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-500">Neg M:</span>
+              <Input
+                type="number"
+                value={(question.customNegativeMarks ?? '').toString()}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? null : Number(e.target.value);
+                  onUpdateNegativeMarks?.(sectionId, question.id, val);
+                }}
+                placeholder="0"
+                className="w-12 h-7 text-xs px-1 text-center font-semibold text-red-600 dark:text-red-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {onReplace && (
+              <button
+                type="button"
+                onClick={() => onReplace(sectionId, question.id)}
+                disabled={isReplacing}
+                className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded disabled:opacity-40"
+                aria-label="Replace question"
+                title="Regenerate this slot"
+              >
+                <RefreshCw className={`w-4 h-4 ${isReplacing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onReplace(sectionId, question.id)}
-              disabled={isReplacing}
-              className="p-1 text-slate-400 hover:text-blue-500 disabled:opacity-40"
-              aria-label="Replace question"
-              title="Regenerate this slot"
+              onClick={() => onRemove(sectionId, question.id)}
+              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"
+              aria-label="Remove question"
+              title="Remove question"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isReplacing ? 'animate-spin' : ''}`} />
+              <Trash2 className="w-4 h-4" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onRemove(sectionId, question.id)}
-            className="p-1 text-slate-400 hover:text-red-500"
-            aria-label="Remove question"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          </div>
         </div>
+      </div>
+
+      <div className="pl-0 sm:pl-8 pr-2">
+        <QuestionContentPreview question={question} compact={false} showOptions={true} />
       </div>
     </div>
   );
@@ -157,52 +163,46 @@ function SortableQuestionRow({
 export function SortableSectionQuestions({
   sectionId,
   questions,
-  onReorder,
   onUpdateMarks,
   onUpdateNegativeMarks,
   onRemove,
   onReplace,
   replacingId,
 }: SortableSectionQuestionsProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = questions.findIndex((q) => q.id === active.id);
-    const newIndex = questions.findIndex((q) => q.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
-
-    const reordered = arrayMove(questions, oldIndex, newIndex).map((q, i) => ({
-      ...q,
-      orderIndex: i,
-    }));
-    onReorder(sectionId, reordered);
-  };
+  const { setNodeRef } = useDroppable({
+    id: sectionId,
+  });
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <div
+      ref={setNodeRef}
+      className="min-h-[100px] space-y-3 p-3 bg-slate-50/50 dark:bg-slate-900/10 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 transition-colors"
+    >
       <SortableContext items={questions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2">
-          {questions.map((question, index) => (
-            <SortableQuestionRow
-              key={question.id}
-              question={question}
-              index={index}
-              sectionId={sectionId}
-              onUpdateMarks={onUpdateMarks}
-              onUpdateNegativeMarks={onUpdateNegativeMarks}
-              onRemove={onRemove}
-              onReplace={onReplace}
-              isReplacing={replacingId === question.id}
-            />
-          ))}
-        </div>
+        {questions.length > 0 ? (
+          <div className="space-y-3">
+            {questions.map((question, index) => (
+              <SortableQuestionRow
+                key={question.id}
+                question={question}
+                index={index}
+                sectionId={sectionId}
+                onUpdateMarks={onUpdateMarks}
+                onUpdateNegativeMarks={onUpdateNegativeMarks}
+                onRemove={onRemove}
+                onReplace={onReplace}
+                isReplacing={replacingId === question.id}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">
+              No questions in this section. Drag questions here or click Add.
+            </p>
+          </div>
+        )}
       </SortableContext>
-    </DndContext>
+    </div>
   );
 }

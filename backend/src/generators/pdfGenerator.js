@@ -18,8 +18,9 @@ export async function generatePdfFromHtml(html) {
       headerTemplate: `<div style="font-size:8px;width:100%;text-align:center;color:#94a3b8;margin:0 15mm;">
         ExamForge
       </div>`,
-      footerTemplate: `<div style="font-size:9px;width:100%;text-align:center;color:#64748b;padding:0 15mm;">
-        Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+      footerTemplate: `<div style="font-size:9px;width:100%;display:flex;justify-content:space-between;color:#64748b;padding:0 15mm;">
+        <span>Generated via ExamForge on ${new Date().toLocaleString()}</span>
+        <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
       </div>`,
       margin: { top: '22mm', bottom: '18mm', left: '15mm', right: '15mm' },
     });
