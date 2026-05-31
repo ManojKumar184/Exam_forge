@@ -53,10 +53,26 @@ export async function exportPdf(req, res) {
   const type = req.query.type === 'answer_key' ? 'answer_key' : 'paper';
   const allowDraft = req.query.allow_draft === 'true' || req.query.allow_draft === '1';
   const paperSet = req.query.paper_set || req.query.set || undefined;
+  
+  const includeAnswers = req.query.includeAnswers === 'true' || req.query.includeAnswers === '1';
+  const includeExplanations = req.query.includeExplanations === 'true' || req.query.includeExplanations === '1';
+  const includeQuestionTypeBadges = req.query.includeQuestionTypeBadges === 'true' || req.query.includeQuestionTypeBadges === '1';
+  const includeDifficulty = req.query.includeDifficulty === 'true' || req.query.includeDifficulty === '1';
+  const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
+  const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
+  const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
+
   const { buffer, filename } = await paperExportService.exportPaperPdf(req.params.id, req.user, type, {
     allowDraft,
     paperSet,
     publicBaseUrl: publicBaseUrl(req),
+    includeAnswers,
+    includeExplanations,
+    includeQuestionTypeBadges,
+    includeDifficulty,
+    includeSource,
+    includeWatermark,
+    includeInstituteLogo,
   });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -67,10 +83,26 @@ export async function exportHtml(req, res) {
   const type = req.query.type === 'answer_key' ? 'answer_key' : 'paper';
   const allowDraft = req.query.allow_draft === 'true' || req.query.allow_draft === '1';
   const paperSet = req.query.paper_set || req.query.set || undefined;
+  
+  const includeAnswers = req.query.includeAnswers === 'true' || req.query.includeAnswers === '1';
+  const includeExplanations = req.query.includeExplanations === 'true' || req.query.includeExplanations === '1';
+  const includeQuestionTypeBadges = req.query.includeQuestionTypeBadges === 'true' || req.query.includeQuestionTypeBadges === '1';
+  const includeDifficulty = req.query.includeDifficulty === 'true' || req.query.includeDifficulty === '1';
+  const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
+  const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
+  const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
+
   const { html, filename } = await paperExportService.exportPaperHtml(req.params.id, req.user, type, {
     allowDraft,
     paperSet,
     publicBaseUrl: publicBaseUrl(req),
+    includeAnswers,
+    includeExplanations,
+    includeQuestionTypeBadges,
+    includeDifficulty,
+    includeSource,
+    includeWatermark,
+    includeInstituteLogo,
   });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

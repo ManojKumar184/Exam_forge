@@ -22,6 +22,22 @@ function buildQuestionMap(paper) {
   );
 }
 
+function getQuestionCategory(type) {
+  if (!type) return 'descriptive';
+  const upper = type.toUpperCase();
+  if (
+    ['MCQ', 'MCQ_SINGLE', 'MCQ_MULTI', 'TRUE_FALSE', 'ASSERTION_REASON', 'NESTED_OPTION_MCQ'].includes(upper)
+  ) {
+    return 'mcq';
+  }
+  if (
+    ['NUMERICAL', 'INTEGER'].includes(upper)
+  ) {
+    return 'numerical';
+  }
+  return 'descriptive';
+}
+
 export function computeGradingStatus(attempt, questionMap) {
   let needsManual = false;
   let pendingCount = 0;
@@ -30,7 +46,7 @@ export function computeGradingStatus(attempt, questionMap) {
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId.toString());
     const qType = entry?.question?.questionType;
-    if (qType !== 'descriptive') continue;
+    if (getQuestionCategory(qType) !== 'descriptive') continue;
     if (!answer.textAnswer?.trim()) continue;
     needsManual = true;
     if (answer.gradedAt) {
@@ -59,13 +75,15 @@ export function recomputeAttemptTotals(attempt, questionMap) {
     const marks = Number(answer.marksObtained || 0);
     score += marks;
 
-    if (answer.isSkipped || (entry?.question?.questionType === 'descriptive' && !answer.textAnswer)) {
+    const qCategory = getQuestionCategory(entry?.question?.questionType);
+
+    if (answer.isSkipped || (qCategory === 'descriptive' && !answer.textAnswer)) {
       skipped += 1;
       continue;
     }
     if (answer.isCorrect === true) correct += 1;
     else if (answer.isCorrect === false) wrong += 1;
-    else if (entry?.question?.questionType === 'descriptive' && answer.textAnswer && !answer.gradedAt) {
+    else if (qCategory === 'descriptive' && answer.textAnswer && !answer.gradedAt) {
       skipped += 1;
     }
   }

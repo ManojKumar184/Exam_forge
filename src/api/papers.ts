@@ -69,15 +69,35 @@ export async function selectQuestionsForPaperApi(
 
 export type PaperExportType = 'paper' | 'answer_key';
 
+export interface ExportPdfOptions {
+  type?: PaperExportType;
+  allowDraft?: boolean;
+  paperSet?: string;
+  includeAnswers?: boolean;
+  includeExplanations?: boolean;
+  includeQuestionTypeBadges?: boolean;
+  includeDifficulty?: boolean;
+  includeSource?: boolean;
+  includeWatermark?: boolean;
+  includeInstituteLogo?: boolean;
+}
+
 export async function downloadPaperPdfApi(
   paperId: string,
-  options: { type?: PaperExportType; allowDraft?: boolean; paperSet?: string } = {}
+  options: ExportPdfOptions = {}
 ): Promise<Blob> {
   const { data } = await apiClient.get(`/papers/${paperId}/export/pdf`, {
     params: {
       type: options.type === 'answer_key' ? 'answer_key' : 'paper',
       allow_draft: options.allowDraft ? 'true' : undefined,
       paper_set: options.paperSet,
+      includeAnswers: options.includeAnswers ? 'true' : undefined,
+      includeExplanations: options.includeExplanations ? 'true' : undefined,
+      includeQuestionTypeBadges: options.includeQuestionTypeBadges ? 'true' : undefined,
+      includeDifficulty: options.includeDifficulty ? 'true' : undefined,
+      includeSource: options.includeSource ? 'true' : undefined,
+      includeWatermark: options.includeWatermark ? 'true' : undefined,
+      includeInstituteLogo: options.includeInstituteLogo !== undefined ? (options.includeInstituteLogo ? 'true' : 'false') : undefined,
     },
     responseType: 'blob',
     timeout: 120000,

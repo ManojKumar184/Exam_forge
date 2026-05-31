@@ -22,7 +22,15 @@ export function StudentDashboard() {
     return <Loading fullScreen text="Loading dashboard..." />;
   }
 
-  const attempts = testAttempts;
+  const attempts = testAttempts.filter((attempt, _, self) => {
+    if (attempt.status === 'in_progress') {
+      const hasCompleted = self.some(
+        a => a.test_id === attempt.test_id && (a.status === 'submitted' || a.status === 'auto_submitted')
+      );
+      if (hasCompleted) return false;
+    }
+    return true;
+  });
   const completedTests = attempts.filter(a => a.status === 'submitted' || a.status === 'auto_submitted');
   const avgScore = completedTests.length > 0
     ? Math.round(completedTests.reduce((sum, a) => sum + (a.percentage || 0), 0) / completedTests.length)

@@ -25,26 +25,62 @@ export function PapersListPage() {
   const [shuffleOptions, setShuffleOptions] = useState(true);
   const [showResults, setShowResults] = useState(true);
   const [allowReview, setAllowReview] = useState(true);
+  const [showAnswers, setShowAnswers] = useState(true);
   const [isPublic, setIsPublic] = useState(true);
   const [accessCode, setAccessCode] = useState('');
 
-  const handleExportPdf = async (
+  // PDF Export settings states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportPaperObj, setExportPaperObj] = useState<Paper | null>(null);
+  const [exportType, setExportType] = useState<'paper' | 'answer_key'>('paper');
+  const [exportAnswers, setExportAnswers] = useState(false);
+  const [exportExplanations, setExportExplanations] = useState(false);
+  const [exportQuestionTypeBadges, setExportQuestionTypeBadges] = useState(false);
+  const [exportDifficulty, setExportDifficulty] = useState(false);
+  const [exportSource, setExportSource] = useState(false);
+  const [exportWatermark, setExportWatermark] = useState(false);
+  const [exportInstituteLogo, setExportInstituteLogo] = useState(true);
+
+  const handleExportPdf = (
     paper: Paper,
     type: 'paper' | 'answer_key'
   ) => {
-    setExportingId(paper.id);
+    setExportPaperObj(paper);
+    setExportType(type);
+    setExportAnswers(type === 'answer_key');
+    setExportExplanations(type === 'answer_key');
+    setExportQuestionTypeBadges(false);
+    setExportDifficulty(false);
+    setExportSource(false);
+    setExportWatermark(paper.status === 'draft');
+    setExportInstituteLogo(true);
+    setShowExportModal(true);
+  };
+
+  const handleExportPdfSubmit = async () => {
+    if (!exportPaperObj) return;
+    setExportingId(exportPaperObj.id);
+    setShowExportModal(false);
     try {
-      const blob = await downloadPaperPdfApi(paper.id, {
-        type,
-        allowDraft: paper.status === 'draft',
+      const blob = await downloadPaperPdfApi(exportPaperObj.id, {
+        type: exportType,
+        allowDraft: exportPaperObj.status === 'draft',
+        includeAnswers: exportAnswers,
+        includeExplanations: exportExplanations,
+        includeQuestionTypeBadges: exportQuestionTypeBadges,
+        includeDifficulty: exportDifficulty,
+        includeSource: exportSource,
+        includeWatermark: exportWatermark,
+        includeInstituteLogo: exportInstituteLogo,
       });
-      const suffix = type === 'answer_key' ? 'answer-key' : 'question-paper';
-      downloadBlob(blob, `${paper.paper_code}-${suffix}.pdf`);
+      const suffix = exportType === 'answer_key' ? 'answer-key' : 'question-paper';
+      downloadBlob(blob, `${exportPaperObj.paper_code || exportPaperObj.id}-${suffix}.pdf`);
       toast.success('PDF downloaded');
     } catch (e) {
       toast.error(getApiErrorMessage(e));
     } finally {
       setExportingId(null);
+      setExportPaperObj(null);
     }
   };
 
@@ -87,6 +123,7 @@ export function PapersListPage() {
       shuffle_options: shuffleOptions,
       show_results: showResults,
       allow_review: allowReview,
+      show_answers: showAnswers,
       is_public: isPublic,
       access_code: isPublic ? null : accessCode || null,
       status: 'scheduled',
@@ -319,6 +356,16 @@ export function PapersListPage() {
                 />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Allow Student Review</span>
               </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showAnswers}
+                  onChange={(e) => setShowAnswers(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Answers & Explanations</span>
+              </label>
             </div>
           </div>
 
@@ -364,6 +411,107 @@ export function PapersListPage() {
             </Button>
             <Button onClick={handleCreateOnlineTest}>
               Publish Test
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Export PDF Settings Modal */}
+      <Modal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="PDF Export Settings"
+        size="md"
+      >
+        <div className="p-6 space-y-6">
+          <div>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Customize options for exporting: <strong>{exportPaperObj?.title}</strong>
+            </p>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Export Parameters</h4>
+            
+            <div className="flex flex-col gap-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportAnswers}
+                  onChange={(e) => setExportAnswers(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Answers</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportExplanations}
+                  onChange={(e) => setExportExplanations(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Explanations</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportQuestionTypeBadges}
+                  onChange={(e) => setExportQuestionTypeBadges(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Question Type Badges</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportDifficulty}
+                  onChange={(e) => setExportDifficulty(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Difficulty</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportSource}
+                  onChange={(e) => setExportSource(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Source</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportWatermark}
+                  onChange={(e) => setExportWatermark(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Watermark</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportInstituteLogo}
+                  onChange={(e) => setExportInstituteLogo(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Institute Logo</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t pt-4 dark:border-slate-700">
+            <Button variant="ghost" onClick={() => setShowExportModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExportPdfSubmit} disabled={exportingId !== null}>
+              {exportingId !== null ? 'Exporting...' : 'Download PDF'}
             </Button>
           </div>
         </div>

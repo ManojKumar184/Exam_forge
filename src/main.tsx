@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { MathProvider } from './components/math/MathProvider';
 import App from './App.tsx';
 import './index.css';
+import 'katex/dist/katex.min.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

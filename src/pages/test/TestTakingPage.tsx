@@ -48,7 +48,112 @@ const STATUS_COLORS: Record<string, string> = {
   'review-correct': 'bg-emerald-500 text-white hover:bg-emerald-600',
   'review-incorrect': 'bg-rose-500 text-white hover:bg-rose-600',
   'review-skipped': 'bg-slate-300 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-400',
-  'review-pending': 'bg-amber-500 text-white hover:bg-amber-600',
+};
+
+export function getQuestionCategory(type: string): 'mcq' | 'descriptive' | 'numerical' {
+  if (!type) return 'descriptive';
+  const upper = type.toUpperCase();
+  if (
+    upper === 'MCQ' ||
+    upper === 'MCQ_SINGLE' ||
+    upper === 'MCQ_MULTI' ||
+    upper === 'TRUE_FALSE' ||
+    upper === 'ASSERTION_REASON' ||
+    upper === 'NESTED_OPTION_MCQ'
+  ) {
+    return 'mcq';
+  }
+  if (
+    upper === 'NUMERICAL' ||
+    upper === 'INTEGER'
+  ) {
+    return 'numerical';
+  }
+  return 'descriptive';
+}
+
+export function formatQuestionType(type: string): string {
+  if (!type) return 'Question';
+  const upper = type.toUpperCase();
+  switch (upper) {
+    case 'MCQ':
+    case 'MCQ_SINGLE':
+      return 'MCQ(single)';
+    case 'MCQ_MULTI':
+      return 'MCQ(multiple)';
+    case 'NUMERICAL':
+      return 'Numerical';
+    case 'INTEGER':
+      return 'Integer';
+    case 'DESCRIPTIVE':
+      return 'Descriptive';
+    case 'ASSERTION_REASON':
+      return 'Assertion/Reason';
+    case 'MATCH_COLUMNS':
+    case 'MATRIX_MATCH':
+    case 'MATCH_FOLLOWING':
+      return 'Match the Following';
+    case 'COMPREHENSION':
+    case 'PARAGRAPH_BASED':
+      return 'Comprehension';
+    case 'TRUE_FALSE':
+      return 'True/False';
+    case 'STATEMENT_SET':
+      return 'Statement Set';
+    case 'CASE_STUDY':
+      return 'Case Study';
+    case 'NESTED_OPTION_MCQ':
+      return 'Nested Option MCQ';
+    default:
+      return type
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+  }
+}
+
+export const getValidationError = (q: QuestionWithOrder): string | null => {
+  const type = q.question.question_type;
+  if (!type) return null;
+  const upper = type.toUpperCase();
+
+  if (upper === 'NUMERICAL') {
+    const val = String(q.numerical_answer ?? '');
+    const trimmed = val.trim();
+    if (trimmed === '') return null;
+    const numRegex = /^-?\d*\.?\d*$/;
+    if (!numRegex.test(trimmed)) {
+      return "Please enter a valid number.";
+    }
+    if (trimmed === '-' || trimmed === '+' || trimmed === '.' || trimmed === '-.') {
+      return "Please enter a complete number.";
+    }
+    return null;
+  }
+
+  if (upper === 'INTEGER') {
+    const val = String(q.numerical_answer ?? '');
+    const trimmed = val.trim();
+    if (trimmed === '') return null;
+    const intRegex = /^-?\d*$/;
+    if (!intRegex.test(trimmed)) {
+      return "Only integer values are allowed.";
+    }
+    if (trimmed === '-' || trimmed === '+') {
+      return "Please enter a complete integer.";
+    }
+    return null;
+  }
+
+  if (upper === 'DESCRIPTIVE') {
+    const val = q.text_answer || '';
+    if (val.length > 0 && val.trim() === '') {
+      return "Answer contains only blank spaces.";
+    }
+    return null;
+  }
+
+  return null;
 };
 
 export function TestTakingPage() {
@@ -83,6 +188,268 @@ export function TestTakingPage() {
   const submittingRef = useRef(false);
   const questionEnteredAtRef = useRef<number>(Date.now());
   const currentIndexRef = useRef(currentIndex);
+  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mapSavedAnswer = (saved?: NonNullable<TestAttempt['answers']>[number]) => {
+    const hasMcq = saved?.selected_option !== null && saved?.selected_option !== undefined;
+    const hasText = Boolean(saved?.text_answer);
+    const hasNum = saved?.numerical_answer !== null && saved?.numerical_answer !== undefined;
+    return {
+      user_answer: hasMcq ? saved!.selected_option! : undefined,
+      text_answer: saved?.text_answer ?? undefined,
+      numerical_answer: hasNum ? saved!.numerical_answer! : undefined,
+      is_visited: hasMcq || hasText || hasNum,
+      time_spent_seconds: saved?.time_spent_seconds ?? 0,
+      is_correct: saved?.is_correct ?? null,
+      marks_obtained: saved?.marks_obtained ?? 0,
+      grading_remarks: saved?.grading_remarks ?? null,
+    };
+  };
+
+  const buildQuestionsFromPaper = (
+    testData: OnlineTest,
+    attemptData: TestAttempt
+  ): QuestionWithOrder[] => {
+    const paperQuestions = testData.paper?.questions || [];
+    return paperQuestions.map((pq, index) => {
+      const saved = attemptData.answers?.find((a) => a.question_id === pq.question_id);
+      const mapped = mapSavedAnswer(saved);
+      return {
+        id: pq.question_id,
+        question: pq.question as Question,
+        order_index: index,
+        ...mapped,
+        is_marked: saved?.is_marked_for_review ?? false,
+        marks: pq.custom_marks || pq.question?.marks || 4,
+      };
+    });
+  };
+
+  const getQuestionTimeSpent = (q: QuestionWithOrder) => {
+    const delta = Math.floor((Date.now() - questionEnteredAtRef.current) / 1000);
+    return (q.time_spent_seconds || 0) + Math.max(0, delta);
+  };
+
+  const buildAutosaveAnswers = (list: QuestionWithOrder[]) =>
+    list.map((q) => {
+      const validationError = getValidationError(q);
+      const isInvalid = validationError !== null;
+
+      let numericalVal: number | null = null;
+      const category = getQuestionCategory(q.question.question_type);
+      if (category === 'numerical') {
+        const val = q.numerical_answer;
+        if (val !== undefined && val !== null && val !== '' && !isInvalid) {
+          numericalVal = Number(val);
+        }
+      }
+
+      let textVal: string | null = q.text_answer ?? null;
+      if (category === 'descriptive') {
+        if (isInvalid) {
+          textVal = null;
+        }
+      }
+
+      return {
+        question_id: q.id,
+        selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
+        text_answer: textVal,
+        numerical_answer: numericalVal,
+        is_marked_for_review: q.is_marked,
+        time_spent_seconds:
+          q.id === list[currentIndexRef.current]?.id ? getQuestionTimeSpent(q) : q.time_spent_seconds,
+      };
+    });
+
+  const [requiresAccessCode, setRequiresAccessCode] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [accessCodeError, setAccessCodeError] = useState<string | null>(null);
+  const startingRef = useRef(false);
+
+  const loadTest = async (code?: string) => {
+    if (!testId || startingRef.current) return;
+    startingRef.current = true;
+    setIsLoading(true);
+    setAccessCodeError(null);
+    try {
+      if (isReviewMode) {
+        const [testData, attempts] = await Promise.all([
+          fetchTestApi(testId),
+          fetchTestAttemptsApi(testId),
+        ]);
+        const submitted = attempts.find(
+          (a) => a.status === 'submitted' || a.status === 'auto_submitted'
+        );
+        if (!submitted) {
+          navigate('/tests');
+          return;
+        }
+        setTest(testData);
+        setAttempt(submitted);
+        setQuestions(buildQuestionsFromPaper(testData, submitted));
+        setTimeLeft(0);
+        return;
+      }
+
+      const started = await startTestApi(testId, code);
+      const testData = started.test;
+      setTest(testData);
+      setAttempt(started.attempt);
+      setRequiresAccessCode(false);
+
+      const serverElapsed = started.attempt.time_spent_seconds || 0;
+      const fullDuration = testData.duration_minutes * 60;
+      const session = loadTestSession(testId);
+      let initialTime = Math.max(0, fullDuration - serverElapsed);
+      if (session && session.timeLeft > 0 && session.timeLeft <= fullDuration) {
+        initialTime = Math.min(initialTime, session.timeLeft);
+      }
+      setTimeLeft(initialTime);
+      if (session?.currentIndex != null && session.currentIndex < (testData.paper?.questions?.length || 0)) {
+        setCurrentIndex(session.currentIndex);
+      }
+
+      const paperQuestions = testData.paper?.questions || [];
+      const questionsWithShuffled: QuestionWithOrder[] = paperQuestions.map((pq, index) => {
+        let shuffledOptions;
+        if (testData.shuffle_options && pq.question?.options) {
+          const optCount = (pq.question.options as unknown[]).length;
+          shuffledOptions = [...Array(optCount).keys()].sort(() => Math.random() - 0.5);
+        }
+        const saved = started.attempt.answers?.find((a) => a.question_id === pq.question_id);
+        const mapped = mapSavedAnswer(saved);
+        return {
+          id: pq.question_id,
+          question: pq.question as Question,
+          order_index: index,
+          shuffled_options: shuffledOptions,
+          ...mapped,
+          is_marked: saved?.is_marked_for_review ?? false,
+          marks: pq.custom_marks || pq.question?.marks || 4,
+        };
+      });
+      setQuestions(questionsWithShuffled);
+    } catch (error: any) {
+      startingRef.current = false;
+      console.error('Error loading test:', error);
+      const isAccessCodeError =
+        error?.response?.data?.error?.code === 'INVALID_ACCESS_CODE' ||
+        error?.response?.data?.errorCode === 'INVALID_ACCESS_CODE' ||
+        (error?.response?.status === 403 &&
+          (String(error?.response?.data?.error?.message || '').toLowerCase().includes('code') ||
+           String(error?.response?.data?.message || '').toLowerCase().includes('code')));
+
+      if (isAccessCodeError) {
+        setRequiresAccessCode(true);
+        if (code) {
+          setAccessCodeError('Invalid access code. Please try again.');
+        }
+      } else {
+        navigate('/tests');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const triggerDebouncedAutosave = (currentQuestions: QuestionWithOrder[]) => {
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+    autosaveTimeoutRef.current = setTimeout(async () => {
+      if (!testId || isReviewMode) return;
+      try {
+        const elapsed = testRef.current
+          ? testRef.current.duration_minutes * 60 - timeLeftRef.current
+          : 0;
+        await autosaveTestApi(testId, {
+          answers: buildAutosaveAnswers(currentQuestions),
+          time_spent_seconds: Math.max(0, elapsed),
+        });
+      } catch (err) {
+        console.error('Debounced autosave failed:', err);
+      }
+    }, 1000);
+  };
+
+  const flushAutosave = useCallback(async () => {
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+    if (!testId || isReviewMode) return;
+    try {
+      const elapsed = testRef.current
+        ? testRef.current.duration_minutes * 60 - timeLeftRef.current
+        : 0;
+      await autosaveTestApi(testId, {
+        answers: buildAutosaveAnswers(questionsRef.current),
+        time_spent_seconds: Math.max(0, elapsed),
+      });
+    } catch (err) {
+      console.error('Flush autosave failed:', err);
+    }
+  }, [testId, isReviewMode]);
+
+  const persistProgress = useCallback(async () => {
+    if (!testId || isReviewMode) return;
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
+    const currentTest = testRef.current;
+    const elapsed = currentTest
+      ? currentTest.duration_minutes * 60 - timeLeftRef.current
+      : 0;
+
+    await autosaveTestApi(testId, {
+      answers: buildAutosaveAnswers(questionsRef.current),
+      time_spent_seconds: Math.max(0, elapsed),
+    });
+  }, [testId, isReviewMode]);
+
+  const applySubmitResult = (submitted: TestAttempt, autoSubmitted: boolean) => {
+    const currentTest = testRef.current;
+    const timeTaken = submitted.time_spent_seconds
+      ?? (currentTest ? currentTest.duration_minutes * 60 - timeLeftRef.current : 0);
+
+    setResult({
+      score: submitted.score,
+      maxScore: submitted.max_score,
+      percentage: submitted.percentage.toFixed(1),
+      correct: submitted.correct_answers,
+      wrong: submitted.wrong_answers,
+      skipped: submitted.skipped_answers,
+      timeTaken,
+      autoSubmitted,
+    });
+    setShowResultModal(true);
+  };
+
+  const finalizeSubmit = useCallback(
+    async (auto = false) => {
+      if (!testId || isReviewMode || submittingRef.current) return;
+      submittingRef.current = true;
+      setIsLoading(true);
+      setShowSubmitModal(false);
+
+      try {
+        await persistProgress();
+        const submitted = auto ? await autoSubmitTestApi(testId) : await submitTestApi(testId);
+        clearTestSession(testId);
+        applySubmitResult(submitted, auto);
+      } catch (error) {
+        console.error('Submit failed:', error);
+        alert('Failed to submit test. Please try again.');
+      } finally {
+        submittingRef.current = false;
+        setIsLoading(false);
+      }
+    },
+    [testId, isReviewMode, persistProgress]
+  );
+
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
@@ -151,271 +518,77 @@ export function TestTakingPage() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isReviewMode]);
 
-  const mapSavedAnswer = (saved?: NonNullable<TestAttempt['answers']>[number]) => {
-    const hasMcq = saved?.selected_option !== null && saved?.selected_option !== undefined;
-    const hasText = Boolean(saved?.text_answer);
-    const hasNum = saved?.numerical_answer !== null && saved?.numerical_answer !== undefined;
-    return {
-      user_answer: hasMcq ? saved!.selected_option! : undefined,
-      text_answer: saved?.text_answer ?? undefined,
-      numerical_answer: hasNum ? saved!.numerical_answer! : undefined,
-      is_visited: hasMcq || hasText || hasNum,
-      time_spent_seconds: saved?.time_spent_seconds ?? 0,
-      is_correct: saved?.is_correct ?? null,
-      marks_obtained: saved?.marks_obtained ?? 0,
-      grading_remarks: saved?.grading_remarks ?? null,
-    };
-  };
-
-  const buildQuestionsFromPaper = (
-    testData: OnlineTest,
-    attemptData: TestAttempt
-  ): QuestionWithOrder[] => {
-    const paperQuestions = testData.paper?.questions || [];
-    return paperQuestions.map((pq, index) => {
-      const saved = attemptData.answers?.find((a) => a.question_id === pq.question_id);
-      const mapped = mapSavedAnswer(saved);
-      return {
-        id: pq.question_id,
-        question: pq.question as Question,
-        order_index: index,
-        ...mapped,
-        is_marked: saved?.is_marked_for_review ?? false,
-        marks: pq.custom_marks || pq.question?.marks || 4,
-      };
-    });
-  };
-
-  const getQuestionTimeSpent = (q: QuestionWithOrder) => {
-    const delta = Math.floor((Date.now() - questionEnteredAtRef.current) / 1000);
-    return (q.time_spent_seconds || 0) + Math.max(0, delta);
-  };
-
-  const buildAutosaveAnswers = (list: QuestionWithOrder[]) =>
-    list.map((q) => ({
-      question_id: q.id,
-      selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
-      text_answer: q.text_answer ?? null,
-      numerical_answer:
-        q.numerical_answer !== undefined && q.numerical_answer !== ''
-          ? Number(q.numerical_answer)
-          : null,
-      is_marked_for_review: q.is_marked,
-      time_spent_seconds:
-        q.id === list[currentIndexRef.current]?.id ? getQuestionTimeSpent(q) : q.time_spent_seconds,
-    }));
-
-  const [requiresAccessCode, setRequiresAccessCode] = useState(false);
-  const [accessCodeInput, setAccessCodeInput] = useState('');
-  const [accessCodeError, setAccessCodeError] = useState<string | null>(null);
-
-  const loadTest = async (code?: string) => {
-    if (!testId) return;
-    setIsLoading(true);
-    setAccessCodeError(null);
-    try {
-      if (isReviewMode) {
-        const [testData, attempts] = await Promise.all([
-          fetchTestApi(testId),
-          fetchTestAttemptsApi(testId),
-        ]);
-        const submitted = attempts.find(
-          (a) => a.status === 'submitted' || a.status === 'auto_submitted'
-        );
-        if (!submitted) {
-          navigate('/tests');
-          return;
-        }
-        setTest(testData);
-        setAttempt(submitted);
-        setQuestions(buildQuestionsFromPaper(testData, submitted));
-        setTimeLeft(0);
-        return;
-      }
-
-      const started = await startTestApi(testId, code);
-      const testData = started.test;
-      setTest(testData);
-      setAttempt(started.attempt);
-      setRequiresAccessCode(false);
-
-      const serverElapsed = started.attempt.time_spent_seconds || 0;
-      const fullDuration = testData.duration_minutes * 60;
-      const session = loadTestSession(testId);
-      let initialTime = Math.max(0, fullDuration - serverElapsed);
-      if (session && session.timeLeft > 0 && session.timeLeft <= fullDuration) {
-        initialTime = Math.min(initialTime, session.timeLeft);
-      }
-      setTimeLeft(initialTime);
-      if (session?.currentIndex != null && session.currentIndex < (testData.paper?.questions?.length || 0)) {
-        setCurrentIndex(session.currentIndex);
-      }
-
-      const paperQuestions = testData.paper?.questions || [];
-      const questionsWithShuffled: QuestionWithOrder[] = paperQuestions.map((pq, index) => {
-        let shuffledOptions;
-        if (testData.shuffle_options && pq.question?.options) {
-          const optCount = (pq.question.options as unknown[]).length;
-          shuffledOptions = [...Array(optCount).keys()].sort(() => Math.random() - 0.5);
-        }
-        const saved = started.attempt.answers?.find((a) => a.question_id === pq.question_id);
-        const mapped = mapSavedAnswer(saved);
-        return {
-          id: pq.question_id,
-          question: pq.question as Question,
-          order_index: index,
-          shuffled_options: shuffledOptions,
-          ...mapped,
-          is_marked: saved?.is_marked_for_review ?? false,
-          marks: pq.custom_marks || pq.question?.marks || 4,
-        };
-      });
-      setQuestions(questionsWithShuffled);
-    } catch (error: any) {
-      console.error('Error loading test:', error);
-      const isAccessCodeError =
-        error?.response?.data?.errorCode === 'INVALID_ACCESS_CODE' ||
-        error?.response?.status === 403 &&
-          String(error?.response?.data?.message || '').toLowerCase().includes('code');
-
-      if (isAccessCodeError) {
-        setRequiresAccessCode(true);
-        if (code) {
-          setAccessCodeError('Invalid access code. Please try again.');
-        }
-      } else {
-        navigate('/tests');
-      }
-    } finally {
-      setIsLoading(false);
+  const prevIndexRef = useRef(currentIndex);
+  useEffect(() => {
+    if (prevIndexRef.current !== currentIndex) {
+      void flushAutosave();
+      prevIndexRef.current = currentIndex;
     }
-  };
+  }, [currentIndex, flushAutosave]);
 
-  const persistProgress = useCallback(async () => {
-    if (!testId || isReviewMode) return;
-    const currentTest = testRef.current;
-    const elapsed = currentTest
-      ? currentTest.duration_minutes * 60 - timeLeftRef.current
-      : 0;
+  useEffect(() => {
+    if (isReviewMode || !questions.length) return;
+    const currentQ = questions[currentIndex];
+    if (currentQ && !currentQ.is_visited) {
+      setQuestions((prev) => {
+        const next = prev.map((q, i) => (i === currentIndex ? { ...q, is_visited: true } : q));
+        questionsRef.current = next;
+        return next;
+      });
+    }
+  }, [currentIndex, isReviewMode, questions.length]);
 
-    await autosaveTestApi(testId, {
-      answers: buildAutosaveAnswers(questionsRef.current),
-      time_spent_seconds: Math.max(0, elapsed),
-    });
+  useEffect(() => {
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+        if (testId && !isReviewMode) {
+          const elapsed = testRef.current
+            ? testRef.current.duration_minutes * 60 - timeLeftRef.current
+            : 0;
+          void autosaveTestApi(testId, {
+            answers: buildAutosaveAnswers(questionsRef.current),
+            time_spent_seconds: Math.max(0, elapsed),
+          });
+        }
+      }
+    };
   }, [testId, isReviewMode]);
 
-  const applySubmitResult = (submitted: TestAttempt, autoSubmitted: boolean) => {
-    const currentTest = testRef.current;
-    const timeTaken = submitted.time_spent_seconds
-      ?? (currentTest ? currentTest.duration_minutes * 60 - timeLeftRef.current : 0);
-
-    setResult({
-      score: submitted.score,
-      maxScore: submitted.max_score,
-      percentage: submitted.percentage.toFixed(1),
-      correct: submitted.correct_answers,
-      wrong: submitted.wrong_answers,
-      skipped: submitted.skipped_answers,
-      timeTaken,
-      autoSubmitted,
-    });
-    setShowResultModal(true);
-  };
-
-  const finalizeSubmit = useCallback(
-    async (auto = false) => {
-      if (!testId || isReviewMode || submittingRef.current) return;
-      submittingRef.current = true;
-      setIsLoading(true);
-      setShowSubmitModal(false);
-
-      try {
-        await persistProgress();
-        const submitted = auto ? await autoSubmitTestApi(testId) : await submitTestApi(testId);
-        clearTestSession(testId);
-        applySubmitResult(submitted, auto);
-      } catch (error) {
-        console.error('Submit failed:', error);
-        alert('Failed to submit test. Please try again.');
-      } finally {
-        submittingRef.current = false;
-        setIsLoading(false);
-      }
-    },
-    [testId, isReviewMode, persistProgress]
-  );
-
-  const syncAnswer = async (patch: Partial<QuestionWithOrder>) => {
+  const syncAnswer = (patch: Partial<QuestionWithOrder>) => {
     if (isReviewMode) return;
-    setQuestions((prev) =>
-      prev.map((q, i) =>
-        i === currentIndex
-          ? {
-              ...q,
-              ...patch,
-              is_visited: true,
-              time_spent_seconds: getQuestionTimeSpent(q),
-            }
-          : q
-      )
-    );
-    questionEnteredAtRef.current = Date.now();
-
-    if (testId) {
-      const q = { ...questionsRef.current[currentIndex], ...patch };
-      await autosaveTestApi(testId, {
-        answers: [
-          {
-            question_id: q.id,
-            selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
-            text_answer: q.text_answer ?? null,
-            numerical_answer:
-              q.numerical_answer !== undefined && q.numerical_answer !== ''
-                ? Number(q.numerical_answer)
-                : null,
-            is_marked_for_review: q.is_marked,
+    const next = questionsRef.current.map((q, i) =>
+      i === currentIndex
+        ? {
+            ...q,
+            ...patch,
+            is_visited: true,
             time_spent_seconds: getQuestionTimeSpent(q),
-          },
-        ],
-        time_spent_seconds: testRef.current
-          ? testRef.current.duration_minutes * 60 - timeLeftRef.current
-          : 0,
-      });
-    }
+          }
+        : q
+    );
+    questionsRef.current = next;
+    setQuestions(next);
+    triggerDebouncedAutosave(next);
+    questionEnteredAtRef.current = Date.now();
   };
 
-  const handleAnswer = async (optionIndex: number) => {
-    await syncAnswer({ user_answer: optionIndex });
+  const handleAnswer = (optionIndex: number) => {
+    syncAnswer({ user_answer: optionIndex });
   };
 
-  const handleNumericalAnswer = async (value: string) => {
-    await syncAnswer({ numerical_answer: value });
+  const handleNumericalAnswer = (value: string) => {
+    syncAnswer({ numerical_answer: value });
   };
 
-  const handleTextAnswer = async (value: string) => {
-    await syncAnswer({ text_answer: value });
+  const handleTextAnswer = (value: string) => {
+    syncAnswer({ text_answer: value });
   };
 
-  const handleMark = async () => {
+  const handleMark = () => {
     if (isReviewMode) return;
     const nextMarked = !questions[currentIndex].is_marked;
-    setQuestions((prev) =>
-      prev.map((q, i) => (i === currentIndex ? { ...q, is_marked: nextMarked } : q))
-    );
-    if (testId) {
-      await autosaveTestApi(testId, {
-        answers: [
-          {
-            question_id: questions[currentIndex].id,
-            selected_option:
-              typeof questions[currentIndex].user_answer === 'number'
-                ? questions[currentIndex].user_answer
-                : null,
-            is_marked_for_review: nextMarked,
-          },
-        ],
-      });
-    }
+    syncAnswer({ is_marked: nextMarked });
   };
 
   const isAnswered = (q: QuestionWithOrder) =>
@@ -561,8 +734,11 @@ export function TestTakingPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-3 p-6">
-          <div className="mb-4 flex items-center gap-3">
-            <Badge size="md">Q{currentIndex + 1}</Badge>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Badge size="md" variant="info">Q{currentIndex + 1}</Badge>
+            <Badge size="md" variant="info">
+              {formatQuestionType(currentQuestion.question.question_type)}
+            </Badge>
             <Badge
               variant={
                 currentQuestion.question.difficulty === 'easy'
@@ -575,14 +751,14 @@ export function TestTakingPage() {
             >
               {currentQuestion.question.difficulty}
             </Badge>
-            <Badge size="md">{currentQuestion.question.marks} marks</Badge>
+            <Badge size="md" variant="default">{currentQuestion.marks} marks</Badge>
           </div>
 
           <div className="mb-6">
             <QuestionContentPreview question={currentQuestion.question} />
           </div>
 
-          {currentQuestion.question.question_type === 'mcq' && options && (
+          {getQuestionCategory(currentQuestion.question.question_type) === 'mcq' && options && (
             <div className="space-y-3">
               {displayOptions.map(({ originalIndex, option }, index) => {
                 const isSelected = currentQuestion.user_answer === originalIndex;
@@ -634,7 +810,7 @@ export function TestTakingPage() {
             </div>
           )}
 
-          {currentQuestion.question.question_type === 'numerical' && (
+          {getQuestionCategory(currentQuestion.question.question_type) === 'numerical' && (
             <div className="space-y-4">
               <Input
                 label="Your Answer"
@@ -642,7 +818,13 @@ export function TestTakingPage() {
                 disabled={isReviewMode}
                 value={String(currentQuestion.numerical_answer ?? '')}
                 onChange={(e) => handleNumericalAnswer(e.target.value)}
+                error={(!isReviewMode && getValidationError(currentQuestion)) ? (getValidationError(currentQuestion) || undefined) : undefined}
               />
+              {!isReviewMode && !getValidationError(currentQuestion) && currentQuestion.numerical_answer !== undefined && currentQuestion.numerical_answer !== '' && (
+                <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium animate-fade-in">
+                  <span>✓</span> Format is valid
+                </p>
+              )}
               {isReviewMode && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                   <div>
@@ -675,7 +857,7 @@ export function TestTakingPage() {
             </div>
           )}
 
-          {currentQuestion.question.question_type === 'descriptive' && (
+          {getQuestionCategory(currentQuestion.question.question_type) === 'descriptive' && (
             <div className="space-y-4">
               <Textarea
                 label="Your Answer"
@@ -683,7 +865,13 @@ export function TestTakingPage() {
                 value={currentQuestion.text_answer || ''}
                 onChange={(e) => handleTextAnswer(e.target.value)}
                 rows={6}
+                error={(!isReviewMode && getValidationError(currentQuestion)) ? (getValidationError(currentQuestion) || undefined) : undefined}
               />
+              {!isReviewMode && !getValidationError(currentQuestion) && currentQuestion.text_answer !== undefined && currentQuestion.text_answer.trim() !== '' && (
+                <p className="mt-1 text-xs text-emerald-600 flex items-center gap-1 font-medium animate-fade-in">
+                  <span>✓</span> Format is valid
+                </p>
+              )}
               {isReviewMode && (
                 <div className="space-y-4">
                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -772,6 +960,32 @@ export function TestTakingPage() {
                 {index + 1}
               </button>
             ))}
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3 text-xs">
+            <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Legend</h4>
+            <div className="grid grid-cols-1 gap-2 text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">#</span>
+                <span>Not Visited</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-red-500 text-white">#</span>
+                <span>Visited (Unanswered)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-green-500 text-white">#</span>
+                <span>Answered</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-purple-500 text-white">#</span>
+                <span>Marked for Review</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-blue-500 text-white">#</span>
+                <span>Answered & Marked</span>
+              </div>
+            </div>
           </div>
         </Card>
       </div>

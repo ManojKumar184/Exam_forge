@@ -30,11 +30,17 @@ export async function exportPaperDocument(paperId, user, exportType, opts = {}) 
     throw new AppError('Publish the paper or pass allow_draft=true to export drafts', 400, 'DRAFT_EXPORT');
   }
 
-  const includeAnswers = exportType === 'answer_key';
+  const showAnswers = exportType === 'answer_key' || opts.includeAnswers === true;
   const html = buildPaperExportHtml(
     { ...paper, paper_set: paperSet },
     {
-      includeAnswers,
+      includeAnswers: showAnswers,
+      includeExplanations: opts.includeExplanations === true,
+      includeQuestionTypeBadges: opts.includeQuestionTypeBadges === true,
+      includeDifficulty: opts.includeDifficulty === true,
+      includeSource: opts.includeSource === true,
+      includeWatermark: opts.includeWatermark === true,
+      includeInstituteLogo: opts.includeInstituteLogo !== false, // default true
       paperSet,
       draftWatermark: paper.status === 'draft',
       publicBaseUrl: opts.publicBaseUrl,

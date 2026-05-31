@@ -154,7 +154,7 @@ function SortableQuestionRow({
       </div>
 
       <div className="pl-0 sm:pl-8 pr-2">
-        <QuestionContentPreview question={question} compact={false} showOptions={true} />
+        <QuestionContentPreview question={question} compact={false} showOptions={true} showCorrect={true} showExplanation={true} />
       </div>
     </div>
   );

@@ -20,3 +20,11 @@ declare module 'react-katex' {
   export class BlockMath extends React.Component<MathProps> {}
 }
 
+declare module 'katex/dist/contrib/auto-render' {
+  export default function renderMathInElement(
+    element: HTMLElement,
+    options?: any
+  ): void;
+}
+
+

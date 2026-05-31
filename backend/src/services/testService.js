@@ -68,7 +68,7 @@ export async function createTest(body, user) {
     shuffleQuestions: Boolean(body.shuffle_questions ?? body.shuffleQuestions ?? true),
     shuffleOptions: Boolean(body.shuffle_options ?? body.shuffleOptions ?? true),
     showResults: Boolean(body.show_results ?? body.showResults ?? true),
-    showAnswers: Boolean(body.show_answers ?? body.showAnswers ?? false),
+    showAnswers: Boolean(body.show_answers ?? body.showAnswers ?? true),
     allowReview: Boolean(body.allow_review ?? body.allowReview ?? true),
     isPublic: Boolean(body.is_public ?? body.isPublic ?? true),
     accessCode: body.access_code || body.accessCode || null,
@@ -195,7 +195,9 @@ export async function autosaveAttempt(testId, user, payload) {
       const row = existing.get(key);
       if (!row) continue;
       if (incoming.selected_option !== undefined) row.selectedOption = incoming.selected_option;
-      if (incoming.numerical_answer !== undefined) row.numericalAnswer = incoming.numerical_answer;
+      if (incoming.numerical_answer !== undefined) {
+        row.numericalAnswer = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
+      }
       if (incoming.text_answer !== undefined) row.textAnswer = incoming.text_answer;
       if (incoming.is_marked_for_review !== undefined) {
         row.isMarkedForReview = incoming.is_marked_for_review;
@@ -213,16 +215,33 @@ export async function autosaveAttempt(testId, user, payload) {
   return mapTestAttempt(attempt);
 }
 
+function getQuestionCategory(type) {
+  if (!type) return 'descriptive';
+  const upper = type.toUpperCase();
+  if (
+    ['MCQ', 'MCQ_SINGLE', 'MCQ_MULTI', 'TRUE_FALSE', 'ASSERTION_REASON', 'NESTED_OPTION_MCQ'].includes(upper)
+  ) {
+    return 'mcq';
+  }
+  if (
+    ['NUMERICAL', 'INTEGER'].includes(upper)
+  ) {
+    return 'numerical';
+  }
+  return 'descriptive';
+}
+
 function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   if (!question) return { isCorrect: null, marks: 0, skipped: true };
-  if (question.questionType === 'mcq') {
+  const category = getQuestionCategory(question.questionType);
+  if (category === 'mcq') {
     if (answer.selectedOption === null || answer.selectedOption === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
     const isCorrect = Number(question.correctOption) === Number(answer.selectedOption);
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
-  if (question.questionType === 'numerical') {
+  if (category === 'numerical') {
     if (answer.numericalAnswer === null || answer.numericalAnswer === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }

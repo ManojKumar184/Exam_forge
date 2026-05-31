@@ -5,6 +5,7 @@ import { QuestionContentPreview, RichOptionContent } from '../../components/cont
 import { fetchAttemptReviewApi, fetchTestAttemptsApi } from '../../api/tests';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Question, TestAnswer, TestAttempt } from '../../types';
+import { formatQuestionType, getQuestionCategory } from './TestTakingPage';
 
 interface ReviewItem {
   question: Question;
@@ -133,8 +134,11 @@ export function TestReviewPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-3 p-6">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge>Q{currentIndex + 1}</Badge>
+            <Badge variant="info">
+              {formatQuestionType(current.question.question_type)}
+            </Badge>
             <Badge variant={resultVariant}>{resultLabel}</Badge>
             {showAnswers && (
               <Badge>
@@ -142,10 +146,13 @@ export function TestReviewPage() {
               </Badge>
             )}
           </div>
+          <div className="mb-4 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+            [{formatQuestionType(current.question.question_type)} Question]
+          </div>
 
           <QuestionContentPreview question={current.question} />
 
-          {current.question.question_type === 'mcq' && current.question.options && (
+          {getQuestionCategory(current.question.question_type) === 'mcq' && current.question.options && (
             <div className="mt-4 space-y-3">
               {current.question.options.map((opt, idx) => {
                 const isSelected = answer?.selected_option === idx;
@@ -175,7 +182,7 @@ export function TestReviewPage() {
                       <div className="ml-3 flex-shrink-0">
                         {isCorrect && (
                           <span className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-300">
-                            Correct Answer
+                            {isSelected ? 'Correct Answer (Your Selection)' : 'Correct Answer'}
                           </span>
                         )}
                         {isSelected && !isCorrect && (
@@ -198,10 +205,14 @@ export function TestReviewPage() {
             </div>
           )}
 
-          {current.question.question_type === 'numerical' && (
+          {getQuestionCategory(current.question.question_type) === 'numerical' && (
             <div className="mt-4 space-y-4">
               <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm">
-                Your answer: <span className="font-semibold">{answer?.numerical_answer ?? '—'}</span>
+                {answer?.numerical_answer === null || answer?.numerical_answer === undefined ? (
+                  <span>Status: <span className="font-semibold text-amber-600 dark:text-amber-400">Skipped</span></span>
+                ) : (
+                  <span>Your answer: <span className="font-semibold">{answer.numerical_answer}</span></span>
+                )}
               </div>
               {showAnswers && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -235,12 +246,16 @@ export function TestReviewPage() {
             </div>
           )}
 
-          {current.question.question_type === 'descriptive' && (
+          {getQuestionCategory(current.question.question_type) === 'descriptive' && (
             <div className="mt-4 space-y-4">
               <div>
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Your answer</p>
                 <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 whitespace-pre-wrap text-sm">
-                  {answer?.text_answer || '—'}
+                  {answer?.text_answer ? (
+                    answer.text_answer
+                  ) : (
+                    <span className="text-slate-500 italic">Status: Skipped</span>
+                  )}
                 </div>
               </div>
               {showAnswers && current.question.answer_text && (

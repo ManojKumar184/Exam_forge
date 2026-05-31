@@ -11,7 +11,7 @@ const onlineTestSchema = new mongoose.Schema(
     shuffleQuestions: { type: Boolean, default: false },
     shuffleOptions: { type: Boolean, default: false },
     showResults: { type: Boolean, default: true },
-    showAnswers: { type: Boolean, default: false },
+    showAnswers: { type: Boolean, default: true },
     allowReview: { type: Boolean, default: true },
     isPublic: { type: Boolean, default: true },
     accessCode: { type: String, default: null },

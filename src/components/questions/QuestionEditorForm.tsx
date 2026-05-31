@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button, Input, Select, Card, Alert, Badge } from '../ui';
+import { Button, Input, Select, Card, Alert, Badge, Textarea } from '../ui';
 import { LatexToolbar } from './LatexToolbar';
 import { RichQuestionEditor } from './RichQuestionEditor';
 import { ReconstructionPreview } from './ReconstructionPreview';
@@ -128,6 +128,7 @@ export function QuestionEditorForm({
   const [ocrText, setOcrText] = useState('');
   const [options, setOptions] = useState<QuestionOption[]>(defaultOptions());
   const [explanation, setExplanation] = useState('');
+  const [answerText, setAnswerText] = useState('');
   const [classLevel, setClassLevel] = useState(11);
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
@@ -190,6 +191,7 @@ export function QuestionEditorForm({
           setIsCustomChapter(d.isCustomChapter || false);
           setExamTypeId(d.examTypeId || '');
           setOcrText(d.ocrText || '');
+          setAnswerText(d.answerText || '');
         } catch {
           /* ignore */
         }
@@ -221,6 +223,7 @@ export function QuestionEditorForm({
         : defaultOptions())
     );
     setExplanation(d?.explanation || initial.explanation || '');
+    setAnswerText(d?.answerText || initial.answer_text || '');
     setClassLevel(d?.classLevel || initial.class || 11);
     setSubjectId(d?.subjectId || initial.subject_id || '');
     setChapterId(d?.chapterId || initial.chapter_id || '');
@@ -262,6 +265,7 @@ export function QuestionEditorForm({
         examTypeId,
         ocrText,
         explanation,
+        answerText,
         classLevel,
         difficulty,
         correctOption,
@@ -270,7 +274,7 @@ export function QuestionEditorForm({
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, classLevel, difficulty, correctOption, numericalAnswer, tagsInput]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, difficulty, correctOption, numericalAnswer, tagsInput]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -442,6 +446,10 @@ export function QuestionEditorForm({
         sub.questionType === 'numerical' && numericalAnswer
           ? Number(numericalAnswer)
           : null,
+      answer_text:
+        sub.questionType === 'descriptive'
+          ? answerText.trim() || null
+          : null,
       explanation: explanation.trim() || null,
       tags: [...new Set(tags)],
       status: 'pending',
@@ -462,7 +470,7 @@ export function QuestionEditorForm({
     correct_option: correctOption,
     numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
     numerical_tolerance: 0,
-    answer_text: null,
+    answer_text: answerText || null,
     difficulty,
     marks: isFaculty ? (marks ?? 4) : null,
     class: classLevel,
@@ -650,6 +658,22 @@ export function QuestionEditorForm({
                 setAutosaveStatus('saving');
               }}
               className="py-1 text-sm"
+            />
+          </Card>
+        )}
+
+        {SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType === 'descriptive' && (
+          <Card className="p-3">
+            <Textarea
+              label="Model Answer / Reference Key (optional)"
+              value={answerText}
+              onChange={(e) => {
+                setAnswerText(e.target.value);
+                setAutosaveStatus('saving');
+              }}
+              rows={4}
+              className="py-1 text-sm"
+              placeholder="Enter model answer or reference key for descriptive evaluation"
             />
           </Card>
         )}

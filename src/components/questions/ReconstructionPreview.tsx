@@ -379,7 +379,7 @@ export function ReconstructionPreview({
       )}
 
       <div className="rounded-md border border-slate-200 dark:border-slate-600 p-2 max-h-[min(60vh,420px)] overflow-y-auto overflow-x-auto bg-white dark:bg-slate-900">
-        <QuestionContentPreview question={previewQuestion} compact showOptions />
+        <QuestionContentPreview question={previewQuestion} compact showOptions showCorrect showExplanation />
       </div>
 
       {lastResult && (

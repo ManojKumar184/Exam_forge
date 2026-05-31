@@ -36,6 +36,7 @@ export function TestsListPage() {
   const [editAccessCode, setEditAccessCode] = useState('');
   const [editStatus, setEditStatus] = useState<OnlineTest['status']>('scheduled');
   const [editMaxAttempts, setEditMaxAttempts] = useState(1);
+  const [editShowAnswers, setEditShowAnswers] = useState(true);
 
   useEffect(() => {
     fetchOnlineTests();
@@ -108,6 +109,7 @@ export function TestsListPage() {
     setEditShuffleOptions(test.shuffle_options !== false);
     setEditShowResults(test.show_results !== false);
     setEditAllowReview(test.allow_review !== false);
+    setEditShowAnswers(test.show_answers !== false);
     setEditIsPublic(test.is_public !== false);
     setEditAccessCode(test.access_code || '');
     setEditStatus(test.status);
@@ -133,6 +135,7 @@ export function TestsListPage() {
       shuffle_options: editShuffleOptions,
       show_results: editShowResults,
       allow_review: editAllowReview,
+      show_answers: editShowAnswers,
       is_public: editIsPublic,
       access_code: editIsPublic ? null : editAccessCode || null,
       status: editStatus,
@@ -434,6 +437,16 @@ export function TestsListPage() {
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                   />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Allow Student Review</span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editShowAnswers}
+                    onChange={(e) => setEditShowAnswers(e.target.checked)}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                  />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Answers & Explanations</span>
                 </label>
               </div>
             </div>
