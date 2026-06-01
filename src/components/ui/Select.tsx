@@ -33,15 +33,15 @@ export function Select({
         <select
           id={selectId}
           className={`
-            w-full rounded-lg border shadow-sm transition-all duration-200
-            pl-3 pr-10 py-2 text-sm appearance-none
+            w-full rounded-lg border transition-colors duration-200
+            pl-3 pr-10 py-2 text-sm appearance-none bg-white dark:bg-slate-800/50
             ${error
-              ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-              : 'border-slate-300 focus:border-blue-500 focus:ring-blue-500'
+              ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20'
+              : 'border-slate-300 focus:border-primary-500 focus:ring-primary-500/20'
             }
-            focus:outline-none focus:ring-2 focus:ring-opacity-50
+            focus:outline-none focus:ring-2
             disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed
-            dark:bg-slate-800 dark:border-slate-600 dark:text-white
+            dark:border-slate-600 dark:text-white dark:disabled:bg-slate-800
             ${className}
           `}
           {...props}
@@ -62,7 +62,7 @@ export function Select({
         </div>
       </div>
       {error && (
-        <p className="mt-1 text-xs text-red-500">{error}</p>
+        <p className="mt-1.5 text-xs text-red-500 dark:text-red-400">{error}</p>
       )}
     </div>
   );

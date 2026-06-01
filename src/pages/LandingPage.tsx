@@ -64,10 +64,10 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-button">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900 dark:text-white">ExamForge AI</span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">ExamForge AI</span>
             </div>
             <div className="flex items-center gap-4">
               <Link to="/login">
@@ -84,14 +84,14 @@ export function LandingPage() {
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
             AI-Powered Question Paper Generation
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-white mb-6 leading-tight tracking-tight">
             Create Exam Papers
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-700">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-500">
               10x Faster with AI
             </span>
           </h1>
@@ -159,9 +159,9 @@ export function LandingPage() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300"
+                className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-card border border-slate-200 dark:border-slate-700 hover:shadow-card-hover hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mb-4">
+                <div className="w-11 h-11 rounded-lg bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 mb-4">
                   {feature.icon}
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
@@ -177,7 +177,7 @@ export function LandingPage() {
       {/* CTA Section */}
       <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-8 sm:p-12 text-center shadow-2xl shadow-blue-500/30">
+          <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl p-8 sm:p-12 text-center shadow-overlay">
             <h2 className="text-3xl font-bold text-white mb-4">
               Ready to Transform Your Exam Preparation?
             </h2>

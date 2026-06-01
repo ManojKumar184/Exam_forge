@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert
+  Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert, PageHeader
 } from '../../components/ui';
 import { Link } from 'react-router-dom';
 import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
@@ -161,22 +161,17 @@ export function QuestionBankPage() {
 
   return (
     <div className="space-y-3 pb-20 -mt-1">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Question Bank</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-xs">
-            {questions.length} questions
-            {selectedIds.length > 0 && ` · ${selectedIds.length} selected`}
-          </p>
-        </div>
-        {(isAdmin || isFaculty) && (
+      <PageHeader
+        title="Question Bank"
+        subtitle={`${questions.length} questions${selectedIds.length > 0 ? ` · ${selectedIds.length} selected` : ''}`}
+        actions={(isAdmin || isFaculty) && (
           <Link to="/questions/new">
             <Button size="sm" leftIcon={<Plus className="w-4 h-4" />}>
               Create question
             </Button>
           </Link>
         )}
-      </div>
+      />
 
       <Card className="p-1.5 sm:p-2 sticky top-0 z-20 bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">

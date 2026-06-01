@@ -63,7 +63,7 @@ export function Layout() {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -81,11 +81,11 @@ export function Layout() {
           {/* Logo */}
           <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-button">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white">ExamForge</h1>
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">ExamForge</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400">AI-Powered Platform</p>
               </div>
             </div>
@@ -100,10 +100,10 @@ export function Layout() {
                     to={item.path}
                     onClick={() => setSidebarOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 ${
                         isActive
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50'
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 border-l-[3px] border-primary-600 -ml-px'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-200'
                       }`
                     }
                   >
@@ -118,7 +118,7 @@ export function Layout() {
           {/* User section */}
           <div className="px-4 py-4 border-t border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-white font-semibold">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white text-sm font-semibold">
                 {profile?.full_name?.[0]?.toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
@@ -146,7 +146,7 @@ export function Layout() {
           <div className="flex items-center justify-between px-4 py-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 lg:hidden"
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 lg:hidden transition-colors"
             >
               {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -164,7 +164,7 @@ export function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 lg:p-5">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 lg:p-6">
           <Outlet />
         </main>
       </div>

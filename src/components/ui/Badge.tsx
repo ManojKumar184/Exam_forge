@@ -4,16 +4,25 @@ interface BadgeProps {
   children: React.ReactNode;
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
   size?: 'sm' | 'md';
+  dot?: boolean;
   className?: string;
 }
 
-export function Badge({ children, variant = 'default', size = 'sm', className = '' }: BadgeProps) {
+export function Badge({ children, variant = 'default', size = 'sm', dot = false, className = '' }: BadgeProps) {
   const variants = {
-    default: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
-    success: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    error: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    default: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    success: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    warning: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    error: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    info: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  };
+
+  const dotColors = {
+    default: 'bg-slate-400',
+    success: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    error: 'bg-red-500',
+    info: 'bg-blue-500',
   };
 
   const sizes = {
@@ -24,12 +33,15 @@ export function Badge({ children, variant = 'default', size = 'sm', className = 
   return (
     <span
       className={`
-        inline-flex items-center font-medium rounded-full
+        inline-flex items-center gap-1 font-medium rounded-full
         ${variants[variant]}
         ${sizes[size]}
         ${className}
       `}
     >
+      {dot && (
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />
+      )}
       {children}
     </span>
   );

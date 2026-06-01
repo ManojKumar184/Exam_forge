@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
-import { Card, Button, Badge, Loading, EmptyState, Input, Modal, Select } from '../../components/ui';
+import { Card, Button, Badge, Loading, EmptyState, Input, Modal, Select, PageHeader } from '../../components/ui';
 import { PlayCircle, Clock, Calendar, CheckCircle, Search, Plus, Edit, Trash2, Copy, ExternalLink } from 'lucide-react';
 import type { OnlineTest } from '../../types';
 import toast from 'react-hot-toast';
@@ -171,22 +171,15 @@ export function TestsListPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {isStudent ? 'Available Tests' : 'Online Tests'}
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            {filteredTests.length} tests found
-          </p>
-        </div>
-        {(isAdmin || isFaculty) && (
+      <PageHeader
+        title={isStudent ? 'Available Tests' : 'Online Tests'}
+        subtitle={`${filteredTests.length} tests found`}
+        actions={(isAdmin || isFaculty) && (
           <Link to="/papers">
             <Button leftIcon={<Plus className="w-4 h-4" />}>Create Test from Paper</Button>
           </Link>
         )}
-      </div>
+      />
 
       {/* Filters */}
       <div className="flex gap-4">

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, Button, Alert, Badge, Select } from '../../components/ui';
+import { Card, Button, Alert, Badge, Select, PageHeader } from '../../components/ui';
 import { uploadQuestionFileApi } from '../../api/uploads';
 import { getApiErrorMessage, apiClient } from '../../api/client';
 import {
@@ -226,12 +226,10 @@ export function UploadQuestionsPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Upload Question Bank</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Upload PDF or DOCX files — questions are extracted and queued for admin review
-        </p>
-      </div>
+      <PageHeader
+        title="Upload Question Bank"
+        subtitle="Upload PDF or DOCX files — questions are extracted and queued for admin review"
+      />
 
       <Alert variant="info" title="How it works">
         <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">

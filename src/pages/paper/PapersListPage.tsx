@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Edit, Trash2 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, Button, Badge, Loading, EmptyState, Modal, Input } from '../../components/ui';
+import { Card, Button, Badge, Loading, EmptyState, Modal, Input, PageHeader } from '../../components/ui';
 import { FileText, Plus, PlayCircle, Calendar, Clock, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadPaperPdfApi } from '../../api/papers';
@@ -40,6 +40,7 @@ export function PapersListPage() {
   const [exportSource, setExportSource] = useState(false);
   const [exportWatermark, setExportWatermark] = useState(false);
   const [exportInstituteLogo, setExportInstituteLogo] = useState(true);
+  const [exportShowQuestionMarks, setExportShowQuestionMarks] = useState(false);
 
   const handleExportPdf = (
     paper: Paper,
@@ -54,6 +55,7 @@ export function PapersListPage() {
     setExportSource(false);
     setExportWatermark(paper.status === 'draft');
     setExportInstituteLogo(true);
+    setExportShowQuestionMarks(false);
     setShowExportModal(true);
   };
 
@@ -72,6 +74,7 @@ export function PapersListPage() {
         includeSource: exportSource,
         includeWatermark: exportWatermark,
         includeInstituteLogo: exportInstituteLogo,
+        showQuestionMarks: exportShowQuestionMarks,
       });
       const suffix = exportType === 'answer_key' ? 'answer-key' : 'question-paper';
       downloadBlob(blob, `${exportPaperObj.paper_code || exportPaperObj.id}-${suffix}.pdf`);
@@ -142,16 +145,15 @@ export function PapersListPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Papers</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">{papers.length} papers generated</p>
-        </div>
-        <Link to="/papers/new">
-          <Button leftIcon={<Plus className="w-4 h-4" />}>Create Paper</Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="My Papers"
+        subtitle={`${papers.length} papers generated`}
+        actions={
+          <Link to="/papers/new">
+            <Button leftIcon={<Plus className="w-4 h-4" />}>Create Paper</Button>
+          </Link>
+        }
+      />
 
       {/* Papers Grid */}
       {papers.length === 0 ? (
@@ -502,6 +504,16 @@ export function PapersListPage() {
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                 />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Institute Logo</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportShowQuestionMarks}
+                  onChange={(e) => setExportShowQuestionMarks(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Question Marks</span>
               </label>
             </div>
           </div>

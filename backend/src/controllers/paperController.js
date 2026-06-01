@@ -61,6 +61,7 @@ export async function exportPdf(req, res) {
   const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
   const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
   const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
+  const showQuestionMarks = req.query.showQuestionMarks === 'true' || req.query.showQuestionMarks === '1';
 
   const { buffer, filename } = await paperExportService.exportPaperPdf(req.params.id, req.user, type, {
     allowDraft,
@@ -73,6 +74,7 @@ export async function exportPdf(req, res) {
     includeSource,
     includeWatermark,
     includeInstituteLogo,
+    showQuestionMarks,
   });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -91,6 +93,7 @@ export async function exportHtml(req, res) {
   const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
   const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
   const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
+  const showQuestionMarks = req.query.showQuestionMarks === 'true' || req.query.showQuestionMarks === '1';
 
   const { html, filename } = await paperExportService.exportPaperHtml(req.params.id, req.user, type, {
     allowDraft,
@@ -103,6 +106,7 @@ export async function exportHtml(req, res) {
     includeSource,
     includeWatermark,
     includeInstituteLogo,
+    showQuestionMarks,
   });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

@@ -11,8 +11,8 @@ export function Card({ children, className = '', hover = false, onClick }: CardP
   return (
     <div
       className={`
-        bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700
-        ${hover ? 'hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 cursor-pointer' : ''}
+        bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700
+        ${hover ? 'hover:shadow-card-hover hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 cursor-pointer' : ''}
         ${className}
       `}
       onClick={onClick}
@@ -55,7 +55,7 @@ interface CardFooterProps {
 
 export function CardFooter({ children, className = '' }: CardFooterProps) {
   return (
-    <div className={`px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-xl ${className}`}>
+    <div className={`px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 rounded-b-xl ${className}`}>
       {children}
     </div>
   );

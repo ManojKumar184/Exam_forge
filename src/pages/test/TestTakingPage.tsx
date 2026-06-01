@@ -639,7 +639,7 @@ export function TestTakingPage() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6">
         <Card className="max-w-md w-full p-6 space-y-6">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Access Code Required</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Access Code Required</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               This test is protected. Please enter the access code provided by your instructor.
             </p>
@@ -1013,7 +1013,7 @@ export function TestTakingPage() {
       >
         <div className="p-6 space-y-6 text-center">
           <Trophy className="w-20 h-20 mx-auto text-amber-500" />
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             {result?.autoSubmitted ? 'Auto-submitted' : 'Congratulations!'}
           </h2>
           <div className="grid grid-cols-3 gap-4">

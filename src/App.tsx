@@ -6,6 +6,7 @@ import { apiConfig } from './config/api';
 import { useAuth } from './hooks/useAuth';
 import { useDataStore } from './stores/dataStore';
 import { Loading } from './components/ui';
+import { COLORS, RADIUS } from './lib/designTokens';
 
 // Pages
 import { LandingPage } from './pages/LandingPage';
@@ -265,9 +266,10 @@ function App() {
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#1e293b',
-            color: '#f1f5f9',
-            borderRadius: '12px',
+            background: COLORS.neutral[800],
+            color: COLORS.neutral[100],
+            borderRadius: RADIUS.md,
+            fontSize: '0.875rem',
           },
         }}
       />

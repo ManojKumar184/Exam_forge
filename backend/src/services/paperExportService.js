@@ -41,6 +41,7 @@ export async function exportPaperDocument(paperId, user, exportType, opts = {}) 
       includeSource: opts.includeSource === true,
       includeWatermark: opts.includeWatermark === true,
       includeInstituteLogo: opts.includeInstituteLogo !== false, // default true
+      showQuestionMarks: opts.showQuestionMarks === true,
       paperSet,
       draftWatermark: paper.status === 'draft',
       publicBaseUrl: opts.publicBaseUrl,
@@ -51,7 +52,7 @@ export async function exportPaperDocument(paperId, user, exportType, opts = {}) 
   return {
     paper,
     html,
-    filename: `${paper.paper_code || paper.id}-${paperSet}-${includeAnswers ? 'answer-key' : 'question-paper'}.pdf`,
+    filename: `${paper.paper_code || paper.id}-${paperSet}-${showAnswers ? 'answer-key' : 'question-paper'}.pdf`,
   };
 }
 

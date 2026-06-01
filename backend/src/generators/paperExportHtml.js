@@ -74,7 +74,7 @@ function renderRichContent(text, latex) {
   if (blockLatex && !primaryText.includes('$')) {
     try {
       html += katex.renderToString(blockLatex, { throwOnError: false, displayMode: true });
-    } catch {
+    } catch (e) {
       html += `<pre class="math-error">${escapeHtml(blockLatex)}</pre>`;
     }
   }
@@ -205,7 +205,17 @@ function renderImages(question, exportOpts) {
 
 function renderOptions(options, correctIndex, showAnswers, exportOpts) {
   if (!options?.length) return '';
-  return `<ul class="options">${options
+
+  // Determine option lengths to decide layout column flow dynamically
+  const longestOptLength = Math.max(...options.map(opt => (opt.text || '').length));
+  let optionsClass = 'options-1col';
+  if (longestOptLength < 15) {
+    optionsClass = 'options-4col';
+  } else if (longestOptLength < 35) {
+    optionsClass = 'options-2col';
+  }
+
+  return `<ul class="options ${optionsClass}">${options
     .map((opt, idx) => {
       const label = String.fromCharCode(65 + idx);
       const correct =
@@ -276,6 +286,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     includeSource = false,
     includeWatermark = false,
     includeInstituteLogo = true,
+    showQuestionMarks = false,
     paperSet = paper.paper_set || 'A',
     draftWatermark = paper.status === 'draft',
     publicBaseUrl = null,
@@ -314,6 +325,10 @@ export function buildPaperExportHtml(paper, options = {}) {
           const answerVal = getAnswerValue(q);
           allAnswerKeys.push({ qNum: globalQNum, answer: answerVal, question: q });
 
+          // Smart mark display: hide on uniform sections unless showQuestionMarks is overridden
+          const showMarksForThisQuestion = showQuestionMarks || !allSameMarks;
+          const marksHtml = showMarksForThisQuestion ? `<span class="q-marks">[${marks}]</span>` : '';
+
           // Badges
           const badges = [];
           if (includeQuestionTypeBadges) {
@@ -331,7 +346,7 @@ export function buildPaperExportHtml(paper, options = {}) {
           <div class="question-block">
             ${badgesHtml}
             <div class="q-stem-row">
-              <span class="q-marks">[${marks} Marks]</span>
+              ${marksHtml}
               <span class="q-num">Q${globalQNum}.</span>
               <span class="q-stem-text">${renderRichContent(q.question_text, q.question_latex)}</span>
             </div>
@@ -361,6 +376,20 @@ export function buildPaperExportHtml(paper, options = {}) {
     ? `<div class="watermark">${escapeHtml(watermarkText)}</div>`
     : '';
 
+  // Roll Number Slot (rendered for student Question Papers only)
+  let rollNoHtml = '';
+  if (!includeAnswers) {
+    rollNoHtml = `
+    <div class="roll-number-container">
+      <span class="roll-number-label">Roll No.</span>
+      <table class="roll-number-table">
+        <tr>
+          <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+      </table>
+    </div>`;
+  }
+
   // Answer Key Tabular Grid Redesign
   let answerKeyHtml = '';
   if (includeAnswers && allAnswerKeys.length > 0) {
@@ -377,7 +406,7 @@ export function buildPaperExportHtml(paper, options = {}) {
           .map(
             (k) => `
           <tr>
-            <td style="font-weight: 600; width: 45%;">Q${k.qNum}</td>
+            <td style="font-weight: 600; width: 45%; font-family: 'Segoe UI', Arial, sans-serif;">Q${k.qNum}</td>
             <td style="font-weight: bold; color: #1e3a8a; width: 55%;">${k.answer}</td>
           </tr>`
           )
@@ -476,7 +505,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     </div>`;
   } else {
     headerHtml = `
-    <div class="header" style="text-align: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 20px;">
+    <div class="header" style="text-align: center; margin-bottom: 10px;">
       <div class="institution-name">${escapeHtml(institutionName)}</div>
       <div class="exam-name">${escapeHtml(examName)}</div>
       <div class="paper-title">${escapeHtml(paper.title)}</div>
@@ -490,76 +519,89 @@ export function buildPaperExportHtml(paper, options = {}) {
   <title>${escapeHtml(paper.title)} — Set ${paperSet}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
   <style>
-    @page { margin: 24mm 15mm 20mm 15mm; }
-    body { font-family: Georgia, 'Times New Roman', Times, serif; font-size: 10.5pt; color: #111; line-height: 1.6; }
-    .watermark { position: fixed; top: 40%; left: 10%; right: 10%; text-align: center; font-size: 64pt; font-weight: bold; color: rgba(200,0,0,0.06); transform: rotate(-25deg); z-index: 0; pointer-events: none; text-transform: uppercase; word-wrap: break-word; }
+    @page { margin: 22mm 16mm 20mm 16mm; }
+    body { font-family: Georgia, 'Times New Roman', Times, serif; font-size: 10.5pt; color: #000; line-height: 1.6; }
+    .watermark { position: fixed; top: 40%; left: 8%; right: 8%; text-align: center; font-size: 64pt; font-weight: bold; color: rgba(0,0,0,0.04); transform: rotate(-25deg); z-index: 0; pointer-events: none; text-transform: uppercase; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; }
     
+    /* Roll Number table */
+    .roll-number-container { float: right; display: flex; align-items: center; margin-bottom: 12px; position: relative; z-index: 10; }
+    .roll-number-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; font-weight: bold; margin-right: 6px; text-transform: uppercase; color: #475569; }
+    .roll-number-table { border-collapse: collapse; margin: 0; width: auto; display: inline-table; }
+    .roll-number-table td { border: 1px solid #1e293b; width: 15px; height: 18px; padding: 0; text-align: center; }
+
     /* Header Styles */
-    .header-container { display: flex; align-items: center; justify-content: center; border-bottom: 3px double #111; padding-bottom: 12px; margin-bottom: 20px; position: relative; z-index: 1; }
-    .header-logo { width: 52px; height: 52px; fill: #1e3a8a; margin-right: 18px; flex-shrink: 0; }
+    .header-outer { border-bottom: 4px double #000; padding-bottom: 8px; margin-bottom: 22px; clear: both; }
+    .header-container { display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; margin-bottom: 8px; }
+    .header-logo { width: 56px; height: 56px; fill: #0f172a; margin-right: 18px; flex-shrink: 0; }
     .header-text { text-align: center; }
-    .institution-name { font-size: 16pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; }
-    .exam-name { font-size: 11.5pt; font-weight: 600; text-transform: uppercase; color: #334155; margin-bottom: 4px; font-family: 'Segoe UI', Arial, sans-serif; }
-    .paper-title { font-size: 12.5pt; font-style: italic; color: #475569; }
+    .institution-name { font-size: 17pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; font-family: 'Segoe UI', Arial, sans-serif; color: #000; }
+    .exam-name { font-size: 11.5pt; font-weight: 600; text-transform: uppercase; color: #1e293b; margin-bottom: 4px; font-family: 'Segoe UI', Arial, sans-serif; }
+    .paper-title { font-size: 12.5pt; font-style: italic; color: #334155; }
     
-    .meta-table { border-collapse: collapse; width: 100%; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 8px; }
-    .meta-table td { border: none; padding: 4px 0; color: #334155; }
+    .meta-table { border-collapse: collapse; width: 100%; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; border-top: 1.5px solid #000; padding-top: 6px; margin-top: 8px; }
+    .meta-table td { border: none; padding: 5px 0; color: #000; }
     
-    .instructions { border: 1.5px solid #111; padding: 12px; margin-bottom: 24px; border-radius: 4px; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.45; }
+    .instructions { border: 1.5px solid #000; padding: 12px; margin-bottom: 24px; border-radius: 4px; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; }
     .instructions strong { font-size: 10pt; text-transform: uppercase; }
     
     /* Section Styles */
-    .paper-section { margin-bottom: 28px; }
-    .section-header { margin-top: 24px; margin-bottom: 16px; border-bottom: 1.5px solid #111; padding-bottom: 6px; page-break-after: avoid; break-after: avoid; }
-    .section-tag { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; font-weight: bold; color: #1e3a8a; letter-spacing: 1px; }
-    .section-name { font-family: Georgia, serif; font-size: 14pt; font-weight: bold; color: #111; margin: 2px 0; }
-    .section-stats { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; color: #64748b; font-style: italic; }
+    .paper-section { margin-bottom: 30px; }
+    .section-header { margin-top: 26px; margin-bottom: 18px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 8px 0; text-align: center; page-break-after: avoid; break-after: avoid; }
+    .section-tag { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; font-weight: bold; color: #000; letter-spacing: 1.5px; text-transform: uppercase; }
+    .section-name { font-family: Georgia, serif; font-size: 13.5pt; font-weight: bold; color: #000; margin: 4px 0; }
+    .section-stats { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; color: #334155; font-style: italic; }
     
     /* Question Block Styles */
-    .question-block { margin: 20px 0; padding-left: 2px; page-break-inside: avoid; break-inside: avoid; display: block; }
+    .question-block { margin: 24px 0; padding-left: 2px; page-break-inside: avoid; break-inside: avoid; display: block; }
     
-    .q-badges-container { display: flex; gap: 8px; margin-bottom: 6px; page-break-after: avoid; break-after: avoid; }
-    .badge { font-size: 7.5pt; font-weight: 600; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; font-family: 'Segoe UI', Arial, sans-serif; border: 1px solid #cbd5e1; }
-    .q-type-badge { background-color: #f1f5f9; color: #334155; border-color: #cbd5e1; }
-    .q-difficulty-badge { background-color: #fef2f2; color: #991b1b; border-color: #fee2e2; }
-    .q-source-badge { background-color: #f0fdf4; color: #166534; border-color: #dcfce7; }
+    .q-badges-container { display: flex; gap: 8px; margin-bottom: 8px; page-break-after: avoid; break-after: avoid; }
+    .badge { font-size: 7.5pt; font-weight: 600; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; font-family: 'Segoe UI', Arial, sans-serif; border: 1px solid #1e293b; }
+    .q-type-badge { background-color: #f8fafc; color: #0f172a; border-color: #0f172a; }
+    .q-difficulty-badge { background-color: #fff1f2; color: #9f1239; border-color: #9f1239; }
+    .q-source-badge { background-color: #f0fdf4; color: #166534; border-color: #166534; }
 
-    .q-stem-row { position: relative; margin-bottom: 10px; line-height: 1.6; }
-    .q-num { font-weight: bold; margin-right: 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; }
-    .q-stem-text { display: inline; }
+    .q-stem-row { display: flex; align-items: flex-start; margin-bottom: 12px; line-height: 1.6; }
+    .q-num { font-weight: bold; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; min-width: 34px; flex-shrink: 0; }
+    .q-stem-text { flex-grow: 1; }
     .q-stem-text p, .q-stem-text div { display: inline; margin: 0; padding: 0; }
-    .q-marks { float: right; font-weight: bold; margin-left: 12px; color: #000; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; }
+    .q-marks { float: right; font-weight: bold; margin-left: 14px; color: #000; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; flex-shrink: 0; }
     
-    /* Option Styles */
-    .options { margin: 10px 0 10px 24px; padding: 0; list-style: none; }
+    /* Option Styles (Auto Columns layout) */
+    .options { margin: 10px 0 10px 34px; padding: 0; list-style: none; }
+    .options-4col { display: flex; flex-wrap: wrap; }
+    .options-4col .option { width: 25%; min-width: 120px; box-sizing: border-box; padding-right: 12px; }
+    .options-2col { display: flex; flex-wrap: wrap; }
+    .options-2col .option { width: 50%; min-width: 240px; box-sizing: border-box; padding-right: 16px; }
+    .options-1col .option { width: 100%; }
+
     .option { margin-bottom: 8px; display: flex; align-items: flex-start; page-break-inside: avoid; break-inside: avoid; }
-    .opt-label { font-weight: bold; margin-right: 10px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 20px; }
+    .opt-label { font-weight: bold; margin-right: 10px; font-family: 'Segoe UI', Arial, sans-serif; min-width: 22px; flex-shrink: 0; }
     .opt-text { flex-grow: 1; }
     .opt-text p { display: inline; margin: 0; }
-    .correct { color: #166534; font-weight: bold; margin-left: 6px; font-family: sans-serif; }
+    .correct { color: #15803d; font-weight: bold; margin-left: 6px; font-family: sans-serif; }
     
     /* Figure & Image Styles */
-    .q-figure { margin: 12px auto; text-align: center; page-break-inside: avoid; break-inside: avoid; display: block; }
-    .q-figure img { max-width: 100%; max-height: 320px; height: auto; object-fit: contain; display: block; margin: 0 auto; border: 1px solid #e2e8f0; padding: 4px; border-radius: 4px; }
+    .q-figure { margin: 14px auto; text-align: center; page-break-inside: avoid; break-inside: avoid; display: block; }
+    .q-figure img { max-width: 90%; max-height: 330px; height: auto; object-fit: contain; display: block; margin: 0 auto; border: 1.5px solid #000; padding: 6px; border-radius: 4px; }
     
     /* Table Styles */
-    table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 10pt; page-break-inside: avoid; break-inside: avoid; }
-    table th, table td { border: 1.5px solid #334155; padding: 8px 12px; text-align: left; }
-    table th { background-color: #f8fafc; font-weight: bold; color: #1e293b; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 10pt; page-break-inside: avoid; break-inside: avoid; }
+    table th, table td { border: 1.5px solid #000; padding: 8px 12px; text-align: left; }
+    table th { background-color: #f1f5f9; font-weight: bold; color: #000; }
     
     /* Answer Key Styles */
-    .answer-key-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: flex-start; margin-top: 16px; }
+    .answer-key-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; margin-top: 18px; }
     .answer-key-table { flex: 1 1 180px; max-width: 220px; margin: 0; }
-    .answer-key-table th, .answer-key-table td { border: 1px solid #94a3b8; padding: 5px 8px; text-align: center; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; }
-    .answer-key-table th { background-color: #f1f5f9; color: #334155; }
+    .answer-key-table th, .answer-key-table td { border: 1.5px solid #000; padding: 6px 10px; text-align: center; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; }
+    .answer-key-table th { background-color: #f1f5f9; color: #000; }
     
     /* Detailed Solutions Styles */
-    .explanations-list { display: flex; flex-col: column; gap: 20px; margin-top: 16px; }
-    .explanation-block { padding: 12px 14px; border-left: 3px solid #cbd5e1; margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid; background-color: #f8fafc; border-radius: 0 4px 4px 0; }
+    .explanations-list { display: flex; flex-direction: column; gap: 22px; margin-top: 18px; }
+    .explanation-block { padding: 14px 16px; border-left: 3.5px solid #475569; margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; background-color: #f8fafc; border-radius: 0 4px 4px 0; border: 1px solid #e2e8f0; border-left: 3.5px solid #475569; }
     .exp-header { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; margin-bottom: 4px; }
-    .exp-badge { background-color: #e0f2fe; color: #0369a1; font-weight: 600; font-size: 7.5pt; padding: 1px 5px; border-radius: 3px; margin-left: 6px; text-transform: uppercase; }
+    .exp-badge { background-color: #f1f5f9; color: #0f172a; border: 1px solid #0f172a; font-weight: 600; font-size: 7.5pt; padding: 1px 5px; border-radius: 3px; margin-left: 6px; text-transform: uppercase; }
     .exp-correct-answer { font-size: 9.5pt; color: #1e3a8a; margin-bottom: 6px; font-family: 'Segoe UI', Arial, sans-serif; }
-    .exp-body { font-size: 10pt; line-height: 1.55; }
+    .exp-body { font-size: 10pt; line-height: 1.6; }
     .exp-body p { margin-top: 0; margin-bottom: 8px; }
     .exp-body p:last-child { margin-bottom: 0; }
     
@@ -568,12 +610,28 @@ export function buildPaperExportHtml(paper, options = {}) {
     .page-break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
 
     .katex-display { margin: 0.8em 0; overflow-x: auto; }
-    .footer-note { margin-top: 40px; font-size: 8.5pt; color: #64748b; text-align: center; border-top: 1px dashed #cbd5e1; padding-top: 12px; font-family: 'Segoe UI', Arial, sans-serif; page-break-inside: avoid; break-inside: avoid; }
+    .footer-note { margin-top: 40px; font-size: 8.5pt; color: #475569; text-align: center; border-top: 1.5px solid #000; padding-top: 12px; font-family: 'Segoe UI', Arial, sans-serif; page-break-inside: avoid; break-inside: avoid; text-transform: uppercase; letter-spacing: 0.5px; }
   </style>
 </head>
 <body>
-  ${watermark}
-  ${headerHtml}
+  ${rollNoHtml}
+  
+  <div class="header-outer">
+    ${headerHtml}
+    
+    <table class="meta-table">
+      <tr>
+        <td style="width: 33%; font-weight: 500;"><strong>Subject:</strong> ${escapeHtml(subjectName)}</td>
+        <td style="width: 34%; text-align: center; font-weight: 500;"><strong>Class:</strong> ${paper.class}</td>
+        <td style="width: 33%; text-align: right; font-weight: 500;"><strong>Set:</strong> ${paperSet} ${includeAnswers ? '(Answer Key)' : ''}</td>
+      </tr>
+      <tr>
+        <td><strong>Time Allowed:</strong> ${paper.duration_minutes} Mins</td>
+        <td style="text-align: center;"><strong>Total Questions:</strong> ${paper.total_questions}</td>
+        <td style="text-align: right;"><strong>Max. Marks:</strong> ${paper.total_marks}</td>
+      </tr>
+    </table>
+  </div>
   
   ${paper.instructions ? `<div class="instructions"><strong>Instructions:</strong> ${escapeHtml(paper.instructions)}</div>` : ''}
   

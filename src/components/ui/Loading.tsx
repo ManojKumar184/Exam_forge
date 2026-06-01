@@ -15,7 +15,7 @@ export function Loading({ size = 'md', text, fullScreen = false }: LoadingProps)
 
   const content = (
     <div className="flex flex-col items-center justify-center gap-3">
-      <Loader2 className={`${sizes[size]} animate-spin text-blue-600`} />
+      <Loader2 className={`${sizes[size]} animate-spin text-primary-600 dark:text-primary-400`} />
       {text && (
         <p className="text-sm text-slate-600 dark:text-slate-400">{text}</p>
       )}
@@ -36,14 +36,14 @@ export function Loading({ size = 'md', text, fullScreen = false }: LoadingProps)
 export function LoadingSkeleton({ className = '' }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse bg-slate-200 dark:bg-slate-700 rounded ${className}`}
+      className={`rounded bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-700 dark:via-slate-600 dark:to-slate-700 bg-[length:200%_100%] animate-shimmer ${className}`}
     />
   );
 }
 
 export function CardSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card border border-slate-200 dark:border-slate-700 p-6">
       <LoadingSkeleton className="h-4 w-1/3 mb-4" />
       <LoadingSkeleton className="h-8 w-full mb-4" />
       <LoadingSkeleton className="h-4 w-2/3" />

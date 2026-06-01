@@ -533,10 +533,14 @@ export function QuestionEditorForm({
           </Alert>
         )}
 
-        <Card className="p-3 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+          Question Content & Ingestion
+        </div>
+        <Card className="p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Paste & reconstruct</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Paste & Reconstruct</h3>
               {clipboardFidelity && (
                 <Badge
                   variant={
@@ -627,9 +631,14 @@ export function QuestionEditorForm({
           </details>
         </Card>
 
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Options & Answers
+        </div>
+
         {isMcq && (
-          <Card className="p-3 space-y-2">
-            <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Options</h3>
+          <Card className="p-4 space-y-3">
+            <h3 className="font-semibold text-slate-900 dark:text-white text-sm border-b border-slate-100 dark:border-slate-800 pb-2">Options Configuration</h3>
             <OptionRichFields
               options={options}
               subtype={subtype as 'mcq_single' | 'mcq_multiple'}
@@ -690,7 +699,12 @@ export function QuestionEditorForm({
           />
         </Card>
 
-        <Card className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          Metadata & Taxonomy
+        </div>
+
+        <Card className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Select
             label="Class"
             value={String(classLevel)}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Card, Button, Badge, Loading, EmptyState, Input, Textarea } from '../../components/ui';
+import { Card, Button, Badge, Loading, EmptyState, Input, Textarea, PageHeader } from '../../components/ui';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import {
   fetchAttemptReviewApi,
@@ -105,10 +105,7 @@ export function TestGradingPage() {
   if (!attemptId) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Grading — {testCode}</h1>
-          <p className="text-slate-500 mt-1">Descriptive answers awaiting faculty review</p>
-        </div>
+        <PageHeader title={`Grading — ${testCode}`} subtitle="Descriptive answers awaiting faculty review" />
         {queue.length === 0 ? (
           <EmptyState title="No pending grading" description="All submitted attempts are graded." />
         ) : (
@@ -138,22 +135,20 @@ export function TestGradingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Grade attempt</h1>
-          <p className="text-slate-500 mt-1">
-            {attempt?.user?.full_name || 'Student'}{attempt?.user?.email ? ` (${attempt.user.email})` : ''} · {testCode}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate(`/tests/${testId}/grading`)}>
-            Queue ({queue.length})
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving…' : 'Save grades'}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Grade Attempt"
+        subtitle={`${attempt?.user?.full_name || 'Student'}${attempt?.user?.email ? ` (${attempt.user.email})` : ''} · ${testCode}`}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate(`/tests/${testId}/grading`)}>
+              Queue ({queue.length})
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving…' : 'Save grades'}
+            </Button>
+          </div>
+        }
+      />
 
       {descriptiveAnswers.length === 0 ? (
         <EmptyState title="No descriptive answers" description="This attempt has nothing to grade." />

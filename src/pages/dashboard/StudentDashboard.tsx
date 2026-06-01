@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading } from '../../components/ui';
+import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading, PageHeader } from '../../components/ui';
 import { Trophy, Clock, FileText, Target, Award, Calendar } from 'lucide-react';
 
 export function StudentDashboard() {
@@ -65,14 +65,10 @@ export function StudentDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-          Welcome, {profile?.full_name?.split(' ')[0] || 'Student'}!
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Track your progress and take exams.
-        </p>
-      </div>
+      <PageHeader
+        title={`Welcome, ${profile?.full_name?.split(' ')[0] || 'Student'}!`}
+        subtitle="Track your progress and take exams."
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

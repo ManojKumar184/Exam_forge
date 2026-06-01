@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, Button, Badge, Loading, Alert } from '../../components/ui';
+import { Card, Button, Badge, Loading, Alert, PageHeader } from '../../components/ui';
 import { QuestionContentPreview, RichOptionContent } from '../../components/content/RichContent';
 import { fetchAttemptReviewApi, fetchTestAttemptsApi } from '../../api/tests';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -116,19 +116,16 @@ export function TestReviewPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-white">Answer review</h1>
-            {attempt && (
-              <p className="text-sm text-slate-500">
-                Score {attempt.score}/{attempt.max_score} ({attempt.percentage}%)
-                {attempt.grading_status === 'pending' && ' · Descriptive grading pending'}
-              </p>
-            )}
-          </div>
-          <Button variant="outline" onClick={() => navigate('/tests')}>
-            Back
-          </Button>
+        <div className="max-w-5xl mx-auto">
+          <PageHeader
+            title="Answer Review"
+            subtitle={attempt ? `Score ${attempt.score}/${attempt.max_score} (${attempt.percentage}%)${attempt.grading_status === 'pending' ? ' · Descriptive grading pending' : ''}` : undefined}
+            actions={
+              <Button variant="outline" onClick={() => navigate('/tests')}>
+                Back to Tests
+              </Button>
+            }
+          />
         </div>
       </div>
 

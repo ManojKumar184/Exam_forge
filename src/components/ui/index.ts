@@ -10,4 +10,6 @@ export { Loading, LoadingSkeleton, CardSkeleton, TableRowSkeleton } from './Load
 export { Tabs } from './Tabs';
 export { StatCard } from './StatCard';
 export { EmptyState, NoResultsState, NoDataState } from './EmptyState';
-export { Alert } from './Accordion';
+export { Alert } from './Alert';
+export { PageHeader } from './PageHeader';
+export { DataTable } from './DataTable';

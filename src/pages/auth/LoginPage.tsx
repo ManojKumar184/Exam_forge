@@ -33,22 +33,22 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 mb-8"
+          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Home
         </Link>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card-hover border border-slate-200 dark:border-slate-700 p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
-              <GraduationCap className="w-8 h-8 text-white" />
+            <div className="w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-button-hover mb-4">
+              <GraduationCap className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome Back</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Welcome Back</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-2">
               Sign in to your ExamForge account
             </p>
@@ -100,10 +100,10 @@ export function LoginPage() {
 
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2">
-                <input type="checkbox" className="rounded border-slate-300" />
+                <input type="checkbox" className="rounded border-slate-300 text-primary-600 focus:ring-primary-500/20" />
                 <span className="text-slate-600 dark:text-slate-400">Remember me</span>
               </label>
-              <Link to="/forgot-password" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+              <Link to="/forgot-password" className="text-primary-600 hover:text-primary-700 dark:text-primary-400 transition-colors">
                 Forgot password?
               </Link>
             </div>
@@ -115,7 +115,7 @@ export function LoginPage() {
 
           <div className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
             Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">
+            <Link to="/register" className="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium transition-colors">
               Sign up
             </Link>
           </div>

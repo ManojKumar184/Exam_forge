@@ -57,22 +57,22 @@ export function RegisterPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 mb-8"
+          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Home
         </Link>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-card-hover border border-slate-200 dark:border-slate-700 p-8">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 mb-4">
-              <GraduationCap className="w-8 h-8 text-white" />
+            <div className="w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-button-hover mb-4">
+              <GraduationCap className="w-7 h-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Create Account</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Create Account</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-2">
               Join ExamForge AI and start creating exams
             </p>
@@ -152,14 +152,14 @@ export function RegisterPage() {
             />
 
             <div className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1 rounded border-slate-300" required />
+              <input type="checkbox" className="mt-1 rounded border-slate-300 text-primary-600 focus:ring-primary-500/20" required />
               <span className="text-slate-600 dark:text-slate-400">
                 I agree to the{' '}
-                <Link to="/terms" className="text-blue-600 hover:underline dark:text-blue-400">
+                <Link to="/terms" className="text-primary-600 hover:underline dark:text-primary-400">
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-blue-600 hover:underline dark:text-blue-400">
+                <Link to="/privacy" className="text-primary-600 hover:underline dark:text-primary-400">
                   Privacy Policy
                 </Link>
               </span>
@@ -172,7 +172,7 @@ export function RegisterPage() {
 
           <div className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
             Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">
+            <Link to="/login" className="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium transition-colors">
               Sign in
             </Link>
           </div>

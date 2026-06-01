@@ -36,20 +36,20 @@ export function MultiSelect({
           {label}
         </label>
       )}
-      <div className="border border-slate-300 dark:border-slate-600 rounded-lg p-2 max-h-36 overflow-y-auto bg-white dark:bg-slate-800">
+      <div className="border border-slate-300 dark:border-slate-600 rounded-lg p-2 max-h-36 overflow-y-auto bg-white dark:bg-slate-800/50">
         {options.length === 0 ? (
-          <p className="text-xs text-slate-500 px-1">{placeholder}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{placeholder}</p>
         ) : (
           options.map((opt) => (
             <label
               key={opt.value}
-              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer text-sm"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer text-sm transition-colors duration-150"
             >
               <input
                 type="checkbox"
                 checked={values.includes(opt.value)}
                 onChange={() => toggle(opt.value)}
-                className="rounded border-slate-300"
+                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500/20 dark:border-slate-600"
               />
               <span className="text-slate-700 dark:text-slate-300">{opt.label}</span>
             </label>
@@ -57,7 +57,7 @@ export function MultiSelect({
         )}
       </div>
       {values.length > 0 && (
-        <p className="text-xs text-slate-500 mt-1">{values.length} selected</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">{values.length} selected</p>
       )}
     </div>
   );

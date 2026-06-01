@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { Card, Button, Input, Alert } from '../../components/ui';
+import { Card, Button, Input, Alert, PageHeader } from '../../components/ui';
 
 export function SettingsPage() {
   const { profile, updateProfile } = useAuth();
@@ -28,10 +28,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Settings</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your account profile</p>
-      </div>
+      <PageHeader title="Settings" subtitle="Manage your account profile" />
 
       {message && (
         <Alert variant={message.includes('success') ? 'success' : 'error'} title={message} />

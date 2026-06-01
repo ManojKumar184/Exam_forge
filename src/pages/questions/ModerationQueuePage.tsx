@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDataStore } from '../../stores/dataStore';
 import {
-  Card, Button, Badge, Input, Select, Modal, Textarea, EmptyState, Alert
+  Card, Button, Badge, Input, Select, Modal, Textarea, EmptyState, Alert, PageHeader
 } from '../../components/ui';
 import {
   Check, X, RefreshCw, Sliders, History, Save, FileQuestion, ArrowRight,
@@ -253,25 +253,20 @@ export function ModerationQueuePage() {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden -mt-1 pb-16">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 shrink-0">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Semantic Moderation Queue
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Enforce SaaS publishing standards. High confidence items go to Pending; low confidence/duplicates go to Needs Review.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="warning" className="text-xs px-3 py-1">
-            {queue.filter(q => q.status === 'pending').length} Pending Approval
-          </Badge>
-          <Badge variant="info" className="text-xs px-3 py-1">
-            {queue.filter(q => q.status === 'needs_review').length} Needs Review
-          </Badge>
-        </div>
-      </div>
+      <PageHeader
+        title="Semantic Moderation Queue"
+        subtitle="Enforce SaaS publishing standards. High confidence items go to Pending; low confidence/duplicates go to Needs Review."
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="warning" className="text-xs px-3 py-1">
+              {queue.filter(q => q.status === 'pending').length} Pending Approval
+            </Badge>
+            <Badge variant="info" className="text-xs px-3 py-1">
+              {queue.filter(q => q.status === 'needs_review').length} Needs Review
+            </Badge>
+          </div>
+        }
+      />
 
       {queue.length === 0 ? (
         <div className="flex-1 min-h-[400px]">
@@ -368,7 +363,7 @@ export function ModerationQueuePage() {
                   onClick={() => setActiveTab('workspace')}
                   className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all ${
                     activeTab === 'workspace'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 bg-white dark:bg-slate-800'
+                      ? 'border-primary-600 text-primary-600 dark:border-primary-500 dark:text-primary-400 bg-white dark:bg-slate-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
                   }`}
                 >
@@ -379,7 +374,7 @@ export function ModerationQueuePage() {
                   onClick={() => setActiveTab('edit')}
                   className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all ${
                     activeTab === 'edit'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 bg-white dark:bg-slate-800'
+                      ? 'border-primary-600 text-primary-600 dark:border-primary-500 dark:text-primary-400 bg-white dark:bg-slate-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
                   }`}
                 >
@@ -390,7 +385,7 @@ export function ModerationQueuePage() {
                   onClick={() => setActiveTab('confidence')}
                   className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all ${
                     activeTab === 'confidence'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 bg-white dark:bg-slate-800'
+                      ? 'border-primary-600 text-primary-600 dark:border-primary-500 dark:text-primary-400 bg-white dark:bg-slate-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
                   }`}
                 >
@@ -401,7 +396,7 @@ export function ModerationQueuePage() {
                   onClick={() => setActiveTab('audit')}
                   className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all ${
                     activeTab === 'audit'
-                      ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400 bg-white dark:bg-slate-800'
+                      ? 'border-primary-600 text-primary-600 dark:border-primary-500 dark:text-primary-400 bg-white dark:bg-slate-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
                   }`}
                 >

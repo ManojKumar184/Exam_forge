@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading } from '../../components/ui';
+import { Card, CardHeader, CardBody, StatCard, Button, Badge, Loading, PageHeader } from '../../components/ui';
 import {
   Users,
   FileQuestion,
@@ -53,26 +53,22 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Welcome back, {profile?.full_name?.split(' ')[0] || 'Admin'}!
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Here's what's happening with your platform today.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link to="/upload">
-            <Button leftIcon={<Upload className="w-4 h-4" />}>Upload Questions</Button>
-          </Link>
-          <Link to="/papers/new">
-            <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />}>
-              Create Paper
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${profile?.full_name?.split(' ')[0] || 'Admin'}!`}
+        subtitle="Here's what's happening with your platform today."
+        actions={
+          <>
+            <Link to="/upload">
+              <Button leftIcon={<Upload className="w-4 h-4" />}>Upload Questions</Button>
+            </Link>
+            <Link to="/papers/new">
+              <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />}>
+                Create Paper
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

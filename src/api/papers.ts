@@ -80,6 +80,7 @@ export interface ExportPdfOptions {
   includeSource?: boolean;
   includeWatermark?: boolean;
   includeInstituteLogo?: boolean;
+  showQuestionMarks?: boolean;
 }
 
 export async function downloadPaperPdfApi(
@@ -98,6 +99,7 @@ export async function downloadPaperPdfApi(
       includeSource: options.includeSource ? 'true' : undefined,
       includeWatermark: options.includeWatermark ? 'true' : undefined,
       includeInstituteLogo: options.includeInstituteLogo !== undefined ? (options.includeInstituteLogo ? 'true' : 'false') : undefined,
+      showQuestionMarks: options.showQuestionMarks ? 'true' : undefined,
     },
     responseType: 'blob',
     timeout: 120000,

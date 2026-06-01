@@ -141,7 +141,7 @@ export function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Platform Analytics & SaaS Infrastructure</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Platform Analytics & SaaS Infrastructure</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage global system performance, AI pipelines, and test validations</p>
         </div>
 
@@ -530,7 +530,7 @@ export function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Faculty Analytics</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Faculty Analytics</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Your papers, tests, and student performance</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -622,7 +622,7 @@ export function AnalyticsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Your Performance</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Your Performance</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Attempt history and scores</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

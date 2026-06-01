@@ -2,7 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar */
+/* ============================================
+   Design System — CSS Custom Properties
+   ============================================ */
+:root {
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-surface-tertiary: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f9;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-accent: #2563eb;
+  --color-accent-light: #eff6ff;
+}
+
+.dark {
+  --color-surface: #1e293b;
+  --color-surface-secondary: #0f172a;
+  --color-surface-tertiary: #334155;
+  --color-border: #334155;
+  --color-border-light: #1e293b;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-tertiary: #64748b;
+  --color-accent: #3b82f6;
+  --color-accent-light: rgba(59, 130, 246, 0.1);
+}
+
+/* ============================================
+   Custom Scrollbar
+   ============================================ */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -29,36 +60,37 @@
   background: #64748b;
 }
 
-/* Animations */
+/* ============================================
+   Animations
+   ============================================ */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modal-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .animate-fade-in {
@@ -73,7 +105,31 @@
   animation: slide-up 0.3s ease-out;
 }
 
-/* Line clamp */
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out;
+}
+
+.animate-modal-enter {
+  animation: modal-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============================================
+   Accessibility — Reduced Motion
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================
+   Line Clamp Utilities
+   ============================================ */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -88,7 +144,9 @@
   overflow: hidden;
 }
 
-/* Glassmorphism */
+/* ============================================
+   Glassmorphism
+   ============================================ */
 .glass {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
@@ -100,7 +158,9 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* PDF/Paper printing styles */
+/* ============================================
+   Print Styles
+   ============================================ */
 @media print {
   .no-print {
     display: none !important;
@@ -108,12 +168,22 @@
 
   body {
     background: white !important;
+    color: black !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+
+  /* Prevent dark mode leaking into print */
+  .dark {
+    --color-surface: #ffffff;
+    --color-text-primary: #0f172a;
+    --color-border: #e2e8f0;
+  }
 }
 
-/* KaTeX rendering */
+/* ============================================
+   KaTeX / Rich Content
+   ============================================ */
 .rich-content .katex-display {
   margin: 0.75rem 0;
   overflow-x: auto;
@@ -137,7 +207,9 @@
   border-color: #475569;
 }
 
-/* MathJax styles (legacy) */
+/* ============================================
+   MathJax Styles (legacy)
+   ============================================ */
 .math-content {
   overflow-x: auto;
   overflow-y: hidden;
@@ -149,19 +221,25 @@
   max-width: 100%;
 }
 
-/* Focus styles */
+/* ============================================
+   Focus Styles
+   ============================================ */
 *:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
 
-/* Selection color */
+/* ============================================
+   Selection Color
+   ============================================ */
 ::selection {
   background-color: #3b82f6;
   color: white;
 }
 
-/* Toast customization */
+/* ============================================
+   Toast Customization
+   ============================================ */
 .toast-success {
   background: #10b981 !important;
 }
@@ -170,7 +248,9 @@
   background: #ef4444 !important;
 }
 
-/* Custom typography */
+/* ============================================
+   Prose / Typography
+   ============================================ */
 .prose-exam {
   @apply text-slate-700 dark:text-slate-300;
 }
@@ -199,14 +279,16 @@
   @apply list-decimal list-inside space-y-2 mb-4;
 }
 
-/* Smooth transitions */
-* {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+/* ============================================
+   Tabular Numbers (for data alignment)
+   ============================================ */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Override for no-transition elements */
+/* ============================================
+   Override for no-transition elements
+   ============================================ */
 .no-transition,
 .no-transition * {
   transition: none !important;

@@ -12,7 +12,7 @@ import {
 import { downloadBlob } from '../../utils/downloadBlob';
 import { getApiErrorMessage } from '../../api/client';
 import toast from 'react-hot-toast';
-import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect } from '../../components/ui';
+import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect, PageHeader } from '../../components/ui';
 import { Plus, Wand2, Settings, Save, Sparkles, Download } from 'lucide-react';
 import type { Question } from '../../types';
 import {
@@ -534,44 +534,40 @@ export function PaperGeneratorPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {isEditMode ? 'Edit Question Paper' : 'Generate Question Paper'}
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            {isEditMode ? 'Update draft or published paper' : 'Create exam papers from approved questions'}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <Button variant="ghost" onClick={() => navigate('/papers')}>Cancel</Button>
-          <Select
-            options={[
-              { value: 'draft', label: 'Draft' },
-              { value: 'published', label: 'Published' },
-            ]}
-            value={paperStatus}
-            onChange={(e) => setPaperStatus(e.target.value as 'draft' | 'published')}
-            className="w-32"
-          />
-          {isEditMode && paperId && (
-            <Button
-              variant="outline"
-              onClick={() => void handleExportPdf()}
-              isLoading={isExporting}
-              leftIcon={<Download className="w-4 h-4" />}
-            >
-              Export PDF
+      <PageHeader
+        title={isEditMode ? 'Edit Question Paper' : 'Generate Question Paper'}
+        subtitle={isEditMode ? 'Update draft or published paper' : 'Create exam papers from approved questions'}
+        actions={
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button variant="ghost" onClick={() => navigate('/papers')}>Cancel</Button>
+            <Select
+              options={[
+                { value: 'draft', label: 'Draft' },
+                { value: 'published', label: 'Published' },
+              ]}
+              value={paperStatus}
+              onChange={(e) => setPaperStatus(e.target.value as 'draft' | 'published')}
+              className="w-32"
+            />
+            {isEditMode && paperId && (
+              <Button
+                variant="outline"
+                onClick={() => void handleExportPdf()}
+                isLoading={isExporting}
+                leftIcon={<Download className="w-4 h-4" />}
+              >
+                Export PDF
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => handleSavePaper('draft')} isLoading={isLoading}>
+              Save Draft
             </Button>
-          )}
-          <Button variant="outline" onClick={() => handleSavePaper('draft')} isLoading={isLoading}>
-            Save Draft
-          </Button>
-          <Button onClick={() => handleSavePaper(paperStatus)} isLoading={isLoading} leftIcon={<Save className="w-4 h-4" />}>
-            {isEditMode ? 'Update Paper' : 'Save Paper'}
-          </Button>
-        </div>
-      </div>
+            <Button onClick={() => handleSavePaper(paperStatus)} isLoading={isLoading} leftIcon={<Save className="w-4 h-4" />}>
+              {isEditMode ? 'Update Paper' : 'Save Paper'}
+            </Button>
+          </div>
+        }
+      />
 
       {validationWarnings.length > 0 && (
         <Alert variant="warning" title="Validation notes">
