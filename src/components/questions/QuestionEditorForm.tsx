@@ -15,6 +15,8 @@ import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAuto
 import { useDataStore } from '../../stores/dataStore';
 import type { SemanticBlock } from '../../utils/clipboardIngestion';
 import { useAuth } from '../../hooks/useAuth';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
+import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
 
 const DRAFT_KEY = 'examforge_question_draft';
 
@@ -141,6 +143,21 @@ export function QuestionEditorForm({
   const [tagsInput, setTagsInput] = useState('');
   const [marks, setMarks] = useState<number | null>(null);
 
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
+  const [selectedExamPattern, setSelectedExamPattern] = useState('');
+  const [selectedClassNode, setSelectedClassNode] = useState('');
+  const [selectedSubjectNode, setSelectedSubjectNode] = useState('');
+  const [selectedChapterNode, setSelectedChapterNode] = useState('');
+  const [selectedTopicNode, setSelectedTopicNode] = useState('');
+  const [selectedSubtopicNode, setSelectedSubtopicNode] = useState('');
+  const [selectedBankId, setSelectedBankId] = useState('');
+  const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+
+  useEffect(() => {
+    fetchSyllabusTree().then(setSyllabusTree).catch((err) => console.error('Failed to load syllabus tree:', err));
+    fetchQuestionBanksApi().then(setQuestionBanks).catch((err) => console.error('Failed to load question banks:', err));
+  }, []);
+
   useEffect(() => {
     if (initial?.id) {
       setMarks(initial.marks !== undefined ? initial.marks : null);
@@ -245,6 +262,25 @@ export function QuestionEditorForm({
       SUBTYPE_OPTIONS.some((o) => o.value === t)
     ) as EditorSubtype | undefined);
     if (sub) setSubtype(sub);
+
+    setSelectedBankId(d?.selectedBankId || initial.bank_ids?.[0] || '');
+
+    const mapping = initial?.syllabus_mappings?.[0] || d?.syllabusMapping;
+    if (mapping) {
+      setSelectedExamPattern(mapping.examPatternId || '');
+      setSelectedClassNode(mapping.classId || '');
+      setSelectedSubjectNode(mapping.subjectId || '');
+      setSelectedChapterNode(mapping.chapterId || '');
+      setSelectedTopicNode(mapping.topicId || '');
+      setSelectedSubtopicNode(mapping.subtopicId || '');
+    } else {
+      setSelectedExamPattern('');
+      setSelectedClassNode('');
+      setSelectedSubjectNode('');
+      setSelectedChapterNode('');
+      setSelectedTopicNode('');
+      setSelectedSubtopicNode('');
+    }
   }, [initial?.id]);
 
   const persistDraft = useCallback(() => {
@@ -271,10 +307,19 @@ export function QuestionEditorForm({
         correctOption,
         numericalAnswer,
         tagsInput,
+        selectedBankId,
+        syllabusMapping: {
+          examPatternId: selectedExamPattern,
+          classId: selectedClassNode,
+          subjectId: selectedSubjectNode,
+          chapterId: selectedChapterNode,
+          topicId: selectedTopicNode,
+          subtopicId: selectedSubtopicNode,
+        },
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, difficulty, correctOption, numericalAnswer, tagsInput]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode, selectedSubtopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -428,6 +473,18 @@ export function QuestionEditorForm({
       subtype,
       ...tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
     ];
+    const syllabusMappings = [];
+    if (selectedExamPattern || selectedClassNode || selectedSubjectNode || selectedChapterNode || selectedTopicNode || selectedSubtopicNode) {
+      syllabusMappings.push({
+        examPatternId: selectedExamPattern || null,
+        classId: selectedClassNode || null,
+        subjectId: selectedSubjectNode || null,
+        chapterId: selectedChapterNode || null,
+        topicId: selectedTopicNode || null,
+        subtopicId: selectedSubtopicNode || null,
+      });
+    }
+
     return {
       question_text: displayText,
       question_latex: questionLatex.trim() || autoLatex || null,
@@ -455,7 +512,8 @@ export function QuestionEditorForm({
       status: 'pending',
       source: 'manual',
       has_diagram: questionImages.length > 0,
-      has_equation: Boolean(questionLatex || autoLatex || /\$/.test(displayText)),
+      syllabus_mappings: syllabusMappings,
+      bank_ids: selectedBankId ? [selectedBankId] : [],
     };
   };
 
@@ -487,6 +545,16 @@ export function QuestionEditorForm({
     subject_id: subjectId,
     chapter_id: chapterId,
     exam_type_id: examTypeId,
+    syllabus_mappings: [
+      {
+        examPatternId: selectedExamPattern || null,
+        classId: selectedClassNode || null,
+        subjectId: selectedSubjectNode || null,
+        chapterId: selectedChapterNode || null,
+        topicId: selectedTopicNode || null,
+        subtopicId: selectedSubtopicNode || null,
+      }
+    ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     reviewed_by: null,
@@ -533,9 +601,14 @@ export function QuestionEditorForm({
           </Alert>
         )}
 
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-          Question Content & Ingestion
+        <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            Question Content & Ingestion
+          </div>
+          <div className="text-xs font-bold text-slate-650 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded border border-slate-200 dark:border-slate-750">
+            Question ID: {initial?.serial_id ? `Q-${initial.serial_id}` : 'New Question (Assigned on save)'}
+          </div>
         </div>
         <Card className="p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -700,6 +773,118 @@ export function QuestionEditorForm({
         </Card>
 
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+          Syllabus Engine Mapping
+        </div>
+        <Card className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <Select
+            label="Exam Pattern"
+            value={selectedExamPattern}
+            onChange={(e) => {
+              setSelectedExamPattern(e.target.value);
+              setSelectedClassNode('');
+              setSelectedSubjectNode('');
+              setSelectedChapterNode('');
+              setSelectedTopicNode('');
+              setSelectedSubtopicNode('');
+              setAutosaveStatus('saving');
+            }}
+            options={[{ value: '', label: 'Select Exam Pattern…' }, ...syllabusTree.map(n => ({ value: n._id, label: n.name }))]}
+            className="py-1 text-xs"
+          />
+          <Select
+            label="Syllabus Class"
+            value={selectedClassNode}
+            onChange={(e) => {
+              setSelectedClassNode(e.target.value);
+              setSelectedSubjectNode('');
+              setSelectedChapterNode('');
+              setSelectedTopicNode('');
+              setSelectedSubtopicNode('');
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'Select Class…' },
+              ...(syllabusTree.find(n => n._id === selectedExamPattern)?.children || []).map(n => ({ value: n._id, label: n.name }))
+            ]}
+            disabled={!selectedExamPattern}
+            className="py-1 text-xs"
+          />
+          <Select
+            label="Syllabus Subject"
+            value={selectedSubjectNode}
+            onChange={(e) => {
+              setSelectedSubjectNode(e.target.value);
+              setSelectedChapterNode('');
+              setSelectedTopicNode('');
+              setSelectedSubtopicNode('');
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'Select Subject…' },
+              ...((syllabusTree.find(n => n._id === selectedExamPattern)?.children || [])
+                .find(n => n._id === selectedClassNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
+            ]}
+            disabled={!selectedClassNode}
+            className="py-1 text-xs"
+          />
+          <Select
+            label="Syllabus Chapter"
+            value={selectedChapterNode}
+            onChange={(e) => {
+              setSelectedChapterNode(e.target.value);
+              setSelectedTopicNode('');
+              setSelectedSubtopicNode('');
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'Select Chapter…' },
+              ...(((syllabusTree.find(n => n._id === selectedExamPattern)?.children || [])
+                .find(n => n._id === selectedClassNode)?.children || [])
+                .find(n => n._id === selectedSubjectNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
+            ]}
+            disabled={!selectedSubjectNode}
+            className="py-1 text-xs"
+          />
+          <Select
+            label="Syllabus Topic"
+            value={selectedTopicNode}
+            onChange={(e) => {
+              setSelectedTopicNode(e.target.value);
+              setSelectedSubtopicNode('');
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'Select Topic…' },
+              ...((((syllabusTree.find(n => n._id === selectedExamPattern)?.children || [])
+                .find(n => n._id === selectedClassNode)?.children || [])
+                .find(n => n._id === selectedSubjectNode)?.children || [])
+                .find(n => n._id === selectedChapterNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
+            ]}
+            disabled={!selectedChapterNode}
+            className="py-1 text-xs"
+          />
+          <Select
+            label="Syllabus Subtopic"
+            value={selectedSubtopicNode}
+            onChange={(e) => {
+              setSelectedSubtopicNode(e.target.value);
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'Select Subtopic…' },
+              ...(((((syllabusTree.find(n => n._id === selectedExamPattern)?.children || [])
+                .find(n => n._id === selectedClassNode)?.children || [])
+                .find(n => n._id === selectedSubjectNode)?.children || [])
+                .find(n => n._id === selectedChapterNode)?.children || [])
+                .find(n => n._id === selectedTopicNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
+            ]}
+            disabled={!selectedTopicNode}
+            className="py-1 text-xs"
+          />
+        </Card>
+
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
           Metadata & Taxonomy
         </div>
@@ -818,6 +1003,19 @@ export function QuestionEditorForm({
               className="py-1 text-xs"
             />
           )}
+          <Select
+            label="Question Bank"
+            value={selectedBankId}
+            onChange={(e) => {
+              setSelectedBankId(e.target.value);
+              setAutosaveStatus('saving');
+            }}
+            options={[
+              { value: '', label: 'System Global Bank' },
+              ...questionBanks.map((qb) => ({ value: qb._id, label: qb.name })),
+            ]}
+            className="py-1 text-xs"
+          />
           <Input
             label="Tags"
             value={tagsInput}

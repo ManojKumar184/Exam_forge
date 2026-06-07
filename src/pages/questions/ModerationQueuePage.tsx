@@ -5,7 +5,7 @@ import {
 } from '../../components/ui';
 import {
   Check, X, RefreshCw, Sliders, History, Save, FileQuestion, ArrowRight,
-  AlertTriangle, Shield, CheckCircle, HelpCircle, FileText
+  AlertTriangle, Shield, CheckCircle, HelpCircle, FileText, Search
 } from 'lucide-react';
 import type { Question, QuestionOption } from '../../types';
 import { QuestionContentPreview, RichContent, RichOptionContent } from '../../components/content/RichContent';
@@ -26,6 +26,24 @@ export function ModerationQueuePage() {
   const [activeTab, setActiveTab] = useState<'workspace' | 'edit' | 'audit' | 'confidence'>('workspace');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredQueue = queue.filter(q => {
+    if (!searchQuery.trim()) return true;
+    const term = searchQuery.trim().toLowerCase();
+    if (q.serial_id && `q-${q.serial_id}`.toLowerCase().includes(term)) return true;
+    if (q.serial_id && String(q.serial_id).includes(term)) return true;
+    return q.question_text?.toLowerCase().includes(term);
+  });
+
+  useEffect(() => {
+    if (searchQuery.trim() && filteredQueue.length > 0) {
+      const isCurrentInFiltered = filteredQueue.some(q => q.id === selectedId);
+      if (!isCurrentInFiltered) {
+        setSelectedId(filteredQueue[0].id);
+      }
+    }
+  }, [searchQuery, filteredQueue, selectedId]);
 
   // Editable Form fields
   const [editForm, setEditForm] = useState<{
@@ -282,14 +300,23 @@ export function ModerationQueuePage() {
           <div className="w-full lg:w-80 shrink-0 flex flex-col border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 overflow-hidden shadow-sm">
             <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Queue Items ({queue.length})
+                Queue Items ({filteredQueue.length}/{queue.length})
               </span>
               <Button size="sm" variant="ghost" onClick={loadQueue} leftIcon={<RefreshCw className="w-3.5 h-3.5" />}>
                 Refresh
               </Button>
             </div>
+            <div className="p-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30">
+              <Input
+                placeholder="Search by ID or text..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 text-xs py-1"
+                leftIcon={<Search className="w-3 h-3" />}
+              />
+            </div>
             <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/50">
-              {queue.map((q) => {
+              {filteredQueue.map((q) => {
                 const isSelected = q.id === selectedId;
                 const warningsCount = q.extraction_warnings?.length || 0;
                 return (
@@ -302,10 +329,15 @@ export function ModerationQueuePage() {
                         : 'hover:bg-slate-50 dark:hover:bg-slate-700/30 border-l-4 border-transparent'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate">
-                        ID: ...{q.id.slice(-6)}
+                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                        {q.serial_id ? `Q-${q.serial_id}` : `ID: ...${q.id.slice(-6)}`}
                       </span>
+                      {q.ai_confidence > 0 && (
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          {q.ai_confidence}%
+                        </span>
+                      )}
                       <Badge variant={q.status === 'needs_review' ? 'info' : 'warning'} size="sm" className="scale-90">
                         {q.status === 'needs_review' ? 'Review' : 'Pending'}
                       </Badge>
@@ -337,8 +369,11 @@ export function ModerationQueuePage() {
               {/* Workspace Header */}
               <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex flex-wrap items-center justify-between gap-3 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    Moderating ID: <span className="font-mono font-semibold">{activeQuestion.id}</span>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    Moderating ID:{' '}
+                    <span className="font-mono font-bold text-blue-650 dark:text-blue-400 bg-blue-55 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50 text-xs">
+                      {activeQuestion.serial_id ? `Q-${activeQuestion.serial_id}` : activeQuestion.id}
+                    </span>
                   </h2>
                   <Badge variant={activeQuestion.status === 'needs_review' ? 'info' : 'warning'}>
                     {activeQuestion.status}

@@ -47,6 +47,11 @@ router.get(
   authorize('super_admin', 'faculty'),
   asyncHandler(paperController.exportHtml)
 );
+router.get(
+  '/:id/export/docx',
+  authorize('super_admin', 'faculty'),
+  asyncHandler(paperController.exportDocx)
+);
 router.get('/:id', asyncHandler(paperController.getOne));
 router.post(
   '/',

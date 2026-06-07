@@ -62,6 +62,7 @@ export interface QuestionOption {
 
 export interface Question {
   id: string;
+  serial_id?: number;
   subject_id: string | null;
   chapter_id: string | null;
   exam_type_id: string | null;
@@ -116,6 +117,18 @@ export interface Question {
   metadata_confidence?: number;
   audit_history?: Array<any>;
   debug_info?: any;
+  syllabus_mappings?: Array<{
+    examPatternId: string | null;
+    classId: string | null;
+    subjectId: string | null;
+    chapterId: string | null;
+    topicId: string | null;
+    subtopicId: string | null;
+  }>;
+  bank_ids?: string[];
+  owner_id?: string | null;
+  is_private?: boolean;
+  visibility?: 'private' | 'faculty_bank' | 'institution' | 'public';
 }
 
 // Paper types
@@ -152,6 +165,12 @@ export interface Paper {
   exam_type?: ExamType;
   subject?: Subject;
   questions?: PaperQuestion[];
+  export_settings?: PaperExportSettings;
+  created_by_profile?: {
+    id: string;
+    full_name: string;
+    school_institute: string | null;
+  };
 }
 
 export interface PaperQuestion {
@@ -242,7 +261,7 @@ export interface TestAnswer {
 
 // Upload types
 export type UploadStatus = 'pending' | 'processing' | 'completed' | 'failed';
-export type UploadFileType = 'pdf' | 'docx' | 'image';
+export type UploadFileType = 'pdf' | 'docx' | 'image' | 'manual';
 
 export interface Upload {
   id: string;
@@ -262,6 +281,13 @@ export interface Upload {
   stage_logs?: string[];
   created_at: string;
   processed_at: string | null;
+  staged_questions?: any[];
+  reconstruction_version?: string;
+  classification_version?: string;
+  original_html?: string | null;
+  original_plain?: string | null;
+  upload_options?: Record<string, any>;
+  uploaded_by_user?: { id: string; full_name: string; email: string; role: string };
 }
 
 // Leaderboard
@@ -321,4 +347,102 @@ export interface PaperGeneratorConfig {
   question_types: QuestionType[];
   instructions: string;
   paper_set: PaperSet;
+}
+
+export interface PaperExportSettings {
+  layout: 'single_column' | 'two_column';
+  margin: 'narrow' | 'normal' | 'wide';
+  font_family: string;
+  font_size: number;
+  line_spacing: number;
+  show_institution_logo: boolean;
+  institution_logo_url: string | null;
+  institution_name: string | null;
+  examination_name: string | null;
+  subject_name: string | null;
+  class_name: string | null;
+  duration_minutes: number | null;
+  maximum_marks: number | null;
+  custom_header_text: string | null;
+  show_page_number: boolean;
+  footer_institution_name: string | null;
+  custom_footer_text: string | null;
+  template: string;
+  show_cover_page: boolean;
+  numbering_mode: 'continuous' | 'section_wise';
+  watermark_text: string | null;
+  watermark_opacity: number;
+  watermark_size: number;
+  watermark_rotation: number;
+}
+
+export interface ExamTemplate {
+  id?: string;
+  _id?: string;
+  name: string;
+  code: string | null;
+  subjectStructure: string[];
+  sections: Array<{
+    name: string;
+    allowedQuestionTypes: string[];
+    marksPerQuestion: number;
+    negativeMarksPerQuestion: number;
+    questionCount: number;
+  }>;
+  instructions: string | null;
+  layoutDefaults: {
+    layout: 'single_column' | 'two_column';
+    margin: 'narrow' | 'normal' | 'wide';
+    fontFamily: string;
+    fontSize: number;
+    lineSpacing: number;
+  };
+  exportDefaults: Record<string, any>;
+  createdBy: string | null;
+  isSystem: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExportPreset {
+  id?: string;
+  _id?: string;
+  name: string;
+  layout: 'single_column' | 'two_column';
+  margin: 'narrow' | 'normal' | 'wide';
+  fontFamily: string;
+  fontSize: number;
+  lineSpacing: number;
+  showInstitutionLogo: boolean;
+  institutionLogoUrl: string | null;
+  institutionName: string | null;
+  examinationName: string | null;
+  customHeaderText: string | null;
+  showPageNumber: boolean;
+  footerInstitutionName: string | null;
+  customFooterText: string | null;
+  watermarkText: string | null;
+  watermarkOpacity: number;
+  watermarkSize: number;
+  watermarkRotation: number;
+  showCoverPage: boolean;
+  numberingMode: 'continuous' | 'section_wise';
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface InstitutionProfile {
+  id?: string;
+  _id?: string;
+  institutionName: string;
+  logoUrl: string | null;
+  address: string | null;
+  contactInfo: string | null;
+  website: string | null;
+  defaultHeader: string | null;
+  defaultFooter: string | null;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

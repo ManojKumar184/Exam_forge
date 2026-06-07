@@ -44,8 +44,8 @@ interface DataState {
   fetchChapters: (subjectId?: string) => Promise<void>;
   fetchExamTypes: () => Promise<void>;
   fetchQuestions: (filters?: Record<string, any>) => Promise<void>;
-  fetchPapers: () => Promise<void>;
-  fetchOnlineTests: () => Promise<void>;
+  fetchPapers: (filters?: Record<string, any>) => Promise<void>;
+  fetchOnlineTests: (filters?: Record<string, any>) => Promise<void>;
   fetchTestAttempts: (testId?: string) => Promise<void>;
   fetchUsers: (filters?: Record<string, unknown>) => Promise<void>;
   updateUser: (id: string, updates: Partial<Profile>) => Promise<{ error: unknown }>;
@@ -123,19 +123,19 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  fetchPapers: async () => {
+  fetchPapers: async (filters = {}) => {
     set({ isLoading: true });
     try {
-      const papers = await fetchPapersApi();
+      const papers = await fetchPapersApi(filters);
       set({ papers, isLoading: false });
     } catch (error) {
       set({ error: getApiErrorMessage(error), isLoading: false });
     }
   },
 
-  fetchOnlineTests: async () => {
+  fetchOnlineTests: async (filters = {}) => {
     try {
-      const onlineTests = await fetchTestsApi();
+      const onlineTests = await fetchTestsApi(filters);
       set({ onlineTests });
     } catch (error) {
       set({ error: getApiErrorMessage(error) });

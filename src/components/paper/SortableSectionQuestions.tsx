@@ -76,6 +76,11 @@ function SortableQuestionRow({
           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
             Question {index + 1}
           </span>
+          {question.serial_id && (
+            <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
+              Q-{question.serial_id}
+            </span>
+          )}
           <Badge
             size="sm"
             variant={

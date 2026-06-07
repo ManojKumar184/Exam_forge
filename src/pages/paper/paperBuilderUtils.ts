@@ -66,6 +66,14 @@ export interface PaperBuilderFilters {
   classLevels: number[];
   chapterIds: string[];
   difficulties: string[];
+  syllabusExamPatternId?: string;
+  syllabusClassId?: string;
+  syllabusSubjectId?: string;
+  syllabusChapterId?: string;
+  syllabusTopicId?: string;
+  syllabusSubtopicId?: string;
+  bankId?: string;
+  bankIds?: string[];
 }
 
 export function buildSelectPayload(
@@ -90,6 +98,14 @@ export function buildSelectPayload(
     classes: f?.classLevels?.length ? f.classLevels : undefined,
     chapter_ids: f?.chapterIds?.length ? f.chapterIds : undefined,
     difficulties: f?.difficulties?.length ? f.difficulties : undefined,
+    syllabus_exam_pattern_id: f?.syllabusExamPatternId || undefined,
+    syllabus_class_id: f?.syllabusClassId || undefined,
+    syllabus_subject_id: f?.syllabusSubjectId || undefined,
+    syllabus_chapter_id: f?.syllabusChapterId || undefined,
+    syllabus_topic_id: f?.syllabusTopicId || undefined,
+    syllabus_subtopic_id: f?.syllabusSubtopicId || undefined,
+    bank_id: f?.bankId || undefined,
+    bank_ids: f?.bankIds?.length ? f.bankIds : undefined,
     total_marks: config.totalMarks,
     total_questions: sections.reduce((s, sec) => s + sec.targetCount, 0),
     exclude_question_ids: config.excludeIds || [],
@@ -122,6 +138,14 @@ export function buildPoolStatsPayload(
     classes: f?.classLevels,
     chapter_ids: f?.chapterIds,
     difficulties: f?.difficulties,
+    syllabus_exam_pattern_id: f?.syllabusExamPatternId || undefined,
+    syllabus_class_id: f?.syllabusClassId || undefined,
+    syllabus_subject_id: f?.syllabusSubjectId || undefined,
+    syllabus_chapter_id: f?.syllabusChapterId || undefined,
+    syllabus_topic_id: f?.syllabusTopicId || undefined,
+    syllabus_subtopic_id: f?.syllabusSubtopicId || undefined,
+    bank_id: f?.bankId || undefined,
+    bank_ids: f?.bankIds?.length ? f.bankIds : undefined,
   };
 }
 

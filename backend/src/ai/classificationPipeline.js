@@ -1,6 +1,6 @@
 import { estimateDifficulty } from '../extraction/metadataClassifier.js';
 import { applySemanticCatalogHints } from './semanticTagging.js';
-import { getRulesProvider, getLlmProvider, getOllamaProvider } from './providerRegistry.js';
+import { getRulesProvider, getLlmProvider } from './providerRegistry.js';
 import { resolveGeminiHints } from './geminiCatalogResolver.js';
 import { logger } from '../utils/logger.js';
 
@@ -103,38 +103,81 @@ export async function runClassificationPipeline(
 
   let llm = null;
   const llmProvider = getLlmProvider();
-  let primaryFailed = false;
 
   if (llmProvider && !uploadContext.skipLlm) {
     try {
       llm = await llmProvider.classify(question, catalog, docMeta);
       if (llm) {
         llm.provider = llmProvider.name;
-      } else {
-        primaryFailed = true;
       }
     } catch (err) {
-      logger.warn('Primary LLM classification failed, attempting fallback', { error: err.message });
-      primaryFailed = true;
-    }
-  } else {
-    primaryFailed = true;
-  }
-
-  if (primaryFailed && llmProvider?.name !== 'ollama' && !uploadContext.skipLlm) {
-    const ollama = getOllamaProvider();
-    if (ollama && ollama.isConfigured()) {
-      try {
-        logger.info('Executing Ollama local fallback classification...');
-        llm = await ollama.classify(question, catalog, docMeta);
-        if (llm) {
-          llm.provider = 'ollama';
-        }
-      } catch (err) {
-        logger.warn('Ollama fallback classification failed', { error: err.message });
-      }
+      logger.warn('LLM classification failed', { error: err.message });
     }
   }
 
   return mergeClassification(rules, semantic, llm, question, catalog);
 }
+
+/**
+ * Full AI-assisted batch classification pipeline.
+ */
+export async function runClassificationPipelineBatch(
+  questions,
+  catalog,
+  docMeta = {},
+  uploadContext = {}
+) {
+  const rulesProvider = getRulesProvider();
+  
+  // 1. Run rules provider on all questions
+  const rulesList = await Promise.all(
+    questions.map((q) => rulesProvider.classify(q, catalog, docMeta, uploadContext))
+  );
+
+  // 2. Run semantic hinting on all questions
+  const semanticList = questions.map((q, idx) =>
+    applySemanticCatalogHints(q, catalog, {
+      class: rulesList[idx].class,
+      subjectId: rulesList[idx].subjectId,
+      chapterId: rulesList[idx].chapterId,
+      examTypeId: rulesList[idx].examTypeId,
+    })
+  );
+
+  // 3. Run LLM batch classification
+  let llmList = null;
+  const llmProvider = getLlmProvider();
+
+  if (llmProvider && !uploadContext.skipLlm) {
+    try {
+      if (typeof llmProvider.classifyBatch === 'function') {
+        const results = await llmProvider.classifyBatch(questions, catalog, docMeta);
+        if (results && results.length === questions.length) {
+          llmList = results;
+        }
+      }
+      
+      // Fallback if batching method fails or is unsupported
+      if (!llmList) {
+        logger.info('[pipeline] Falling back to sequential classification for batch');
+        llmList = await Promise.all(
+          questions.map((q) => llmProvider.classify(q, catalog, docMeta).catch(() => null))
+        );
+      }
+    } catch (err) {
+      logger.warn('LLM batch classification failed', { error: err.message });
+    }
+  }
+
+  // 4. Merge results for each question
+  return questions.map((q, idx) => {
+    const rules = rulesList[idx];
+    const semantic = semanticList[idx];
+    const llm = llmList?.[idx] || null;
+    if (llm) {
+      llm.provider = llmProvider.name;
+    }
+    return mergeClassification(rules, semantic, llm, q, catalog);
+  });
+}
+

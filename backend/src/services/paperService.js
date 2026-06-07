@@ -9,19 +9,62 @@ function toObjectIdList(items) {
   return (items || []).filter(Boolean);
 }
 
-function buildPaperFilter(query, user) {
+async function buildPaperFilter(query, user) {
   const filter = {};
   if (user.role === 'faculty') filter.createdBy = user._id;
   if (query.status) filter.status = query.status;
-  if (query.subject_id) filter.subjectId = query.subject_id;
   if (query.exam_type_id) filter.examTypeId = query.exam_type_id;
   if (query.class) filter.class = Number(query.class);
   if (query.search) filter.title = { $regex: query.search, $options: 'i' };
+
+  // Advanced filters: bank, subject, chapter, topic, subtopic
+  let filterByQuestions = false;
+  const questionFilter = {};
+
+  if (query.bank_id) {
+    const bankIds = Array.isArray(query.bank_id) ? query.bank_id : String(query.bank_id).split(',').map(s => s.trim()).filter(Boolean);
+    questionFilter.bankIds = { $in: bankIds };
+    filterByQuestions = true;
+  }
+
+  if (query.chapter_id) {
+    const chapterIds = Array.isArray(query.chapter_id) ? query.chapter_id : String(query.chapter_id).split(',').map(s => s.trim()).filter(Boolean);
+    questionFilter.$or = [
+      { chapterId: { $in: chapterIds } },
+      { 'syllabusMappings.chapterId': { $in: chapterIds } }
+    ];
+    filterByQuestions = true;
+  }
+
+  if (query.topic_id) {
+    const topicIds = Array.isArray(query.topic_id) ? query.topic_id : String(query.topic_id).split(',').map(s => s.trim()).filter(Boolean);
+    questionFilter['syllabusMappings.topicId'] = { $in: topicIds };
+    filterByQuestions = true;
+  }
+
+  if (query.subtopic_id) {
+    const subtopicIds = Array.isArray(query.subtopic_id) ? query.subtopic_id : String(query.subtopic_id).split(',').map(s => s.trim()).filter(Boolean);
+    questionFilter['syllabusMappings.subtopicId'] = { $in: subtopicIds };
+    filterByQuestions = true;
+  }
+
+  if (query.subject_id) {
+    const subjectIds = Array.isArray(query.subject_id) ? query.subject_id : String(query.subject_id).split(',').map(s => s.trim()).filter(Boolean);
+    filter.subjectId = { $in: subjectIds };
+  }
+
+  if (filterByQuestions) {
+    const { Question } = await import('../models/Question.js');
+    const matchingQuestions = await Question.find(questionFilter).select('_id').lean();
+    const matchingIds = matchingQuestions.map(q => q._id);
+    filter['questions.questionId'] = { $in: matchingIds };
+  }
+
   return filter;
 }
 
 export async function listPapers(query, user) {
-  const filter = buildPaperFilter(query, user);
+  const filter = await buildPaperFilter(query, user);
   const papers = await Paper.find(filter)
     .populate('subjectId', 'name code icon color')
     .populate('examTypeId', 'name code description isActive createdAt')
@@ -62,6 +105,32 @@ function mapBodyToPaperFields(body) {
     paperSet: body.paper_set || body.paperSet || 'A',
     isOnline: Boolean(body.is_online ?? body.isOnline ?? false),
     status: body.status || 'draft',
+    exportSettings: body.export_settings || body.exportSettings ? {
+      layout: (body.export_settings || body.exportSettings).layout ?? 'single_column',
+      margin: (body.export_settings || body.exportSettings).margin ?? 'normal',
+      fontFamily: (body.export_settings || body.exportSettings).font_family ?? (body.export_settings || body.exportSettings).fontFamily ?? 'times_new_roman',
+      fontSize: Number((body.export_settings || body.exportSettings).font_size ?? (body.export_settings || body.exportSettings).fontSize ?? 11),
+      lineSpacing: Number((body.export_settings || body.exportSettings).line_spacing ?? (body.export_settings || body.exportSettings).lineSpacing ?? 1.25),
+      showInstitutionLogo: (body.export_settings || body.exportSettings).show_institution_logo ?? (body.export_settings || body.exportSettings).showInstitutionLogo ?? true,
+      institutionLogoUrl: (body.export_settings || body.exportSettings).institution_logo_url ?? (body.export_settings || body.exportSettings).institutionLogoUrl ?? null,
+      institutionName: (body.export_settings || body.exportSettings).institution_name ?? (body.export_settings || body.exportSettings).institutionName ?? null,
+      examinationName: (body.export_settings || body.exportSettings).examination_name ?? (body.export_settings || body.exportSettings).examinationName ?? null,
+      subjectName: (body.export_settings || body.exportSettings).subject_name ?? (body.export_settings || body.exportSettings).subjectName ?? null,
+      className: (body.export_settings || body.exportSettings).class_name ?? (body.export_settings || body.exportSettings).className ?? null,
+      durationMinutes: (body.export_settings || body.exportSettings).duration_minutes ?? (body.export_settings || body.exportSettings).durationMinutes ?? null,
+      maximumMarks: (body.export_settings || body.exportSettings).maximum_marks ?? (body.export_settings || body.exportSettings).maximumMarks ?? null,
+      customHeaderText: (body.export_settings || body.exportSettings).custom_header_text ?? (body.export_settings || body.exportSettings).customHeaderText ?? null,
+      showPageNumber: (body.export_settings || body.exportSettings).show_page_number ?? (body.export_settings || body.exportSettings).showPageNumber ?? true,
+      footerInstitutionName: (body.export_settings || body.exportSettings).footer_institution_name ?? (body.export_settings || body.exportSettings).footerInstitutionName ?? null,
+      customFooterText: (body.export_settings || body.exportSettings).custom_footer_text ?? (body.export_settings || body.exportSettings).customFooterText ?? null,
+      template: (body.export_settings || body.exportSettings).template ?? 'default',
+      showCoverPage: (body.export_settings || body.exportSettings).show_cover_page ?? (body.export_settings || body.exportSettings).showCoverPage ?? false,
+      numberingMode: (body.export_settings || body.exportSettings).numbering_mode ?? (body.export_settings || body.exportSettings).numberingMode ?? 'continuous',
+      watermarkText: (body.export_settings || body.exportSettings).watermark_text ?? (body.export_settings || body.exportSettings).watermarkText ?? null,
+      watermarkOpacity: Number((body.export_settings || body.exportSettings).watermark_opacity ?? (body.export_settings || body.exportSettings).watermarkOpacity ?? 0.04),
+      watermarkSize: Number((body.export_settings || body.exportSettings).watermark_size ?? (body.export_settings || body.exportSettings).watermarkSize ?? 64),
+      watermarkRotation: Number((body.export_settings || body.exportSettings).watermark_rotation ?? (body.export_settings || body.exportSettings).watermarkRotation ?? -25)
+    } : undefined
   };
 }
 
@@ -127,9 +196,40 @@ export async function deletePaper(id, user) {
 }
 
 export async function generatePaper(config, user) {
-  const sectionSpecs =
-    config.sections ||
-    [
+  let sectionSpecs = config.sections;
+  let instructions = config.instructions;
+  let exportSettings = config.export_settings || config.exportSettings;
+
+  if (config.template_id || config.template) {
+    const { ExamTemplate } = await import('../models/ExamTemplate.js');
+    const mongoose = (await import('mongoose')).default;
+    const query = mongoose.isValidObjectId(config.template_id || config.template)
+      ? { _id: config.template_id || config.template }
+      : { code: config.template_id || config.template };
+    const template = await ExamTemplate.findOne(query);
+    if (template) {
+      sectionSpecs = template.sections.map((s, idx) => ({
+        id: String.fromCharCode(65 + idx),
+        name: s.name,
+        questionCount: s.questionCount,
+        marksPerQuestion: s.marksPerQuestion,
+        negativeMarksPerQuestion: s.negativeMarksPerQuestion,
+        question_types: s.allowedQuestionTypes,
+      }));
+      instructions = instructions || template.instructions;
+      exportSettings = exportSettings || {
+        layout: template.layoutDefaults.layout,
+        margin: template.layoutDefaults.margin,
+        font_family: template.layoutDefaults.fontFamily,
+        font_size: template.layoutDefaults.fontSize,
+        line_spacing: template.layoutDefaults.lineSpacing,
+        template: template.code || template.name,
+      };
+    }
+  }
+
+  if (!sectionSpecs) {
+    sectionSpecs = [
       {
         id: 'A',
         name: 'Section A - MCQ',
@@ -139,6 +239,7 @@ export async function generatePaper(config, user) {
         question_types: ['mcq'],
       },
     ];
+  }
 
   const selection = await selectQuestionsForPaper({
     ...config,
@@ -177,6 +278,8 @@ export async function generatePaper(config, user) {
         negativeMarksPerQuestion: s.negativeMarksPerQuestion ?? s.negative_marks_per_question ?? s.negativeMarks ?? 0,
       })),
       questions: paperQuestions,
+      instructions: instructions,
+      export_settings: exportSettings,
       status: config.status || 'draft',
     },
     user

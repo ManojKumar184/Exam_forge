@@ -54,27 +54,56 @@ export async function exportPdf(req, res) {
   const allowDraft = req.query.allow_draft === 'true' || req.query.allow_draft === '1';
   const paperSet = req.query.paper_set || req.query.set || undefined;
   
-  const includeAnswers = req.query.includeAnswers === 'true' || req.query.includeAnswers === '1';
-  const includeExplanations = req.query.includeExplanations === 'true' || req.query.includeExplanations === '1';
-  const includeQuestionTypeBadges = req.query.includeQuestionTypeBadges === 'true' || req.query.includeQuestionTypeBadges === '1';
-  const includeDifficulty = req.query.includeDifficulty === 'true' || req.query.includeDifficulty === '1';
-  const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
-  const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
-  const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
-  const showQuestionMarks = req.query.showQuestionMarks === 'true' || req.query.showQuestionMarks === '1';
+  // Customization fields
+  const layout = req.query.layout;
+  const margin = req.query.margin;
+  const fontFamily = req.query.fontFamily || req.query.font_family;
+  const fontSize = req.query.fontSize ? Number(req.query.fontSize) : undefined;
+  const lineSpacing = req.query.lineSpacing ? Number(req.query.lineSpacing) : undefined;
+  const showInstitutionLogo = req.query.showInstitutionLogo !== undefined ? (req.query.showInstitutionLogo === 'true' || req.query.showInstitutionLogo === '1') : undefined;
+  const institutionName = req.query.institutionName;
+  const examinationName = req.query.examinationName;
+  const subjectName = req.query.subjectName;
+  const className = req.query.className;
+  const customHeaderText = req.query.customHeaderText;
+  const showPageNumber = req.query.showPageNumber !== undefined ? (req.query.showPageNumber === 'true' || req.query.showPageNumber === '1') : undefined;
+  const footerInstitutionName = req.query.footerInstitutionName;
+  const customFooterText = req.query.customFooterText;
+  const template = req.query.template;
+  const showCoverPage = req.query.showCoverPage === 'true' || req.query.showCoverPage === '1';
+  const numberingMode = req.query.numberingMode;
+  const watermarkText = req.query.watermarkText;
+  const watermarkOpacity = req.query.watermarkOpacity ? Number(req.query.watermarkOpacity) : undefined;
+  const watermarkSize = req.query.watermarkSize ? Number(req.query.watermarkSize) : undefined;
+  const watermarkRotation = req.query.watermarkRotation ? Number(req.query.watermarkRotation) : undefined;
+  const exportTypeFormat = req.query.exportTypeFormat;
 
   const { buffer, filename } = await paperExportService.exportPaperPdf(req.params.id, req.user, type, {
     allowDraft,
     paperSet,
     publicBaseUrl: publicBaseUrl(req),
-    includeAnswers,
-    includeExplanations,
-    includeQuestionTypeBadges,
-    includeDifficulty,
-    includeSource,
-    includeWatermark,
-    includeInstituteLogo,
-    showQuestionMarks,
+    layout,
+    margin,
+    fontFamily,
+    fontSize,
+    lineSpacing,
+    showInstitutionLogo,
+    institutionName,
+    examinationName,
+    subjectName,
+    className,
+    customHeaderText,
+    showPageNumber,
+    footerInstitutionName,
+    customFooterText,
+    template,
+    showCoverPage,
+    numberingMode,
+    watermarkText,
+    watermarkOpacity,
+    watermarkSize,
+    watermarkRotation,
+    exportTypeFormat,
   });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -86,30 +115,120 @@ export async function exportHtml(req, res) {
   const allowDraft = req.query.allow_draft === 'true' || req.query.allow_draft === '1';
   const paperSet = req.query.paper_set || req.query.set || undefined;
   
-  const includeAnswers = req.query.includeAnswers === 'true' || req.query.includeAnswers === '1';
-  const includeExplanations = req.query.includeExplanations === 'true' || req.query.includeExplanations === '1';
-  const includeQuestionTypeBadges = req.query.includeQuestionTypeBadges === 'true' || req.query.includeQuestionTypeBadges === '1';
-  const includeDifficulty = req.query.includeDifficulty === 'true' || req.query.includeDifficulty === '1';
-  const includeSource = req.query.includeSource === 'true' || req.query.includeSource === '1';
-  const includeWatermark = req.query.includeWatermark === 'true' || req.query.includeWatermark === '1';
-  const includeInstituteLogo = req.query.includeInstituteLogo !== 'false' && req.query.includeInstituteLogo !== '0';
-  const showQuestionMarks = req.query.showQuestionMarks === 'true' || req.query.showQuestionMarks === '1';
+  // Customization fields
+  const layout = req.query.layout;
+  const margin = req.query.margin;
+  const fontFamily = req.query.fontFamily || req.query.font_family;
+  const fontSize = req.query.fontSize ? Number(req.query.fontSize) : undefined;
+  const lineSpacing = req.query.lineSpacing ? Number(req.query.lineSpacing) : undefined;
+  const showInstitutionLogo = req.query.showInstitutionLogo !== undefined ? (req.query.showInstitutionLogo === 'true' || req.query.showInstitutionLogo === '1') : undefined;
+  const institutionName = req.query.institutionName;
+  const examinationName = req.query.examinationName;
+  const subjectName = req.query.subjectName;
+  const className = req.query.className;
+  const customHeaderText = req.query.customHeaderText;
+  const showPageNumber = req.query.showPageNumber !== undefined ? (req.query.showPageNumber === 'true' || req.query.showPageNumber === '1') : undefined;
+  const footerInstitutionName = req.query.footerInstitutionName;
+  const customFooterText = req.query.customFooterText;
+  const template = req.query.template;
+  const showCoverPage = req.query.showCoverPage === 'true' || req.query.showCoverPage === '1';
+  const numberingMode = req.query.numberingMode;
+  const watermarkText = req.query.watermarkText;
+  const watermarkOpacity = req.query.watermarkOpacity ? Number(req.query.watermarkOpacity) : undefined;
+  const watermarkSize = req.query.watermarkSize ? Number(req.query.watermarkSize) : undefined;
+  const watermarkRotation = req.query.watermarkRotation ? Number(req.query.watermarkRotation) : undefined;
+  const exportTypeFormat = req.query.exportTypeFormat;
 
   const { html, filename } = await paperExportService.exportPaperHtml(req.params.id, req.user, type, {
     allowDraft,
     paperSet,
     publicBaseUrl: publicBaseUrl(req),
-    includeAnswers,
-    includeExplanations,
-    includeQuestionTypeBadges,
-    includeDifficulty,
-    includeSource,
-    includeWatermark,
-    includeInstituteLogo,
-    showQuestionMarks,
+    layout,
+    margin,
+    fontFamily,
+    fontSize,
+    lineSpacing,
+    showInstitutionLogo,
+    institutionName,
+    examinationName,
+    subjectName,
+    className,
+    customHeaderText,
+    showPageNumber,
+    footerInstitutionName,
+    customFooterText,
+    template,
+    showCoverPage,
+    numberingMode,
+    watermarkText,
+    watermarkOpacity,
+    watermarkSize,
+    watermarkRotation,
+    exportTypeFormat,
   });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(html);
+}
+
+export async function exportDocx(req, res) {
+  const type = req.query.type === 'answer_key' ? 'answer_key' : 'paper';
+  const allowDraft = req.query.allow_draft === 'true' || req.query.allow_draft === '1';
+  const paperSet = req.query.paper_set || req.query.set || undefined;
+  
+  // Customization fields
+  const layout = req.query.layout;
+  const margin = req.query.margin;
+  const fontFamily = req.query.fontFamily || req.query.font_family;
+  const fontSize = req.query.fontSize ? Number(req.query.fontSize) : undefined;
+  const lineSpacing = req.query.lineSpacing ? Number(req.query.lineSpacing) : undefined;
+  const showInstitutionLogo = req.query.showInstitutionLogo !== undefined ? (req.query.showInstitutionLogo === 'true' || req.query.showInstitutionLogo === '1') : undefined;
+  const institutionName = req.query.institutionName;
+  const examinationName = req.query.examinationName;
+  const subjectName = req.query.subjectName;
+  const className = req.query.className;
+  const customHeaderText = req.query.customHeaderText;
+  const showPageNumber = req.query.showPageNumber !== undefined ? (req.query.showPageNumber === 'true' || req.query.showPageNumber === '1') : undefined;
+  const footerInstitutionName = req.query.footerInstitutionName;
+  const customFooterText = req.query.customFooterText;
+  const template = req.query.template;
+  const showCoverPage = req.query.showCoverPage === 'true' || req.query.showCoverPage === '1';
+  const numberingMode = req.query.numberingMode;
+  const watermarkText = req.query.watermarkText;
+  const watermarkOpacity = req.query.watermarkOpacity ? Number(req.query.watermarkOpacity) : undefined;
+  const watermarkSize = req.query.watermarkSize ? Number(req.query.watermarkSize) : undefined;
+  const watermarkRotation = req.query.watermarkRotation ? Number(req.query.watermarkRotation) : undefined;
+  const exportTypeFormat = req.query.exportTypeFormat;
+
+  const { buffer, filename } = await paperExportService.exportPaperDocx(req.params.id, req.user, type, {
+    allowDraft,
+    paperSet,
+    layout,
+    margin,
+    fontFamily,
+    fontSize,
+    lineSpacing,
+    showInstitutionLogo,
+    institutionName,
+    examinationName,
+    subjectName,
+    className,
+    customHeaderText,
+    showPageNumber,
+    footerInstitutionName,
+    customFooterText,
+    template,
+    showCoverPage,
+    numberingMode,
+    watermarkText,
+    watermarkOpacity,
+    watermarkSize,
+    watermarkRotation,
+    exportTypeFormat,
+  });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
 }
 

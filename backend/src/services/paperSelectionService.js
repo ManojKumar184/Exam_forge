@@ -49,6 +49,30 @@ export function buildQuestionFilter(config) {
   const questionTypes = parseIdList(config.question_types || config.questionTypes);
   if (questionTypes.length === 1) filter.questionType = questionTypes[0];
 
+  if (config.syllabus_exam_pattern_id || config.syllabusExamPatternId) {
+    filter['syllabusMappings.examPatternId'] = config.syllabus_exam_pattern_id || config.syllabusExamPatternId;
+  }
+  if (config.syllabus_class_id || config.syllabusClassId) {
+    filter['syllabusMappings.classId'] = config.syllabus_class_id || config.syllabusClassId;
+  }
+  if (config.syllabus_subject_id || config.syllabusSubjectId) {
+    filter['syllabusMappings.subjectId'] = config.syllabus_subject_id || config.syllabusSubjectId;
+  }
+  if (config.syllabus_chapter_id || config.syllabusChapterId) {
+    filter['syllabusMappings.chapterId'] = config.syllabus_chapter_id || config.syllabusChapterId;
+  }
+  if (config.syllabus_topic_id || config.syllabusTopicId) {
+    filter['syllabusMappings.topicId'] = config.syllabus_topic_id || config.syllabusTopicId;
+  }
+  if (config.syllabus_subtopic_id || config.syllabusSubtopicId) {
+    filter['syllabusMappings.subtopicId'] = config.syllabus_subtopic_id || config.syllabusSubtopicId;
+  }
+
+  const bankIds = parseIdList(config.bank_ids || config.bankIds || config.bank_id || config.bankId);
+  if (bankIds.length) {
+    filter.bankIds = { $in: bankIds };
+  }
+
   return filter;
 }
 

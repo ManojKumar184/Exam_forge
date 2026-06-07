@@ -29,7 +29,7 @@ export async function update(req, res) {
 }
 
 export async function remove(req, res) {
-  await questionService.deleteQuestion(req.params.id);
+  await questionService.deleteQuestion(req.params.id, req.user);
   res.json({ success: true, message: 'Question deleted' });
 }
 
@@ -58,7 +58,7 @@ export async function bulkReject(req, res) {
 }
 
 export async function bulkDelete(req, res) {
-  await questionService.bulkDelete(req.body.ids);
+  await questionService.bulkDelete(req.body.ids, req.user);
   res.json({ success: true, message: 'Questions deleted' });
 }
 

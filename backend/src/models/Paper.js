@@ -22,6 +22,41 @@ const paperQuestionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const paperExportSettingsSchema = new mongoose.Schema(
+  {
+    layout: { type: String, enum: ['single_column', 'two_column'], default: 'single_column' },
+    margin: { type: String, enum: ['narrow', 'normal', 'wide'], default: 'normal' },
+    fontFamily: { type: String, default: 'times_new_roman' },
+    fontSize: { type: Number, default: 11 },
+    lineSpacing: { type: Number, default: 1.25 },
+    // Header
+    showInstitutionLogo: { type: Boolean, default: true },
+    institutionLogoUrl: { type: String, default: null },
+    institutionName: { type: String, default: null },
+    examinationName: { type: String, default: null },
+    subjectName: { type: String, default: null },
+    className: { type: String, default: null },
+    durationMinutes: { type: Number, default: null },
+    maximumMarks: { type: Number, default: null },
+    customHeaderText: { type: String, default: null },
+    // Footer
+    showPageNumber: { type: Boolean, default: true },
+    footerInstitutionName: { type: String, default: null },
+    customFooterText: { type: String, default: null },
+    // Template
+    template: { type: String, default: 'default' },
+    // Cover page & numbering modes
+    showCoverPage: { type: Boolean, default: false },
+    numberingMode: { type: String, enum: ['continuous', 'section_wise'], default: 'continuous' },
+    // Watermark
+    watermarkText: { type: String, default: null },
+    watermarkOpacity: { type: Number, default: 0.04 },
+    watermarkSize: { type: Number, default: 64 },
+    watermarkRotation: { type: Number, default: -25 }
+  },
+  { _id: false }
+);
+
 const paperSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -50,6 +85,8 @@ const paperSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     publishedAt: { type: Date, default: null },
     pdfUrl: { type: String, default: null },
+    exportSettings: { type: paperExportSettingsSchema, default: () => ({}) },
+
   },
   { timestamps: true }
 );

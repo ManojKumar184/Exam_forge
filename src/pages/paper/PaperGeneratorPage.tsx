@@ -11,6 +11,8 @@ import {
 } from '../../api/papers';
 import { downloadBlob } from '../../utils/downloadBlob';
 import { getApiErrorMessage } from '../../api/client';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
+import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
 import toast from 'react-hot-toast';
 import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect, PageHeader } from '../../components/ui';
 import { Plus, Wand2, Settings, Save, Sparkles, Download } from 'lucide-react';
@@ -74,13 +76,28 @@ export function PaperGeneratorPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState('');
   const [poolStats, setPoolStats] = useState<PoolStats | null>(null);
   const [poolLoading, setPoolLoading] = useState(false);
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
+  const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
   const [builderFilters, setBuilderFilters] = useState<PaperBuilderFilters>({
     subjectIds: [],
     examTypeIds: [],
     classLevels: [],
     chapterIds: [],
     difficulties: [],
+    syllabusExamPatternId: '',
+    syllabusClassId: '',
+    syllabusSubjectId: '',
+    syllabusChapterId: '',
+    syllabusTopicId: '',
+    syllabusSubtopicId: '',
+    bankId: '',
+    bankIds: [],
   });
+
+  useEffect(() => {
+    fetchSyllabusTree().then(setSyllabusTree).catch((err) => console.error(err));
+    fetchQuestionBanksApi().then(setQuestionBanks).catch((err) => console.error(err));
+  }, []);
 
   const filterPayload = useMemo(
     () => ({
@@ -166,7 +183,14 @@ export function PaperGeneratorPage() {
       else if (selectedDifficulty && q.difficulty !== selectedDifficulty) return false;
       if (builderFilters.chapterIds.length && q.chapter_id && !builderFilters.chapterIds.includes(q.chapter_id)) return false;
       if (builderFilters.examTypeIds.length && q.exam_type_id && !builderFilters.examTypeIds.includes(q.exam_type_id)) return false;
-      if (searchTerm && !q.question_text.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      if (searchTerm) {
+        const term = searchTerm.trim().toLowerCase();
+        const idMatch = term.match(/^q-(\d+)$/i);
+        const idNum = idMatch ? Number(idMatch[1]) : (/^\d+$/.test(term) ? Number(term) : null);
+        const matchesId = idNum !== null && q.serial_id === idNum;
+        const matchesText = q.question_text?.toLowerCase().includes(term);
+        if (!matchesId && !matchesText) return false;
+      }
       return true;
     });
   }, [questions, subjectId, classLevel, selectedDifficulty, searchTerm, usedQuestionIds, builderFilters]);
@@ -657,6 +681,143 @@ export function PaperGeneratorPage() {
 
             <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Question pool filters</p>
+              
+              <div className="border border-slate-200 dark:border-slate-700 p-2.5 rounded-lg bg-slate-50/50 dark:bg-slate-900/30 space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Syllabus mapping</p>
+                <Select
+                  label="Exam Pattern"
+                  placeholder="All Patterns"
+                  options={syllabusTree.map(n => ({ value: n._id, label: n.name }))}
+                  value={builderFilters.syllabusExamPatternId || ''}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusExamPatternId: e.target.value,
+                      syllabusClassId: '',
+                      syllabusSubjectId: '',
+                      syllabusChapterId: '',
+                      syllabusTopicId: '',
+                      syllabusSubtopicId: ''
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+                <Select
+                  label="Class"
+                  placeholder="All Classes"
+                  options={[
+                    ...(syllabusTree.find(n => n._id === builderFilters.syllabusExamPatternId)?.children || []).map(n => ({ value: n._id, label: n.name }))
+                  ]}
+                  value={builderFilters.syllabusClassId || ''}
+                  disabled={!builderFilters.syllabusExamPatternId}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusClassId: e.target.value,
+                      syllabusSubjectId: '',
+                      syllabusChapterId: '',
+                      syllabusTopicId: '',
+                      syllabusSubtopicId: ''
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+                <Select
+                  label="Subject"
+                  placeholder="All Subjects"
+                  options={[
+                    ...((syllabusTree.find(n => n._id === builderFilters.syllabusExamPatternId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusClassId)?.children || []).map(n => ({ value: n._id, label: n.name }))
+                  ]}
+                  value={builderFilters.syllabusSubjectId || ''}
+                  disabled={!builderFilters.syllabusClassId}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusSubjectId: e.target.value,
+                      syllabusChapterId: '',
+                      syllabusTopicId: '',
+                      syllabusSubtopicId: ''
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+                <Select
+                  label="Chapter"
+                  placeholder="All Chapters"
+                  options={[
+                    ...(((syllabusTree.find(n => n._id === builderFilters.syllabusExamPatternId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusClassId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusSubjectId)?.children || []).map(n => ({ value: n._id, label: n.name }))
+                  ]}
+                  value={builderFilters.syllabusChapterId || ''}
+                  disabled={!builderFilters.syllabusSubjectId}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusChapterId: e.target.value,
+                      syllabusTopicId: '',
+                      syllabusSubtopicId: ''
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+                <Select
+                  label="Topic"
+                  placeholder="All Topics"
+                  options={[
+                    ...((((syllabusTree.find(n => n._id === builderFilters.syllabusExamPatternId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusClassId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusSubjectId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusChapterId)?.children || []).map(n => ({ value: n._id, label: n.name }))
+                  ]}
+                  value={builderFilters.syllabusTopicId || ''}
+                  disabled={!builderFilters.syllabusChapterId}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusTopicId: e.target.value,
+                      syllabusSubtopicId: ''
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+                <Select
+                  label="Subtopic"
+                  placeholder="All Subtopics"
+                  options={[
+                    ...(((((syllabusTree.find(n => n._id === builderFilters.syllabusExamPatternId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusClassId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusSubjectId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusChapterId)?.children || [])
+                      .find(n => n._id === builderFilters.syllabusTopicId)?.children || []).map(n => ({ value: n._id, label: n.name }))
+                  ]}
+                  value={builderFilters.syllabusSubtopicId || ''}
+                  disabled={!builderFilters.syllabusTopicId}
+                  onChange={(e) => {
+                    setBuilderFilters(prev => ({
+                      ...prev,
+                      syllabusSubtopicId: e.target.value
+                    }));
+                  }}
+                  className="py-1 text-xs"
+                />
+              </div>
+
+              <Select
+                label="Question Bank"
+                placeholder="All Question Banks"
+                options={questionBanks.map((qb) => ({ value: qb._id, label: qb.name }))}
+                value={builderFilters.bankId || ''}
+                onChange={(e) => {
+                  setBuilderFilters((prev) => ({
+                    ...prev,
+                    bankId: e.target.value,
+                  }));
+                }}
+                className="py-1 text-xs"
+              />
+
               <MultiSelect
                 label="Classes"
                 options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
@@ -887,6 +1048,11 @@ export function PaperGeneratorPage() {
                   <div className="flex-1 min-w-0">
                     <QuestionContentPreview question={question} compact />
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {question.serial_id && (
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
+                          Q-{question.serial_id}
+                        </span>
+                      )}
                       <Badge size="sm" variant={question.difficulty === 'easy' ? 'success' : question.difficulty === 'medium' ? 'warning' : 'error'}>
                         {question.difficulty}
                       </Badge>

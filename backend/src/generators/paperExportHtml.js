@@ -278,6 +278,7 @@ function groupBySection(paper) {
  * Build printable HTML for question paper or answer key.
  */
 export function buildPaperExportHtml(paper, options = {}) {
+  const exportSettings = paper.export_settings || {};
   const {
     includeAnswers = false,
     includeExplanations = false,
@@ -291,18 +292,44 @@ export function buildPaperExportHtml(paper, options = {}) {
     draftWatermark = paper.status === 'draft',
     publicBaseUrl = null,
     embedImages = false,
+    // Customization fields
+    layout = options.layout || exportSettings.layout || 'single_column',
+    margin = options.margin || exportSettings.margin || 'normal',
+    fontFamily = options.font_family || options.fontFamily || exportSettings.font_family || 'times_new_roman',
+    fontSize = Number(options.font_size || options.fontSize || exportSettings.font_size || 11),
+    lineSpacing = Number(options.line_spacing || options.lineSpacing || exportSettings.line_spacing || 1.25),
+    showInstitutionLogo = options.showInstitutionLogo !== undefined ? options.showInstitutionLogo : (exportSettings.show_institution_logo !== undefined ? exportSettings.show_institution_logo : includeInstituteLogo),
+    institutionName = options.institutionName || exportSettings.institution_name || paper.created_by_profile?.school_institute || 'ExamForge Academy',
+    examinationName = options.examinationName || exportSettings.examination_name || paper.exam_type?.name || 'Examination',
+    subjectName = options.subjectName || exportSettings.subject_name || paper.subject?.name || 'Subject',
+    className = options.className || exportSettings.class_name || String(paper.class || '11'),
+    customHeaderText = options.customHeaderText || exportSettings.custom_header_text || '',
+    showPageNumber = options.showPageNumber !== undefined ? options.showPageNumber : (exportSettings.show_page_number !== undefined ? exportSettings.show_page_number : true),
+    footerInstitutionName = options.footerInstitutionName || exportSettings.footer_institution_name || institutionName,
+    customFooterText = options.customFooterText || exportSettings.custom_footer_text || '',
+    template = options.template || exportSettings.template || 'default',
+    showCoverPage = options.showCoverPage || exportSettings.show_cover_page || false,
+    numberingMode = options.numberingMode || exportSettings.numbering_mode || 'continuous',
+    watermarkText = options.watermarkText || exportSettings.watermark_text || (includeWatermark ? institutionName : (draftWatermark ? 'DRAFT' : null)),
+    watermarkOpacity = Number(options.watermarkOpacity !== undefined ? options.watermarkOpacity : (exportSettings.watermark_opacity !== undefined ? exportSettings.watermark_opacity : 0.04)),
+    watermarkSize = Number(options.watermarkSize || exportSettings.watermark_size || 64),
+    watermarkRotation = Number(options.watermarkRotation !== undefined ? options.watermarkRotation : (exportSettings.watermark_rotation !== undefined ? exportSettings.watermark_rotation : -25)),
+    exportTypeFormat = options.exportTypeFormat || 'paper_with_solutions',
   } = options;
+
   const exportOpts = { publicBaseUrl, embedImages };
 
+  // Map the export format toggles
+  const showQuestions = exportTypeFormat !== 'answer_key_only' && exportTypeFormat !== 'solutions_only';
+  const showAnswersInline = exportTypeFormat === 'paper_with_answers' || exportTypeFormat === 'paper_with_solutions';
+  const showFinalAnswerKey = exportTypeFormat === 'paper_with_answers' || exportTypeFormat === 'paper_with_solutions' || exportTypeFormat === 'answer_key_only';
+  const showExplanationsSec = exportTypeFormat === 'paper_with_solutions' || exportTypeFormat === 'solutions_only';
+
   const sections = groupBySection(paper);
-  const subjectName = paper.subject?.name || 'Subject';
-  const examName = paper.exam_type?.name || 'Exam';
-  const institutionName = paper.created_by_profile?.school_institute || 'ExamForge Academy';
-
   let globalQNum = 0;
-  const allAnswerKeys = []; // Array of { qNum, answer }
+  const allAnswerKeys = [];
 
-  const bodySections = sections
+  const bodySections = showQuestions ? sections
     .map((sec) => {
       const qCount = sec.items.length;
       const totalMarks = sec.items.reduce((sum, item) => sum + (item.custom_marks ?? item.question?.marks ?? 4), 0);
@@ -316,20 +343,25 @@ export function buildPaperExportHtml(paper, options = {}) {
         statsLine = `${qCount} Questions, Total Marks = ${totalMarks} Marks`;
       }
 
+      let sectionQNum = 0;
+
       const questionsHtml = sec.items
         .map((pq) => {
           const q = pq.question;
           if (!q) return '';
+          
           globalQNum += 1;
+          sectionQNum += 1;
+          const displayQNum = numberingMode === 'section_wise' ? sectionQNum : globalQNum;
+          const keyLabel = numberingMode === 'section_wise' ? `${sec.key}${sectionQNum}` : `Q${globalQNum}`;
+
           const marks = pq.custom_marks ?? q.marks ?? 4;
           const answerVal = getAnswerValue(q);
-          allAnswerKeys.push({ qNum: globalQNum, answer: answerVal, question: q });
+          allAnswerKeys.push({ qNum: displayQNum, label: keyLabel, answer: answerVal, question: q });
 
-          // Smart mark display: hide on uniform sections unless showQuestionMarks is overridden
           const showMarksForThisQuestion = showQuestionMarks || !allSameMarks;
           const marksHtml = showMarksForThisQuestion ? `<span class="q-marks">[${marks}]</span>` : '';
 
-          // Badges
           const badges = [];
           if (includeQuestionTypeBadges) {
             badges.push(`<span class="badge q-type-badge">${getQuestionTypeLabel(q.question_type)}</span>`);
@@ -347,11 +379,11 @@ export function buildPaperExportHtml(paper, options = {}) {
             ${badgesHtml}
             <div class="q-stem-row">
               ${marksHtml}
-              <span class="q-num">Q${globalQNum}.</span>
+              <span class="q-num">Q${displayQNum}.</span>
               <span class="q-stem-text">${renderRichContent(q.question_text, q.question_latex)}</span>
             </div>
             ${renderImages(q, exportOpts)}
-            ${renderOptions(q.options, q.correct_option, includeAnswers, exportOpts)}
+            ${renderOptions(q.options, q.correct_option, showAnswersInline, exportOpts)}
           </div>`;
         })
         .join('');
@@ -366,19 +398,34 @@ export function buildPaperExportHtml(paper, options = {}) {
           ${questionsHtml}
         </section>`;
     })
-    .join('');
+    .join('') : '';
+
+  // Make sure keys are populated even if questions are not rendered
+  if (!showQuestions) {
+    let dummyQNum = 0;
+    sections.forEach((sec) => {
+      let dummySecQNum = 0;
+      sec.items.forEach((pq) => {
+        const q = pq.question;
+        if (!q) return;
+        dummyQNum += 1;
+        dummySecQNum += 1;
+        const displayQNum = numberingMode === 'section_wise' ? dummySecQNum : dummyQNum;
+        const keyLabel = numberingMode === 'section_wise' ? `${sec.key}${dummySecQNum}` : `Q${dummyQNum}`;
+        const answerVal = getAnswerValue(q);
+        allAnswerKeys.push({ qNum: displayQNum, label: keyLabel, answer: answerVal, question: q });
+      });
+    });
+  }
 
   // Watermark
-  const watermarkText = includeWatermark 
-    ? (institutionName || 'ExamForge') 
-    : (draftWatermark ? 'DRAFT' : '');
   const watermark = watermarkText
     ? `<div class="watermark">${escapeHtml(watermarkText)}</div>`
     : '';
 
-  // Roll Number Slot (rendered for student Question Papers only)
+  // Roll Number Slot
   let rollNoHtml = '';
-  if (!includeAnswers) {
+  if (exportTypeFormat === 'paper_only' || exportTypeFormat === 'paper_with_answers' || exportTypeFormat === 'paper_with_solutions') {
     rollNoHtml = `
     <div class="roll-number-container">
       <span class="roll-number-label">Roll No.</span>
@@ -390,10 +437,9 @@ export function buildPaperExportHtml(paper, options = {}) {
     </div>`;
   }
 
-  // Answer Key Tabular Grid Redesign
+  // Answer Key
   let answerKeyHtml = '';
-  if (includeAnswers && allAnswerKeys.length > 0) {
-    // Partition answer keys into groups of 10 for multi-column presentation
+  if (showFinalAnswerKey && allAnswerKeys.length > 0) {
     const columns = [];
     const keysCopy = [...allAnswerKeys];
     while (keysCopy.length > 0) {
@@ -406,7 +452,7 @@ export function buildPaperExportHtml(paper, options = {}) {
           .map(
             (k) => `
           <tr>
-            <td style="font-weight: 600; width: 45%; font-family: 'Segoe UI', Arial, sans-serif;">Q${k.qNum}</td>
+            <td style="font-weight: 600; width: 45%; font-family: 'Segoe UI', Arial, sans-serif;">${k.label}</td>
             <td style="font-weight: bold; color: #1e3a8a; width: 55%;">${k.answer}</td>
           </tr>`
           )
@@ -438,7 +484,7 @@ export function buildPaperExportHtml(paper, options = {}) {
 
   // Explanations Section
   let explanationsHtml = '';
-  if (includeAnswers && includeExplanations && allAnswerKeys.length > 0) {
+  if (showExplanationsSec && allAnswerKeys.length > 0) {
     const listHtml = allAnswerKeys
       .map((k) => {
         const q = k.question;
@@ -463,7 +509,7 @@ export function buildPaperExportHtml(paper, options = {}) {
         return `
         <div class="explanation-block">
           <div class="exp-header">
-            <strong>Q${k.qNum}.</strong> <span class="exp-badge">Solution</span>
+            <strong>${k.label}.</strong> <span class="exp-badge">Solution</span>
           </div>
           <div class="exp-correct-answer">Correct Answer: <strong>${k.answer}</strong></div>
           <div class="exp-body">
@@ -486,31 +532,74 @@ export function buildPaperExportHtml(paper, options = {}) {
     }
   }
 
-  // Header layout with conditional logo
+  // Header layout
   let headerHtml = '';
-  if (includeInstituteLogo) {
-    headerHtml = `
-    <div class="header-container">
-      <svg class="header-logo" viewBox="0 0 100 100">
-        <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
-        <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
-        <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
-        <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
-      </svg>
-      <div class="header-text">
+  if (showQuestions) {
+    if (showInstitutionLogo) {
+      headerHtml = `
+      <div class="header-container">
+        <svg class="header-logo" viewBox="0 0 100 100">
+          <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
+          <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
+          <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
+          <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
+        </svg>
+        <div class="header-text">
+          <div class="institution-name">${escapeHtml(institutionName)}</div>
+          <div class="exam-name">${escapeHtml(examinationName)}</div>
+          <div class="paper-title">${escapeHtml(paper.title)}</div>
+        </div>
+      </div>`;
+    } else {
+      headerHtml = `
+      <div class="header" style="text-align: center; margin-bottom: 10px;">
         <div class="institution-name">${escapeHtml(institutionName)}</div>
-        <div class="exam-name">${escapeHtml(examName)}</div>
+        <div class="exam-name">${escapeHtml(examinationName)}</div>
         <div class="paper-title">${escapeHtml(paper.title)}</div>
+      </div>`;
+    }
+  }
+
+  // Cover Page
+  let coverPageHtml = '';
+  if (showCoverPage) {
+    const logoSvg = showInstitutionLogo 
+      ? `<svg viewBox="0 0 100 100" style="width:72px;height:72px;fill:#0f172a;margin:0 auto 20px auto;display:block;">
+          <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
+          <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
+          <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
+          <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
+        </svg>`
+      : '';
+
+    coverPageHtml = `
+    <div class="cover-page">
+      <div class="cover-content">
+        ${logoSvg}
+        <h1 class="cover-institution">${escapeHtml(institutionName)}</h1>
+        <h2 class="cover-exam">${escapeHtml(examinationName)}</h2>
+        <h3 class="cover-subject">${escapeHtml(subjectName)}</h3>
+        
+        <table class="cover-meta-table">
+          <tr>
+            <td><strong>Class:</strong> Class ${className}</td>
+            <td><strong>Total Questions:</strong> ${paper.total_questions} Questions</td>
+          </tr>
+          <tr>
+            <td><strong>Time Allowed:</strong> ${paper.duration_minutes} Minutes</td>
+            <td><strong>Maximum Marks:</strong> ${paper.total_marks} Marks</td>
+          </tr>
+        </table>
+        
+        ${customHeaderText ? `<div class="cover-custom-text">${escapeHtml(customHeaderText)}</div>` : ''}
       </div>
     </div>`;
-  } else {
-    headerHtml = `
-    <div class="header" style="text-align: center; margin-bottom: 10px;">
-      <div class="institution-name">${escapeHtml(institutionName)}</div>
-      <div class="exam-name">${escapeHtml(examName)}</div>
-      <div class="paper-title">${escapeHtml(paper.title)}</div>
-    </div>`;
   }
+
+  // Inter Font check
+  const fontLoader = fontFamily === 'inter' 
+    ? `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"/>`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -518,11 +607,106 @@ export function buildPaperExportHtml(paper, options = {}) {
   <meta charset="utf-8"/>
   <title>${escapeHtml(paper.title)} — Set ${paperSet}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
+  ${fontLoader}
   <style>
-    @page { margin: 22mm 16mm 20mm 16mm; }
-    body { font-family: Georgia, 'Times New Roman', Times, serif; font-size: 10.5pt; color: #000; line-height: 1.6; }
-    .watermark { position: fixed; top: 40%; left: 8%; right: 8%; text-align: center; font-size: 64pt; font-weight: bold; color: rgba(0,0,0,0.04); transform: rotate(-25deg); z-index: 0; pointer-events: none; text-transform: uppercase; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; }
+    @page { 
+      margin: ${
+        margin === 'narrow' ? '15mm 10mm 15mm 10mm' :
+        margin === 'wide' ? '30mm 25mm 30mm 25mm' :
+        '22mm 16mm 20mm 16mm'
+      }; 
+    }
+    body { 
+      font-family: ${
+        fontFamily === 'times_new_roman' ? "Georgia, 'Times New Roman', Times, serif" :
+        fontFamily === 'cambria' ? "Cambria, Georgia, serif" :
+        fontFamily === 'arial' ? "Arial, Helvetica, sans-serif" :
+        fontFamily === 'inter' ? "'Inter', 'Segoe UI', sans-serif" :
+        "Georgia, 'Times New Roman', Times, serif"
+      }; 
+      font-size: ${fontSize}pt; 
+      color: #000; 
+      line-height: ${lineSpacing}; 
+    }
     
+    .watermark { 
+      position: fixed; 
+      top: 40%; 
+      left: 8%; 
+      right: 8%; 
+      text-align: center; 
+      font-size: ${watermarkSize}pt; 
+      font-weight: bold; 
+      color: rgba(0,0,0,${watermarkOpacity}); 
+      transform: rotate(${watermarkRotation}deg); 
+      z-index: 0; 
+      pointer-events: none; 
+      text-transform: uppercase; 
+      word-wrap: break-word; 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+    }
+    
+    /* Cover Page Styles */
+    .cover-page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 82vh;
+      text-align: center;
+      page-break-after: always;
+      break-after: page;
+      column-span: all;
+      -webkit-column-span: all;
+      border: 2px solid #000;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-sizing: border-box;
+    }
+    .cover-content {
+      margin: auto 0;
+      width: 100%;
+    }
+    .cover-institution {
+      font-size: 24pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      letter-spacing: 0.5px;
+    }
+    .cover-exam {
+      font-size: 16pt;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .cover-subject {
+      font-size: 13pt;
+      font-style: italic;
+      color: #475569;
+      margin-bottom: 40px;
+    }
+    .cover-meta-table {
+      width: 80%;
+      margin: 0 auto 30px auto;
+      border-collapse: collapse;
+    }
+    .cover-meta-table td {
+      border: 1.5px solid #000;
+      padding: 10px;
+      text-align: left;
+      font-size: 10.5pt;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .cover-custom-text {
+      font-size: 10pt;
+      margin-top: 30px;
+      color: #475569;
+      font-style: italic;
+    }
+
     /* Roll Number table */
     .roll-number-container { float: right; display: flex; align-items: center; margin-bottom: 12px; position: relative; z-index: 10; }
     .roll-number-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; font-weight: bold; margin-right: 6px; text-transform: uppercase; color: #475569; }
@@ -530,7 +714,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     .roll-number-table td { border: 1px solid #1e293b; width: 15px; height: 18px; padding: 0; text-align: center; }
 
     /* Header Styles */
-    .header-outer { border-bottom: 4px double #000; padding-bottom: 8px; margin-bottom: 22px; clear: both; }
+    .header-outer { border-bottom: 4px double #000; padding-bottom: 8px; margin-bottom: 22px; clear: both; column-span: all; -webkit-column-span: all; }
     .header-container { display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; margin-bottom: 8px; }
     .header-logo { width: 56px; height: 56px; fill: #0f172a; margin-right: 18px; flex-shrink: 0; }
     .header-text { text-align: center; }
@@ -541,18 +725,31 @@ export function buildPaperExportHtml(paper, options = {}) {
     .meta-table { border-collapse: collapse; width: 100%; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; border-top: 1.5px solid #000; padding-top: 6px; margin-top: 8px; }
     .meta-table td { border: none; padding: 5px 0; color: #000; }
     
-    .instructions { border: 1.5px solid #000; padding: 12px; margin-bottom: 24px; border-radius: 4px; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; }
+    .instructions { border: 1.5px solid #000; padding: 12px; margin-bottom: 24px; border-radius: 4px; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.5; column-span: all; -webkit-column-span: all; }
     .instructions strong { font-size: 10pt; text-transform: uppercase; }
     
+    /* Layout flow control */
+    .paper-content {
+      column-count: ${layout === 'two_column' ? 2 : 1};
+      column-gap: 24px;
+      column-fill: auto;
+    }
+
     /* Section Styles */
     .paper-section { margin-bottom: 30px; }
-    .section-header { margin-top: 26px; margin-bottom: 18px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 8px 0; text-align: center; page-break-after: avoid; break-after: avoid; }
+    .section-header { margin-top: 26px; margin-bottom: 18px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 8px 0; text-align: center; page-break-after: avoid; break-after: avoid; column-span: all; -webkit-column-span: all; }
     .section-tag { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5pt; font-weight: bold; color: #000; letter-spacing: 1.5px; text-transform: uppercase; }
     .section-name { font-family: Georgia, serif; font-size: 13.5pt; font-weight: bold; color: #000; margin: 4px 0; }
     .section-stats { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; color: #334155; font-style: italic; }
     
-    /* Question Block Styles */
-    .question-block { margin: 24px 0; padding-left: 2px; page-break-inside: avoid; break-inside: avoid; display: block; }
+    /* Question Block Styles - PRINT LAYOUT OPTIMIZED */
+    .question-block { 
+      margin: 24px 0; 
+      padding-left: 2px; 
+      page-break-inside: avoid; 
+      break-inside: avoid; 
+      display: block; 
+    }
     
     .q-badges-container { display: flex; gap: 8px; margin-bottom: 8px; page-break-after: avoid; break-after: avoid; }
     .badge { font-size: 7.5pt; font-weight: 600; text-transform: uppercase; padding: 2px 5px; border-radius: 3px; font-family: 'Segoe UI', Arial, sans-serif; border: 1px solid #1e293b; }
@@ -567,7 +764,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     .q-marks { float: right; font-weight: bold; margin-left: 14px; color: #000; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; flex-shrink: 0; }
     
     /* Option Styles (Auto Columns layout) */
-    .options { margin: 10px 0 10px 34px; padding: 0; list-style: none; }
+    .options { margin: 10px 0 10px 34px; padding: 0; list-style: none; page-break-inside: avoid; break-inside: avoid; }
     .options-4col { display: flex; flex-wrap: wrap; }
     .options-4col .option { width: 25%; min-width: 120px; box-sizing: border-box; padding-right: 12px; }
     .options-2col { display: flex; flex-wrap: wrap; }
@@ -590,12 +787,15 @@ export function buildPaperExportHtml(paper, options = {}) {
     table th { background-color: #f1f5f9; font-weight: bold; color: #000; }
     
     /* Answer Key Styles */
-    .answer-key-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; margin-top: 18px; }
+    .answer-key-section { column-span: all; -webkit-column-span: all; }
+    .section-title { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14pt; font-weight: bold; margin: 24px 0 12px 0; border-bottom: 2px solid #000; padding-bottom: 4px; }
+    .answer-key-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start; margin-top: 18px; page-break-inside: avoid; break-inside: avoid; }
     .answer-key-table { flex: 1 1 180px; max-width: 220px; margin: 0; }
     .answer-key-table th, .answer-key-table td { border: 1.5px solid #000; padding: 6px 10px; text-align: center; font-size: 9.5pt; font-family: 'Segoe UI', Arial, sans-serif; }
     .answer-key-table th { background-color: #f1f5f9; color: #000; }
     
     /* Detailed Solutions Styles */
+    .explanations-section { column-span: all; -webkit-column-span: all; }
     .explanations-list { display: flex; flex-direction: column; gap: 22px; margin-top: 18px; }
     .explanation-block { padding: 14px 16px; border-left: 3.5px solid #475569; margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; background-color: #f8fafc; border-radius: 0 4px 4px 0; border: 1px solid #e2e8f0; border-left: 3.5px solid #475569; }
     .exp-header { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; margin-bottom: 4px; }
@@ -610,38 +810,48 @@ export function buildPaperExportHtml(paper, options = {}) {
     .page-break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
 
     .katex-display { margin: 0.8em 0; overflow-x: auto; }
-    .footer-note { margin-top: 40px; font-size: 8.5pt; color: #475569; text-align: center; border-top: 1.5px solid #000; padding-top: 12px; font-family: 'Segoe UI', Arial, sans-serif; page-break-inside: avoid; break-inside: avoid; text-transform: uppercase; letter-spacing: 0.5px; }
+    .footer-note { margin-top: 40px; font-size: 8.5pt; color: #475569; text-align: center; border-top: 1.5px solid #000; padding-top: 12px; font-family: 'Segoe UI', Arial, sans-serif; page-break-inside: avoid; break-inside: avoid; text-transform: uppercase; letter-spacing: 0.5px; column-span: all; -webkit-column-span: all; }
   </style>
 </head>
 <body>
+  ${watermark}
+  ${coverPageHtml}
+  
   ${rollNoHtml}
   
-  <div class="header-outer">
-    ${headerHtml}
-    
-    <table class="meta-table">
-      <tr>
-        <td style="width: 33%; font-weight: 500;"><strong>Subject:</strong> ${escapeHtml(subjectName)}</td>
-        <td style="width: 34%; text-align: center; font-weight: 500;"><strong>Class:</strong> ${paper.class}</td>
-        <td style="width: 33%; text-align: right; font-weight: 500;"><strong>Set:</strong> ${paperSet} ${includeAnswers ? '(Answer Key)' : ''}</td>
-      </tr>
-      <tr>
-        <td><strong>Time Allowed:</strong> ${paper.duration_minutes} Mins</td>
-        <td style="text-align: center;"><strong>Total Questions:</strong> ${paper.total_questions}</td>
-        <td style="text-align: right;"><strong>Max. Marks:</strong> ${paper.total_marks}</td>
-      </tr>
-    </table>
+  ${
+    showQuestions
+      ? `<div class="header-outer">
+          ${headerHtml}
+          
+          <table class="meta-table">
+            <tr>
+              <td style="width: 33%; font-weight: 500;"><strong>Subject:</strong> ${escapeHtml(subjectName)}</td>
+              <td style="width: 34%; text-align: center; font-weight: 500;"><strong>Class:</strong> Class ${className}</td>
+              <td style="width: 33%; text-align: right; font-weight: 500;"><strong>Set:</strong> ${paperSet} ${includeAnswers ? '(Answer Key)' : ''}</td>
+            </tr>
+            <tr>
+              <td><strong>Time Allowed:</strong> ${paper.duration_minutes} Mins</td>
+              <td style="text-align: center;"><strong>Total Questions:</strong> ${paper.total_questions}</td>
+              <td style="text-align: right;"><strong>Max. Marks:</strong> ${paper.total_marks} Marks</td>
+            </tr>
+          </table>
+        </div>`
+      : ''
+  }
+  
+  ${showQuestions && paper.instructions ? `<div class="instructions"><strong>Instructions:</strong> ${escapeHtml(paper.instructions)}</div>` : ''}
+  
+  <div class="paper-content">
+    ${bodySections}
   </div>
-  
-  ${paper.instructions ? `<div class="instructions"><strong>Instructions:</strong> ${escapeHtml(paper.instructions)}</div>` : ''}
-  
-  ${bodySections}
   
   ${answerKeyHtml}
   
   ${explanationsHtml}
   
-  <div class="footer-note">ExamForge — ${includeAnswers ? 'Faculty use only (Answer Key)' : 'Do not write on this sheet'}</div>
+  <div class="footer-note">${escapeHtml(footerInstitutionName)} — ${includeAnswers ? 'Faculty use only (Answer Key)' : 'Do not write on this sheet'}</div>
 </body>
 </html>`;
 }
+

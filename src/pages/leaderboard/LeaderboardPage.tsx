@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useDataStore } from '../../stores/dataStore';
 import { fetchTestLeaderboardApi } from '../../api/tests';
-import { Card, Select, Loading, Badge, PageHeader, DataTable } from '../../components/ui';
-import { Trophy, Medal, Clock } from 'lucide-react';
+import { Card, Select, Loading, Badge, PageHeader, DataTable, Input } from '../../components/ui';
+import { Trophy, Medal, Clock, Search } from 'lucide-react';
 import type { LeaderboardEntry } from '../../types';
 
 function formatDuration(seconds: number) {
@@ -19,10 +19,37 @@ export function LeaderboardPage() {
   const [selectedTestId, setSelectedTestId] = useState(preselectedTestId || '');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [testSearch, setTestSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
 
   useEffect(() => {
     fetchOnlineTests();
   }, [fetchOnlineTests]);
+
+  const filteredTests = onlineTests.filter((t) => {
+    if (!testSearch.trim()) return true;
+    const term = testSearch.toLowerCase();
+    const codeMatch = t.test_code?.toLowerCase().includes(term);
+    const titleMatch = t.paper?.title?.toLowerCase().includes(term);
+    return codeMatch || titleMatch;
+  });
+
+  useEffect(() => {
+    if (testSearch.trim() && filteredTests.length > 0) {
+      const isCurrentInFiltered = filteredTests.some(t => t.id === selectedTestId);
+      if (!isCurrentInFiltered) {
+        setSelectedTestId(filteredTests[0].id);
+      }
+    }
+  }, [testSearch, filteredTests, selectedTestId]);
+
+  const filteredEntries = entries.filter((entry) => {
+    if (!studentSearch.trim()) return true;
+    const term = studentSearch.toLowerCase();
+    const nameMatch = entry.profile?.full_name?.toLowerCase().includes(term);
+    const emailMatch = entry.profile?.email?.toLowerCase().includes(term);
+    return nameMatch || emailMatch;
+  });
 
   useEffect(() => {
     const loadLeaderboard = async () => {
@@ -62,18 +89,40 @@ export function LeaderboardPage() {
     <div className="space-y-6">
       <PageHeader title="Leaderboard" subtitle="Rankings for completed test attempts" />
 
-      <Card className="p-4">
-        <Select
-          label="Select test"
-          options={onlineTests.map((t) => ({
-            value: t.id,
-            label: `${t.test_code} (${t.status})`,
-          }))}
-          value={selectedTestId}
-          onChange={(e) => setSelectedTestId(e.target.value)}
-          placeholder="Choose a test"
-        />
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4 space-y-3">
+          <Input
+            label="Search Test Code/Title"
+            placeholder="Search test..."
+            value={testSearch}
+            onChange={(e) => setTestSearch(e.target.value)}
+            leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+            className="py-1 text-sm"
+          />
+          <Select
+            label="Select test"
+            options={filteredTests.map((t) => ({
+              value: t.id,
+              label: `${t.test_code} ${t.paper?.title ? `(${t.paper.title})` : ''} (${t.status})`,
+            }))}
+            value={selectedTestId}
+            onChange={(e) => setSelectedTestId(e.target.value)}
+            placeholder="Choose a test"
+            className="py-1 text-sm"
+          />
+        </Card>
+
+        <Card className="p-4 flex flex-col justify-end">
+          <Input
+            label="Search Student Name or Email"
+            placeholder="Search student..."
+            value={studentSearch}
+            onChange={(e) => setStudentSearch(e.target.value)}
+            leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+            className="py-1 text-sm"
+          />
+        </Card>
+      </div>
 
       {isLoading ? (
         <Loading text="Loading rankings..." />
@@ -88,7 +137,7 @@ export function LeaderboardPage() {
           isLoading={isLoading}
           emptyMessage="No rankings yet"
         >
-          {entries.map((entry) => (
+          {filteredEntries.map((entry) => (
             <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
               <td className="px-4 py-3.5 text-center">
                 <div className="flex justify-center">{rankIcon(entry.rank)}</div>

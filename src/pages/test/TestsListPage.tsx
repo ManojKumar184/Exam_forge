@@ -6,6 +6,8 @@ import { Card, Button, Badge, Loading, EmptyState, Input, Modal, Select, PageHea
 import { PlayCircle, Clock, Calendar, CheckCircle, Search, Plus, Edit, Trash2, Copy, ExternalLink } from 'lucide-react';
 import type { OnlineTest } from '../../types';
 import toast from 'react-hot-toast';
+import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 
 export function TestsListPage() {
   const navigate = useNavigate();
@@ -21,6 +23,19 @@ export function TestsListPage() {
   } = useDataStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Advanced Filters (Bank & Syllabus Nodes)
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
+  const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+  const [bankFilter, setBankFilter] = useState('');
+  const [syllabusFilters, setSyllabusFilters] = useState({
+    syllabus_exam_pattern_id: '',
+    syllabus_class_id: '',
+    syllabus_subject_id: '',
+    syllabus_chapter_id: '',
+    syllabus_topic_id: '',
+    syllabus_subtopic_id: '',
+  });
 
   // Edit test state variables
   const [selectedTest, setSelectedTest] = useState<OnlineTest | null>(null);
@@ -39,11 +54,34 @@ export function TestsListPage() {
   const [editShowAnswers, setEditShowAnswers] = useState(true);
 
   useEffect(() => {
-    fetchOnlineTests();
+    async function loadMetadata() {
+      try {
+        const [tree, banks] = await Promise.all([
+          fetchSyllabusTree(),
+          fetchQuestionBanksApi()
+        ]);
+        setSyllabusTree(tree);
+        setQuestionBanks(banks);
+      } catch (err) {
+        console.error('Failed to load filter metadata', err);
+      }
+    }
+    loadMetadata();
+  }, []);
+
+  useEffect(() => {
+    const apiFilters: Record<string, any> = {};
+    if (bankFilter) apiFilters.bank_id = bankFilter;
+    if (syllabusFilters.syllabus_subject_id) apiFilters.subject_id = syllabusFilters.syllabus_subject_id;
+    if (syllabusFilters.syllabus_chapter_id) apiFilters.chapter_id = syllabusFilters.syllabus_chapter_id;
+    if (syllabusFilters.syllabus_topic_id) apiFilters.topic_id = syllabusFilters.syllabus_topic_id;
+    if (syllabusFilters.syllabus_subtopic_id) apiFilters.subtopic_id = syllabusFilters.syllabus_subtopic_id;
+
+    fetchOnlineTests(apiFilters);
     if (isStudent) {
       fetchTestAttempts();
     }
-  }, [profile?.id]);
+  }, [profile?.id, bankFilter, syllabusFilters]);
 
   const getTestStatus = (test: OnlineTest) => {
     const now = new Date();
@@ -182,24 +220,173 @@ export function TestsListPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <Input
-          placeholder="Search tests..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          leftIcon={<Search className="w-4 h-4" />}
-          className="max-w-xs"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="scheduled">Scheduled</option>
-          <option value="completed">Completed</option>
-        </select>
+      <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex flex-wrap gap-4 items-center">
+          <Input
+            placeholder="Search tests..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            leftIcon={<Search className="w-4 h-4" />}
+            className="w-full sm:w-64"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm h-10 w-full sm:w-40"
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+          </select>
+          <select
+            value={bankFilter}
+            onChange={(e) => setBankFilter(e.target.value)}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm h-10 w-full sm:w-48"
+          >
+            <option value="">All Question Banks</option>
+            {questionBanks.map((bank) => (
+              <option key={bank._id} value={bank._id}>
+                {bank.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="w-full sm:w-48">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Exam Pattern"
+              options={[
+                { value: '', label: 'All Patterns' },
+                ...syllabusTree.map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_exam_pattern_id: e.target.value,
+                  syllabus_class_id: '',
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-28">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Class"
+              options={[
+                { value: '', label: 'All Classes' },
+                ...(syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_class_id}
+              disabled={!syllabusFilters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_class_id: e.target.value,
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-32">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subject"
+              options={[
+                { value: '', label: 'All Subjects' },
+                ...((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_subject_id}
+              disabled={!syllabusFilters.syllabus_class_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_subject_id: e.target.value,
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Chapter"
+              options={[
+                { value: '', label: 'All Chapters' },
+                ...(((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_chapter_id}
+              disabled={!syllabusFilters.syllabus_subject_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_chapter_id: e.target.value,
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Topic"
+              options={[
+                { value: '', label: 'All Topics' },
+                ...((((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_chapter_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_topic_id}
+              disabled={!syllabusFilters.syllabus_chapter_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_topic_id: e.target.value,
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subtopic"
+              options={[
+                { value: '', label: 'All Subtopics' },
+                ...(((((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_chapter_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_topic_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_subtopic_id}
+              disabled={!syllabusFilters.syllabus_topic_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_subtopic_id: e.target.value
+                }));
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Tests Grid */}

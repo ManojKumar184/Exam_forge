@@ -8,6 +8,7 @@ export function mapQuestion(doc) {
 
   return {
     id: idStr(d._id),
+    serial_id: d.serialId ?? null,
     subject_id: d.subjectId ? idStr(d.subjectId._id || d.subjectId) : null,
     chapter_id: d.chapterId ? idStr(d.chapterId._id || d.chapterId) : null,
     exam_type_id: d.examTypeId ? idStr(d.examTypeId._id || d.examTypeId) : null,
@@ -52,6 +53,9 @@ export function mapQuestion(doc) {
     source_file: d.sourceFile,
     extracted_from: d.extractedFrom,
     created_by: d.createdBy ? idStr(d.createdBy) : null,
+    owner_id: d.ownerId ? idStr(d.ownerId) : null,
+    is_private: d.isPrivate ?? true,
+    visibility: d.visibility || 'private',
     created_at: d.createdAt?.toISOString?.(),
     updated_at: d.updatedAt?.toISOString?.(),
     
@@ -68,6 +72,16 @@ export function mapQuestion(doc) {
     math_preservation_confidence: d.mathPreservationConfidence ?? 0,
     metadata_confidence: d.metadataConfidence ?? 0,
     audit_history: d.auditHistory || [],
+    
+    syllabus_mappings: (d.syllabusMappings || []).map((m) => ({
+      examPatternId: m.examPatternId ? idStr(m.examPatternId._id || m.examPatternId) : null,
+      classId: m.classId ? idStr(m.classId._id || m.classId) : null,
+      subjectId: m.subjectId ? idStr(m.subjectId._id || m.subjectId) : null,
+      chapterId: m.chapterId ? idStr(m.chapterId._id || m.chapterId) : null,
+      topicId: m.topicId ? idStr(m.topicId._id || m.topicId) : null,
+      subtopicId: m.subtopicId ? idStr(m.subtopicId._id || m.subtopicId) : null,
+    })),
+
     subject: d.subjectId?.name
       ? {
           id: idStr(d.subjectId._id || d.subjectId),
@@ -92,13 +106,14 @@ export function mapQuestion(doc) {
           code: d.examTypeId.code,
         }
       : undefined,
+    bank_ids: (d.bankIds || []).map(idStr),
   };
 }
 
 export function mapUpload(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject() : doc;
-  return {
+  const base = {
     id: idStr(d._id),
     filename: d.filename,
     original_name: d.originalName,
@@ -112,11 +127,48 @@ export function mapUpload(doc) {
     processing_stage: d.processingStage,
     progress: d.progress ?? 0,
     extraction_warnings: d.extractionWarnings || [],
-    uploaded_by: idStr(d.uploadedBy),
+    uploaded_by: idStr(d.uploadedBy?._id || d.uploadedBy),
     stage_logs: d.stageLogs || [],
+    reconstruction_version: d.reconstructionVersion || 'v1.0.0',
+    classification_version: d.classificationVersion || 'v1.0.0',
+    original_html: d.originalHtml || null,
+    original_plain: d.originalPlain || null,
+    upload_options: d.uploadOptions || {},
     created_at: d.createdAt?.toISOString?.(),
     processed_at: d.processedAt?.toISOString?.() || null,
   };
+
+  if (d.uploadedBy && typeof d.uploadedBy === 'object') {
+    base.uploaded_by_user = {
+      id: idStr(d.uploadedBy._id),
+      full_name: d.uploadedBy.fullName,
+      email: d.uploadedBy.email,
+      role: d.uploadedBy.role
+    };
+  }
+  return base;
+}
+
+export function mapUploadDetail(doc) {
+  if (!doc) return null;
+  const base = mapUpload(doc);
+  const d = doc.toObject ? doc.toObject() : doc;
+
+  base.staged_questions = (d.stagedQuestions || []).map((q, idx) => {
+    const mapped = mapQuestion(q);
+    if (mapped) {
+      mapped.index = idx;
+      mapped.is_approved = q.isApproved ?? false;
+      mapped.is_rejected = q.isRejected ?? false;
+      mapped.saved_question_id = q.savedQuestionId ? idStr(q.savedQuestionId) : null;
+      mapped.duplicate_confidence = q.duplicateConfidence ?? null;
+      mapped.duplicate_method = q.duplicateMethod ?? null;
+      mapped.possible_matches = q.possibleMatches || [];
+    }
+    return mapped;
+  }).filter(Boolean);
+
+  return base;
 }
 
 export function bodyToQuestionFields(body) {
@@ -153,6 +205,11 @@ export function bodyToQuestionFields(body) {
     extracted_from: 'extractedFrom',
     upload_id: 'uploadId',
     created_by: 'createdBy',
+    owner_id: 'ownerId',
+    ownerId: 'ownerId',
+    is_private: 'isPrivate',
+    isPrivate: 'isPrivate',
+    visibility: 'visibility',
     rendering_metadata: 'renderingMetadata',
     debug_info: 'debugInfo',
     debugInfo: 'debugInfo',
@@ -180,10 +237,18 @@ export function bodyToQuestionFields(body) {
     metadataConfidence: 'metadataConfidence',
     audit_history: 'auditHistory',
     auditHistory: 'auditHistory',
+
+    // Syllabus mapping
+    syllabus_mappings: 'syllabusMappings',
+    syllabusMappings: 'syllabusMappings',
+
+    // Bank IDs mapping
+    bank_ids: 'bankIds',
+    bankIds: 'bankIds',
   };
 
   const out = {};
-  const objectIdFields = ['subjectId', 'chapterId', 'examTypeId', 'uploadId', 'createdBy', 'reviewedBy', 'duplicateOf'];
+  const objectIdFields = ['subjectId', 'chapterId', 'examTypeId', 'uploadId', 'createdBy', 'reviewedBy', 'duplicateOf', 'ownerId'];
   for (const [snake, camel] of Object.entries(map)) {
     let val = undefined;
     if (body[snake] !== undefined) val = body[snake];

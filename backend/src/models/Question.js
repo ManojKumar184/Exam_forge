@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { Counter } from './Counter.js';
 
 const questionOptionSchema = new mongoose.Schema(
   {
@@ -100,6 +101,29 @@ const questionSchema = new mongoose.Schema(
     mathPreservationConfidence: { type: Number, default: 0 },
     metadataConfidence: { type: Number, default: 0 },
     auditHistory: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    serialId: { type: Number, unique: true, index: true },
+    syllabusMappings: {
+      type: [{
+        examPatternId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+        classId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+        subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+        chapterId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+        topicId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+        subtopicId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+      }],
+      default: [],
+    },
+    bankIds: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'QuestionBank' }],
+      default: [],
+    },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    isPrivate: { type: Boolean, default: true },
+    visibility: {
+      type: String,
+      enum: ['private', 'faculty_bank', 'institution', 'public'],
+      default: 'private',
+    },
   },
   { timestamps: true }
 );
@@ -115,5 +139,27 @@ questionSchema.index({ uploadId: 1, status: 1 });
 questionSchema.index({ duplicateOf: 1 });
 questionSchema.index({ subjectId: 1, class: 1, status: 1, difficulty: 1 });
 questionSchema.index({ aiConfidence: 1, status: 1 });
+questionSchema.index({ "syllabusMappings.examPatternId": 1 });
+questionSchema.index({ "syllabusMappings.classId": 1 });
+questionSchema.index({ "syllabusMappings.subjectId": 1 });
+questionSchema.index({ "syllabusMappings.chapterId": 1 });
+questionSchema.index({ "syllabusMappings.topicId": 1 });
+questionSchema.index({ "syllabusMappings.subtopicId": 1 });
+questionSchema.index({ bankIds: 1 });
+questionSchema.index({ ownerId: 1 });
+questionSchema.index({ isPrivate: 1 });
+questionSchema.index({ visibility: 1 });
+
+questionSchema.pre('save', async function (next) {
+  if (this.isNew && !this.serialId) {
+    const counter = await Counter.findOneAndUpdate(
+      { _id: 'questions' },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    this.serialId = counter.seq;
+  }
+  next();
+});
 
 export const Question = mongoose.model('Question', questionSchema);

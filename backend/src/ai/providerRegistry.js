@@ -1,12 +1,12 @@
 import { env } from '../config/env.js';
 import { RulesProvider } from './providers/rulesProvider.js';
-import { OllamaProvider } from './providers/ollamaProvider.js';
+import { HuggingFaceProvider } from './providers/huggingFaceProvider.js';
 
 const rules = new RulesProvider();
-const ollama = new OllamaProvider();
+const huggingface = new HuggingFaceProvider();
 
 const LLM_PROVIDERS = {
-  ollama,
+  huggingface,
 };
 
 export function getRulesProvider() {
@@ -14,17 +14,13 @@ export function getRulesProvider() {
 }
 
 /**
- * Optional LLM provider from AI_PROVIDER env (openai|gemini|ollama|none).
+ * Optional LLM provider from AI_PROVIDER env (huggingface|openai|gemini|none).
  */
 export function getLlmProvider() {
   const key = (env.ai.provider || 'none').toLowerCase();
   if (key === 'none' || !key) return null;
   const p = LLM_PROVIDERS[key];
   return p?.isConfigured() ? p : null;
-}
-
-export function getOllamaProvider() {
-  return ollama;
 }
 
 export function listConfiguredProviders() {
@@ -34,3 +30,4 @@ export function listConfiguredProviders() {
   }
   return list;
 }
+

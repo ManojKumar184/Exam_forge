@@ -10,7 +10,7 @@ import {
   recomputeAttemptTotals,
 } from './gradingService.js';
 
-function buildTestFilter(query, user) {
+async function buildTestFilter(query, user) {
   const filter = {};
   if (user.role === 'student') {
     filter.status = { $in: ['active', 'scheduled'] };
@@ -19,12 +19,66 @@ function buildTestFilter(query, user) {
   }
   if (query.status) filter.status = query.status;
   if (query.search) filter.testCode = { $regex: query.search, $options: 'i' };
-  if (query.paper_id) filter.paperId = query.paper_id;
+  if (query.paper_id) {
+    filter.paperId = query.paper_id;
+  } else {
+    // Advanced filters: bank, subject, chapter, topic, subtopic
+    const paperFilter = {};
+    let filterByQuestions = false;
+    const questionFilter = {};
+
+    if (query.bank_id) {
+      const bankIds = Array.isArray(query.bank_id) ? query.bank_id : String(query.bank_id).split(',').map(s => s.trim()).filter(Boolean);
+      questionFilter.bankIds = { $in: bankIds };
+      filterByQuestions = true;
+    }
+
+    if (query.chapter_id) {
+      const chapterIds = Array.isArray(query.chapter_id) ? query.chapter_id : String(query.chapter_id).split(',').map(s => s.trim()).filter(Boolean);
+      questionFilter.$or = [
+        { chapterId: { $in: chapterIds } },
+        { 'syllabusMappings.chapterId': { $in: chapterIds } }
+      ];
+      filterByQuestions = true;
+    }
+
+    if (query.topic_id) {
+      const topicIds = Array.isArray(query.topic_id) ? query.topic_id : String(query.topic_id).split(',').map(s => s.trim()).filter(Boolean);
+      questionFilter['syllabusMappings.topicId'] = { $in: topicIds };
+      filterByQuestions = true;
+    }
+
+    if (query.subtopic_id) {
+      const subtopicIds = Array.isArray(query.subtopic_id) ? query.subtopic_id : String(query.subtopic_id).split(',').map(s => s.trim()).filter(Boolean);
+      questionFilter['syllabusMappings.subtopicId'] = { $in: subtopicIds };
+      filterByQuestions = true;
+    }
+
+    if (query.subject_id) {
+      const subjectIds = Array.isArray(query.subject_id) ? query.subject_id : String(query.subject_id).split(',').map(s => s.trim()).filter(Boolean);
+      paperFilter.subjectId = { $in: subjectIds };
+    }
+
+    if (filterByQuestions) {
+      const { Question } = await import('../models/Question.js');
+      const matchingQuestions = await Question.find(questionFilter).select('_id').lean();
+      const matchingIds = matchingQuestions.map(q => q._id);
+      paperFilter['questions.questionId'] = { $in: matchingIds };
+    }
+
+    if (Object.keys(paperFilter).length > 0) {
+      const { Paper } = await import('../models/Paper.js');
+      const matchingPapers = await Paper.find(paperFilter).select('_id').lean();
+      const paperIds = matchingPapers.map(p => p._id);
+      filter.paperId = { $in: paperIds };
+    }
+  }
   return filter;
 }
 
 export async function listTests(query, user) {
-  const tests = await OnlineTest.find(buildTestFilter(query, user))
+  const filter = await buildTestFilter(query, user);
+  const tests = await OnlineTest.find(filter)
     .populate({
       path: 'paperId',
       populate: ['subjectId', 'examTypeId', { path: 'questions.questionId' }],

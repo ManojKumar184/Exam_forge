@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Question } from '../models/Question.js';
 import { Topic } from '../models/Topic.js';
 import { AppError } from '../utils/AppError.js';
@@ -15,47 +16,152 @@ function parseListParam(value) {
 }
 
 function buildListFilter(query, user) {
-  const filter = {};
+  const andClauses = [];
 
-  if (user.role === 'faculty' || user.role === 'student') {
-    filter.status = 'approved';
+  // Role-based accessibility boundaries
+  if (user.role === 'student') {
+    andClauses.push({ status: 'approved' });
+    andClauses.push({ isPrivate: false });
+  } else if (user.role === 'faculty') {
+    // Faculty can access their own questions or any published question
+    andClauses.push({
+      $or: [
+        { ownerId: user._id },
+        { isPrivate: false }
+      ]
+    });
   }
 
-  if (query.status) filter.status = query.status;
+  // Build filters on a separate object
+  const conds = {};
+
+  const statuses = parseListParam(query.status);
+  if (statuses.length) {
+    conds.status = { $in: statuses };
+  } else if (user.role === 'student') {
+    conds.status = 'approved';
+  }
 
   const subjectIds = parseListParam(query.subject_ids);
-  if (subjectIds.length) filter.subjectId = { $in: subjectIds };
-  else if (query.subject_id) filter.subjectId = query.subject_id;
+  if (subjectIds.length) conds.subjectId = { $in: subjectIds };
+  else if (query.subject_id) conds.subjectId = query.subject_id;
 
   const chapterIds = parseListParam(query.chapter_ids);
-  if (chapterIds.length) filter.chapterId = { $in: chapterIds };
-  else if (query.chapter_id) filter.chapterId = query.chapter_id;
+  if (chapterIds.length) conds.chapterId = { $in: chapterIds };
+  else if (query.chapter_id) conds.chapterId = query.chapter_id;
 
   const examTypeIds = parseListParam(query.exam_type_ids);
-  if (examTypeIds.length) filter.examTypeId = { $in: examTypeIds };
-  else if (query.exam_type_id) filter.examTypeId = query.exam_type_id;
+  if (examTypeIds.length) conds.examTypeId = { $in: examTypeIds };
+  else if (query.exam_type_id) conds.examTypeId = query.exam_type_id;
 
   const classes = parseListParam(query.classes).map(Number).filter((n) => n >= 6 && n <= 12);
-  if (classes.length) filter.class = { $in: classes };
-  else if (query.class) filter.class = Number(query.class);
+  if (classes.length) conds.class = { $in: classes };
+  else if (query.class) conds.class = Number(query.class);
 
   const difficulties = parseListParam(query.difficulties);
-  if (difficulties.length) filter.difficulty = { $in: difficulties };
-  else if (query.difficulty) filter.difficulty = query.difficulty;
+  if (difficulties.length) conds.difficulty = { $in: difficulties };
+  else if (query.difficulty) conds.difficulty = query.difficulty;
 
   const questionTypes = parseListParam(query.question_types);
-  if (questionTypes.length) filter.questionType = { $in: questionTypes };
-  else if (query.question_type) filter.questionType = query.question_type;
+  if (questionTypes.length) conds.questionType = { $in: questionTypes };
+  else if (query.question_type) conds.questionType = query.question_type;
 
-  if (query.upload_id) filter.uploadId = query.upload_id;
-  if (query.source) filter.source = query.source;
+  if (query.upload_id) conds.uploadId = query.upload_id;
+  if (query.source) conds.source = query.source;
 
-  if (query.search?.trim()) {
-    const escaped = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.questionText = { $regex: escaped, $options: 'i' };
+  const bankIds = parseListParam(query.bank_ids);
+  if (bankIds.length) conds.bankIds = { $in: bankIds };
+  else if (query.bank_id) conds.bankIds = query.bank_id;
+
+  if (query.syllabus_exam_pattern_id) {
+    conds['syllabusMappings.examPatternId'] = query.syllabus_exam_pattern_id;
+  }
+  if (query.syllabus_class_id) {
+    conds['syllabusMappings.classId'] = query.syllabus_class_id;
+  }
+  if (query.syllabus_subject_id) {
+    conds['syllabusMappings.subjectId'] = query.syllabus_subject_id;
+  }
+  if (query.syllabus_chapter_id) {
+    conds['syllabusMappings.chapterId'] = query.syllabus_chapter_id;
+  }
+  if (query.syllabus_topic_id) {
+    conds['syllabusMappings.topicId'] = query.syllabus_topic_id;
+  }
+  if (query.syllabus_subtopic_id) {
+    conds['syllabusMappings.subtopicId'] = query.syllabus_subtopic_id;
   }
 
-  return filter;
+  // Handle scopes
+  const scope = query.scope;
+  if (scope === 'workspace' || scope === 'private') {
+    conds.isPrivate = true;
+    if (user.role === 'super_admin' && query.owner_id) {
+      conds.ownerId = query.owner_id;
+    } else if (user.role === 'faculty') {
+      conds.ownerId = user._id;
+    } else if (user.role === 'student') {
+      // student sees nothing
+      conds.ownerId = new mongoose.Types.ObjectId();
+    }
+  } else if (scope === 'my_questions') {
+    if (user.role === 'super_admin') {
+      if (query.owner_id) conds.ownerId = query.owner_id;
+    } else if (user.role === 'faculty') {
+      conds.ownerId = user._id;
+    }
+  } else if (scope === 'published') {
+    conds.isPrivate = false;
+  } else if (scope === 'faculty_bank') {
+    conds.visibility = 'faculty_bank';
+    conds.isPrivate = false;
+  } else if (scope === 'institution_bank') {
+    conds.visibility = 'institution';
+    conds.isPrivate = false;
+  } else if (scope === 'system_bank') {
+    conds.visibility = 'public';
+    conds.isPrivate = false;
+  }
+
+  // Specific query overrides
+  if (query.is_private !== undefined) {
+    conds.isPrivate = query.is_private === 'true' || query.is_private === true;
+  }
+  if (query.visibility) {
+    conds.visibility = query.visibility;
+  }
+  if (query.owner_id) {
+    if (user.role === 'super_admin') {
+      conds.ownerId = query.owner_id;
+    } else if (user.role === 'faculty') {
+      conds.ownerId = user._id;
+    }
+  }
+
+  if (query.search?.trim()) {
+    const term = query.search.trim();
+    const qIdMatch = term.match(/^q-(\d+)$/i);
+    if (qIdMatch) {
+      conds.serialId = Number(qIdMatch[1]);
+    } else if (/^\d+$/.test(term)) {
+      const num = Number(term);
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      conds.$or = [
+        { serialId: num },
+        { questionText: { $regex: escaped, $options: 'i' } }
+      ];
+    } else {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      conds.questionText = { $regex: escaped, $options: 'i' };
+    }
+  }
+
+  if (andClauses.length > 0) {
+    andClauses.push(conds);
+    return { $and: andClauses };
+  }
+
+  return conds;
 }
 
 export async function countQuestions(query, user) {
@@ -147,6 +253,16 @@ export async function createQuestion(body, user) {
 
   const fields = bodyToQuestionFields(body);
   fields.createdBy = user._id;
+  fields.ownerId = fields.ownerId || user._id;
+
+  if (user.role === 'faculty') {
+    fields.isPrivate = true;
+    fields.visibility = 'private';
+    fields.bankIds = [];
+  } else if (user.role === 'super_admin') {
+    fields.isPrivate = body.is_private !== undefined ? (body.is_private === 'true' || body.is_private === true) : false;
+    fields.visibility = body.visibility || 'public';
+  }
   fields.duplicateHash = computeDuplicateHash(fields.questionText || body.question_text);
 
   const dup = await findDuplicateCandidate(Question, fields.duplicateHash);
@@ -203,6 +319,22 @@ export async function createQuestion(body, user) {
     snapshot
   }];
 
+  if (user.role === 'super_admin' && (!fields.bankIds || fields.bankIds.length === 0)) {
+    const { QuestionBank } = await import('../models/QuestionBank.js');
+    let systemBank = await QuestionBank.findOne({ type: 'system', name: 'System Global Bank' });
+    if (!systemBank) {
+      systemBank = await QuestionBank.create({
+        name: 'System Global Bank',
+        description: 'Global repository of questions accessible by everyone.',
+        type: 'system',
+        createdBy: null,
+        institution: null,
+        visibility: 'public',
+      });
+    }
+    fields.bankIds = [systemBank._id];
+  }
+
   const doc = await Question.create(fields);
   await doc.populate(['subjectId', 'chapterId', 'examTypeId']);
   return mapQuestion(doc);
@@ -211,6 +343,12 @@ export async function createQuestion(body, user) {
 export async function updateQuestion(id, body, user) {
   const question = await Question.findById(id);
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
+
+  if (user.role !== 'super_admin') {
+    if (!question.ownerId || question.ownerId.toString() !== user._id.toString()) {
+      throw new AppError('You do not own this question', 403, 'FORBIDDEN');
+    }
+  }
 
   if (body.chapter_name && body.chapter_name.trim()) {
     const trimmedName = body.chapter_name.trim();
@@ -235,6 +373,11 @@ export async function updateQuestion(id, body, user) {
   }
 
   const fields = bodyToQuestionFields(body);
+  if (user.role !== 'super_admin') {
+    delete fields.ownerId;
+    delete fields.isPrivate;
+    delete fields.visibility;
+  }
   if (fields.questionText) {
     fields.duplicateHash = computeDuplicateHash(fields.questionText);
   }
@@ -277,7 +420,14 @@ export async function updateQuestion(id, body, user) {
   return mapQuestion(question);
 }
 
-export async function deleteQuestion(id) {
+export async function deleteQuestion(id, user) {
+  const question = await Question.findById(id);
+  if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
+  if (user.role !== 'super_admin') {
+    if (!question.ownerId || question.ownerId.toString() !== user._id.toString()) {
+      throw new AppError('You do not own this question', 403, 'FORBIDDEN');
+    }
+  }
   const result = await Question.findByIdAndDelete(id);
   if (!result) throw new AppError('Question not found', 404, 'NOT_FOUND');
 }
@@ -381,8 +531,12 @@ export async function bulkReject(ids, user, notes) {
   }
 }
 
-export async function bulkDelete(ids) {
-  await Question.deleteMany({ _id: { $in: ids } });
+export async function bulkDelete(ids, user) {
+  if (user.role !== 'super_admin') {
+    await Question.deleteMany({ _id: { $in: ids }, ownerId: user._id });
+  } else {
+    await Question.deleteMany({ _id: { $in: ids } });
+  }
 }
 
 export async function bulkUpdateMetadata(ids, updates, user) {
@@ -390,6 +544,14 @@ export async function bulkUpdateMetadata(ids, updates, user) {
   if (fields.questionText) {
     fields.duplicateHash = computeDuplicateHash(fields.questionText);
   }
-  const result = await Question.updateMany({ _id: { $in: ids } }, { $set: fields });
-  return { modified: result.modifiedCount };
+  if (user.role !== 'super_admin') {
+    delete fields.ownerId;
+    delete fields.isPrivate;
+    delete fields.visibility;
+    const result = await Question.updateMany({ _id: { $in: ids }, ownerId: user._id }, { $set: fields });
+    return { modified: result.modifiedCount };
+  } else {
+    const result = await Question.updateMany({ _id: { $in: ids } }, { $set: fields });
+    return { modified: result.modifiedCount };
+  }
 }

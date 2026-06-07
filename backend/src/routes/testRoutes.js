@@ -20,6 +20,11 @@ router.get(
       status: z.string().optional(),
       search: z.string().optional(),
       paper_id: z.string().optional(),
+      bank_id: z.string().optional(),
+      subject_id: z.string().optional(),
+      chapter_id: z.string().optional(),
+      topic_id: z.string().optional(),
+      subtopic_id: z.string().optional(),
     })
   ),
   asyncHandler(testController.list)

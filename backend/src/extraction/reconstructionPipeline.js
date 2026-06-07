@@ -1,7 +1,7 @@
 import { preNormalizeMathText, normalizeLatexSyntax } from './mathNormalizer.js';
 import { shieldMath, translateOmmlNode, translateMathmlNode } from './mathConverter.js';
 import { DOMParser } from 'linkedom';
-import { ollamaReconstructCleanup } from '../ai/ollamaReconstructCleanup.js';
+import { getLlmProvider } from '../ai/providerRegistry.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
@@ -1640,63 +1640,70 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }));
   const shieldedStatementGroupsForOllama = statementGroups.map(s => shieldText(s, tempPlaceholders, counterObj));
 
-  // Stage 9: Ollama Semantic Refinement (Local Inference)
+  // Stage 9: Hugging Face Semantic Refinement (Cloud Inference)
   let correctAnswers = [];
   let explanation = "";
   let formulas = Array.from(normalizedPlaceholders.values());
   let tags = [questionType.toLowerCase()];
 
-  const ollamaModel = env.ai.ollamaModel || 'llama3.2';
   const shouldSkipLlm = pipelineOptions.skipLlm !== false; // defaults to true unless skipLlm is explicitly set to false
   
-  if (env.ai.provider === 'ollama' && !shouldSkipLlm) {
+  if (env.ai.provider === 'huggingface' && !shouldSkipLlm) {
     try {
-      const refined = await ollamaReconstructCleanup(
-        { questionText: shieldedStemForOllama, questionType, options: shieldedOptionsForOllama },
-        plainText
-      );
-      if (refined) {
-        stages.stage9.refined = true;
-        stages.stage9.response = refined;
-        if (refined.stem) stem = refined.stem;
-        if (refined.questionType) stages.stage6.classified_type = refined.questionType;
-        if (Array.isArray(refined.options)) {
-          options = refined.options.map(o => ({ text: o.text || o || '' }));
+      const llmProvider = getLlmProvider();
+      if (llmProvider && typeof llmProvider.refineQuestion === 'function') {
+        const refined = await llmProvider.refineQuestion(
+          { questionText: shieldedStemForOllama, questionType, options: shieldedOptionsForOllama },
+          plainText
+        );
+        if (refined) {
+          stages.stage9.refined = true;
+          stages.stage9.response = refined;
+          if (refined.stem) stem = refined.stem;
+          if (refined.questionType) stages.stage6.classified_type = refined.questionType;
+          if (Array.isArray(refined.options)) {
+            options = refined.options.map(o => ({ text: o.text || o || '' }));
+          } else {
+            options = shieldedOptionsForOllama;
+          }
+          if (Array.isArray(refined.correctAnswers)) {
+            correctAnswers = refined.correctAnswers;
+          }
+          if (refined.explanation) explanation = refined.explanation;
+          if (Array.isArray(refined.statementGroups)) {
+            statementGroups = refined.statementGroups;
+          } else {
+            statementGroups = shieldedStatementGroupsForOllama;
+          }
+          if (Array.isArray(refined.formulas)) {
+            formulas = refined.formulas;
+          }
+          if (Array.isArray(refined.tags)) {
+            tags = [...new Set([...tags, ...refined.tags])];
+          }
         } else {
+          stem = shieldedStemForOllama;
           options = shieldedOptionsForOllama;
-        }
-        if (Array.isArray(refined.correctAnswers)) {
-          correctAnswers = refined.correctAnswers;
-        }
-        if (refined.explanation) explanation = refined.explanation;
-        if (Array.isArray(refined.statementGroups)) {
-          statementGroups = refined.statementGroups;
-        } else {
           statementGroups = shieldedStatementGroupsForOllama;
-        }
-        if (Array.isArray(refined.formulas)) {
-          formulas = refined.formulas;
-        }
-        if (Array.isArray(refined.tags)) {
-          tags = [...new Set([...tags, ...refined.tags])];
+          stages.stage9.warnings.push("Hugging Face semantic refinement unavailable — using deterministic parser.");
         }
       } else {
         stem = shieldedStemForOllama;
         options = shieldedOptionsForOllama;
         statementGroups = shieldedStatementGroupsForOllama;
-        stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
+        stages.stage9.warnings.push("Hugging Face provider not configured — using deterministic parser.");
       }
     } catch (err) {
       stem = shieldedStemForOllama;
       options = shieldedOptionsForOllama;
       statementGroups = shieldedStatementGroupsForOllama;
-      stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
+      stages.stage9.warnings.push("Hugging Face semantic refinement failed — using deterministic parser.");
     }
   } else {
     stem = shieldedStemForOllama;
     options = shieldedOptionsForOllama;
     statementGroups = shieldedStatementGroupsForOllama;
-    stages.stage9.warnings.push("Local semantic refinement unavailable — using deterministic parser.");
+    stages.stage9.warnings.push("Semantic refinement skipped — using deterministic parser.");
   }
 
   // Restore the temporary placeholders from Ollama's output (or fallbacks)

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
+import { fetchQuestionBanksApi, assignQuestionsToBankApi, removeQuestionsFromBankApi, type QuestionBank } from '../../api/questionBanks';
 import {
   Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert, PageHeader
 } from '../../components/ui';
@@ -46,6 +48,9 @@ export function QuestionBankPage() {
     bulkApproveQuestions, bulkDeleteQuestions, bulkUpdateQuestionsMetadata,
   } = useDataStore();
 
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
+  const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+  const [selectedBulkBankId, setSelectedBulkBankId] = useState('');
   const [filters, setFilters] = useState({
     subject_id: '',
     chapter_id: '',
@@ -54,7 +59,14 @@ export function QuestionBankPage() {
     difficulty: '',
     question_type: '',
     status: '',
-    search: ''
+    search: '',
+    syllabus_exam_pattern_id: '',
+    syllabus_class_id: '',
+    syllabus_subject_id: '',
+    syllabus_chapter_id: '',
+    syllabus_topic_id: '',
+    syllabus_subtopic_id: '',
+    bank_id: '',
   });
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -68,6 +80,8 @@ export function QuestionBankPage() {
   useEffect(() => {
     fetchSubjects();
     fetchExamTypes();
+    fetchSyllabusTree().then(setSyllabusTree).catch((err) => console.error(err));
+    fetchQuestionBanksApi().then(setBanksData => setQuestionBanks(setBanksData)).catch((err) => console.error(err));
     applyFilters();
   }, []);
 
@@ -257,7 +271,156 @@ export function QuestionBankPage() {
               onChange={(e) => handleFilterChange('status', e.target.value)}
             />
           </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Question Bank"
+              options={[
+                { value: '', label: 'All Question Banks' },
+                ...questionBanks.map((qb) => ({ value: qb._id, label: qb.name })),
+              ]}
+              value={filters.bank_id}
+              onChange={(e) => handleFilterChange('bank_id', e.target.value)}
+            />
+          </div>
           <Button onClick={applyFilters} className="h-8 shrink-0 py-1 text-xs" size="sm">Apply</Button>
+        </div>
+
+        {/* Syllabus Engine Filters */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+          <span className="text-xs font-semibold text-slate-500 mr-2">Syllabus:</span>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Exam Pattern"
+              options={[
+                { value: '', label: 'All Patterns' },
+                ...syllabusTree.map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_exam_pattern_id: e.target.value,
+                  syllabus_class_id: '',
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-28 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Class"
+              options={[
+                { value: '', label: 'All Classes' },
+                ...(syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_class_id}
+              disabled={!filters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_class_id: e.target.value,
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-32 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subject"
+              options={[
+                { value: '', label: 'All Subjects' },
+                ...((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_class_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_subject_id}
+              disabled={!filters.syllabus_class_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_subject_id: e.target.value,
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Chapter"
+              options={[
+                { value: '', label: 'All Chapters' },
+                ...(((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_subject_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_chapter_id}
+              disabled={!filters.syllabus_subject_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_chapter_id: e.target.value,
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Topic"
+              options={[
+                { value: '', label: 'All Topics' },
+                ...((((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_chapter_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_topic_id}
+              disabled={!filters.syllabus_chapter_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_topic_id: e.target.value,
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subtopic"
+              options={[
+                { value: '', label: 'All Subtopics' },
+                ...(((((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_chapter_id)?.children || [])
+                  .find(n => n._id === filters.syllabus_topic_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={filters.syllabus_subtopic_id}
+              disabled={!filters.syllabus_topic_id}
+              onChange={(e) => {
+                setFilters(prev => ({
+                  ...prev,
+                  syllabus_subtopic_id: e.target.value
+                }));
+              }}
+            />
+          </div>
         </div>
       </Card>
 
@@ -304,6 +467,11 @@ export function QuestionBankPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                    {question.serial_id && (
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
+                        Q-{question.serial_id}
+                      </span>
+                    )}
                     <Badge variant={getStatusColor(question.status)} size="sm">
                       {question.status}
                     </Badge>
@@ -440,6 +608,65 @@ export function QuestionBankPage() {
               {selectedIds.length} selected
             </span>
             <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 dark:bg-slate-700/50 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
+                <select
+                  value={selectedBulkBankId}
+                  onChange={(e) => setSelectedBulkBankId(e.target.value)}
+                  className="h-7 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-350 dark:border-slate-650 rounded px-2"
+                >
+                  <option value="">System Global Bank</option>
+                  {questionBanks.map((qb) => (
+                    <option key={qb._id} value={qb._id}>
+                      {qb.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs px-2.5 py-0.5"
+                  onClick={async () => {
+                    try {
+                      let targetBankId = selectedBulkBankId;
+                      if (!targetBankId) {
+                        const sysBank = questionBanks.find(qb => qb.type === 'system');
+                        if (sysBank) targetBankId = sysBank._id;
+                      }
+                      if (targetBankId) {
+                        await assignQuestionsToBankApi(targetBankId, selectedIds);
+                        toast.success('Assigned selected questions to bank');
+                      }
+                      setSelectedIds([]);
+                      applyFilters();
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to assign questions');
+                    }
+                  }}
+                >
+                  Assign to Bank
+                </Button>
+              </div>
+
+              {filters.bank_id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  onClick={async () => {
+                    try {
+                      await removeQuestionsFromBankApi(filters.bank_id, selectedIds);
+                      toast.success('Removed selected questions from bank');
+                      setSelectedIds([]);
+                      applyFilters();
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to remove questions');
+                    }
+                  }}
+                >
+                  Remove from Bank
+                </Button>
+              )}
+
               <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
                 Edit metadata
               </Button>
@@ -493,7 +720,12 @@ export function QuestionBankPage() {
           size="lg"
         >
           <div className="p-6 space-y-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              {selectedQuestion.serial_id && (
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
+                  Q-{selectedQuestion.serial_id}
+                </span>
+              )}
               <Badge variant={getStatusColor(selectedQuestion.status)}>{selectedQuestion.status}</Badge>
               <Badge variant={getQuestionTypeVariant(selectedQuestion.question_type)}>
                 {selectedQuestion.question_type.toUpperCase()}
@@ -652,6 +884,11 @@ export function QuestionBankPage() {
         size="lg"
       >
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {editData.serial_id && (
+            <div className="text-xs font-bold text-blue-650 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-900/50 inline-block mb-2">
+              Question ID: Q-{editData.serial_id}
+            </div>
+          )}
           <Textarea
             label="Question Text"
             value={editData.question_text || ''}

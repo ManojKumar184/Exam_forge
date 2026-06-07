@@ -5,7 +5,7 @@ const uploadSchema = new mongoose.Schema(
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
     filePath: { type: String, required: true },
-    fileType: { type: String, enum: ['pdf', 'docx', 'image'], required: true },
+    fileType: { type: String, enum: ['pdf', 'docx', 'image', 'manual'], required: true },
     fileSize: { type: Number, default: null },
     status: {
       type: String,
@@ -52,6 +52,26 @@ const uploadSchema = new mongoose.Schema(
       ref: 'Question',
       default: [],
     },
+    stagedQuestions: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    reconstructionVersion: {
+      type: String,
+      default: 'v1.0.0',
+    },
+    classificationVersion: {
+      type: String,
+      default: 'v1.0.0',
+    },
+    originalHtml: {
+      type: String,
+      default: null,
+    },
+    originalPlain: {
+      type: String,
+      default: null,
+    },
     checkpoint: {
       type: mongoose.Schema.Types.Mixed,
       default: { chunkIndex: 0 },
@@ -72,3 +92,4 @@ uploadSchema.index({ uploadedBy: 1, createdAt: -1 });
 uploadSchema.index({ status: 1, processingStage: 1 });
 
 export const Upload = mongoose.model('Upload', uploadSchema);
+

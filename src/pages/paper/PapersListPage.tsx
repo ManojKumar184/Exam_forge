@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Edit, Trash2 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
-import { Card, Button, Badge, Loading, EmptyState, Modal, Input, PageHeader } from '../../components/ui';
-import { FileText, Plus, PlayCircle, Calendar, Clock, Download } from 'lucide-react';
+import { Card, Button, Badge, Loading, EmptyState, Modal, Input, Select, PageHeader } from '../../components/ui';
+import { FileText, Plus, PlayCircle, Calendar, Clock, Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { downloadPaperPdfApi } from '../../api/papers';
-import { downloadBlob } from '../../utils/downloadBlob';
-import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import type { Paper } from '../../types';
+import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 
 export function PapersListPage() {
   const navigate = useNavigate();
@@ -17,7 +16,6 @@ export function PapersListPage() {
   const { papers, fetchPapers, createOnlineTest, deletePaper, isLoading } = useDataStore();
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [showCreateTestModal, setShowCreateTestModal] = useState(false);
-  const [exportingId, setExportingId] = useState<string | null>(null);
 
   const [testStartTime, setTestStartTime] = useState('');
   const [testEndTime, setTestEndTime] = useState('');
@@ -28,64 +26,31 @@ export function PapersListPage() {
   const [showAnswers, setShowAnswers] = useState(true);
   const [isPublic, setIsPublic] = useState(true);
   const [accessCode, setAccessCode] = useState('');
+  const [search, setSearch] = useState('');
 
-  // PDF Export settings states
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportPaperObj, setExportPaperObj] = useState<Paper | null>(null);
-  const [exportType, setExportType] = useState<'paper' | 'answer_key'>('paper');
-  const [exportAnswers, setExportAnswers] = useState(false);
-  const [exportExplanations, setExportExplanations] = useState(false);
-  const [exportQuestionTypeBadges, setExportQuestionTypeBadges] = useState(false);
-  const [exportDifficulty, setExportDifficulty] = useState(false);
-  const [exportSource, setExportSource] = useState(false);
-  const [exportWatermark, setExportWatermark] = useState(false);
-  const [exportInstituteLogo, setExportInstituteLogo] = useState(true);
-  const [exportShowQuestionMarks, setExportShowQuestionMarks] = useState(false);
+  // Advanced Filters (Bank & Syllabus Nodes)
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
+  const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+  const [bankFilter, setBankFilter] = useState('');
+  const [syllabusFilters, setSyllabusFilters] = useState({
+    syllabus_exam_pattern_id: '',
+    syllabus_class_id: '',
+    syllabus_subject_id: '',
+    syllabus_chapter_id: '',
+    syllabus_topic_id: '',
+    syllabus_subtopic_id: '',
+  });
 
-  const handleExportPdf = (
-    paper: Paper,
-    type: 'paper' | 'answer_key'
-  ) => {
-    setExportPaperObj(paper);
-    setExportType(type);
-    setExportAnswers(type === 'answer_key');
-    setExportExplanations(type === 'answer_key');
-    setExportQuestionTypeBadges(false);
-    setExportDifficulty(false);
-    setExportSource(false);
-    setExportWatermark(paper.status === 'draft');
-    setExportInstituteLogo(true);
-    setExportShowQuestionMarks(false);
-    setShowExportModal(true);
-  };
+  const filteredPapers = papers.filter((paper) => {
+    if (!search.trim()) return true;
+    const term = search.toLowerCase();
+    const titleMatch = paper.title?.toLowerCase().includes(term);
+    const codeMatch = paper.paper_code?.toLowerCase().includes(term);
+    const subjectMatch = paper.subject?.name?.toLowerCase().includes(term);
+    return titleMatch || codeMatch || subjectMatch;
+  });
 
-  const handleExportPdfSubmit = async () => {
-    if (!exportPaperObj) return;
-    setExportingId(exportPaperObj.id);
-    setShowExportModal(false);
-    try {
-      const blob = await downloadPaperPdfApi(exportPaperObj.id, {
-        type: exportType,
-        allowDraft: exportPaperObj.status === 'draft',
-        includeAnswers: exportAnswers,
-        includeExplanations: exportExplanations,
-        includeQuestionTypeBadges: exportQuestionTypeBadges,
-        includeDifficulty: exportDifficulty,
-        includeSource: exportSource,
-        includeWatermark: exportWatermark,
-        includeInstituteLogo: exportInstituteLogo,
-        showQuestionMarks: exportShowQuestionMarks,
-      });
-      const suffix = exportType === 'answer_key' ? 'answer-key' : 'question-paper';
-      downloadBlob(blob, `${exportPaperObj.paper_code || exportPaperObj.id}-${suffix}.pdf`);
-      toast.success('PDF downloaded');
-    } catch (e) {
-      toast.error(getApiErrorMessage(e));
-    } finally {
-      setExportingId(null);
-      setExportPaperObj(null);
-    }
-  };
+
 
   const handleDeletePaper = async (paperId: string) => {
     if (!window.confirm('Are you sure you want to delete this question paper? This will permanently delete the paper and cannot be undone.')) {
@@ -101,8 +66,31 @@ export function PapersListPage() {
   };
 
   useEffect(() => {
-    fetchPapers();
+    async function loadMetadata() {
+      try {
+        const [tree, banks] = await Promise.all([
+          fetchSyllabusTree(),
+          fetchQuestionBanksApi()
+        ]);
+        setSyllabusTree(tree);
+        setQuestionBanks(banks);
+      } catch (err) {
+        console.error('Failed to load filter metadata', err);
+      }
+    }
+    loadMetadata();
   }, []);
+
+  useEffect(() => {
+    const apiFilters: Record<string, any> = {};
+    if (bankFilter) apiFilters.bank_id = bankFilter;
+    if (syllabusFilters.syllabus_subject_id) apiFilters.subject_id = syllabusFilters.syllabus_subject_id;
+    if (syllabusFilters.syllabus_chapter_id) apiFilters.chapter_id = syllabusFilters.syllabus_chapter_id;
+    if (syllabusFilters.syllabus_topic_id) apiFilters.topic_id = syllabusFilters.syllabus_topic_id;
+    if (syllabusFilters.syllabus_subtopic_id) apiFilters.subtopic_id = syllabusFilters.syllabus_subtopic_id;
+
+    fetchPapers(apiFilters);
+  }, [bankFilter, syllabusFilters]);
 
   const handleCreateOnlineTest = async () => {
     if (!selectedPaper) return;
@@ -155,21 +143,181 @@ export function PapersListPage() {
         }
       />
 
+      {/* Filters */}
+      <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex flex-wrap gap-4 items-center">
+          <Input
+            placeholder="Search papers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+            className="w-full sm:w-64"
+          />
+          <select
+            value={bankFilter}
+            onChange={(e) => setBankFilter(e.target.value)}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm h-10 w-full sm:w-48"
+          >
+            <option value="">All Question Banks</option>
+            {questionBanks.map((bank) => (
+              <option key={bank._id} value={bank._id}>
+                {bank.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div className="w-full sm:w-48">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Exam Pattern"
+              options={[
+                { value: '', label: 'All Patterns' },
+                ...syllabusTree.map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_exam_pattern_id: e.target.value,
+                  syllabus_class_id: '',
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-28">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Class"
+              options={[
+                { value: '', label: 'All Classes' },
+                ...(syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_class_id}
+              disabled={!syllabusFilters.syllabus_exam_pattern_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_class_id: e.target.value,
+                  syllabus_subject_id: '',
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-32">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subject"
+              options={[
+                { value: '', label: 'All Subjects' },
+                ...((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_subject_id}
+              disabled={!syllabusFilters.syllabus_class_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_subject_id: e.target.value,
+                  syllabus_chapter_id: '',
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Chapter"
+              options={[
+                { value: '', label: 'All Chapters' },
+                ...(((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_chapter_id}
+              disabled={!syllabusFilters.syllabus_subject_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_chapter_id: e.target.value,
+                  syllabus_topic_id: '',
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Topic"
+              options={[
+                { value: '', label: 'All Topics' },
+                ...((((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_chapter_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_topic_id}
+              disabled={!syllabusFilters.syllabus_chapter_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_topic_id: e.target.value,
+                  syllabus_subtopic_id: ''
+                }));
+              }}
+            />
+          </div>
+          <div className="w-full sm:w-36">
+            <Select
+              className="h-8 text-xs py-1"
+              placeholder="Syllabus Subtopic"
+              options={[
+                { value: '', label: 'All Subtopics' },
+                ...(((((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_chapter_id)?.children || [])
+                  .find(n => n._id === syllabusFilters.syllabus_topic_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
+              ]}
+              value={syllabusFilters.syllabus_subtopic_id}
+              disabled={!syllabusFilters.syllabus_topic_id}
+              onChange={(e) => {
+                setSyllabusFilters(prev => ({
+                  ...prev,
+                  syllabus_subtopic_id: e.target.value
+                }));
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Papers Grid */}
-      {papers.length === 0 ? (
+      {filteredPapers.length === 0 ? (
         <EmptyState
           icon={<FileText className="w-12 h-12" />}
-          title="No papers yet"
-          description="Create your first question paper"
-          action={
+          title={papers.length === 0 ? "No papers yet" : "No papers found"}
+          description={papers.length === 0 ? "Create your first question paper" : "Try adjusting your filters"}
+          action={papers.length === 0 ? (
             <Link to="/papers/new">
               <Button leftIcon={<Plus className="w-4 h-4" />}>Create Paper</Button>
             </Link>
-          }
+          ) : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {papers.map((paper) => {
+          {filteredPapers.map((paper) => {
             const canManagePaper = isAdmin || (isFaculty && paper.created_by === profile?.id);
 
             return (
@@ -237,49 +385,34 @@ export function PapersListPage() {
                     </Button>
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      disabled={exportingId === paper.id}
-                      leftIcon={<Download className="w-4 h-4" />}
-                      onClick={() => void handleExportPdf(paper, 'paper')}
-                    >
-                      Export PDF
-                    </Button>
+                    <Link to={`/papers/${paper.id}/export`} className="flex-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        leftIcon={<Download className="w-4 h-4" />}
+                      >
+                        Export Workspace
+                      </Button>
+                    </Link>
                     {canManagePaper ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 px-3"
                         leftIcon={<Trash2 className="w-4 h-4" />}
                         onClick={() => void handleDeletePaper(paper.id)}
-                      >
-                        Delete
-                      </Button>
+                      />
                     ) : (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1"
-                        disabled={exportingId === paper.id}
-                        onClick={() => void handleExportPdf(paper, 'answer_key')}
-                      >
-                        Answer key
-                      </Button>
+                        className="px-3 text-slate-400"
+                        disabled
+                        leftIcon={<Trash2 className="w-4 h-4" />}
+                      />
                     )}
                   </div>
-                  {canManagePaper && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-slate-500 hover:text-slate-700"
-                      disabled={exportingId === paper.id}
-                      onClick={() => void handleExportPdf(paper, 'answer_key')}
-                    >
-                      Export Answer Key
-                    </Button>
-                  )}
                 </div>
               </Card>
             );
@@ -418,116 +551,7 @@ export function PapersListPage() {
         </div>
       </Modal>
 
-      {/* Export PDF Settings Modal */}
-      <Modal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title="PDF Export Settings"
-        size="md"
-      >
-        <div className="p-6 space-y-6">
-          <div>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
-              Customize options for exporting: <strong>{exportPaperObj?.title}</strong>
-            </p>
-          </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Export Parameters</h4>
-            
-            <div className="flex flex-col gap-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportAnswers}
-                  onChange={(e) => setExportAnswers(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Answers</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportExplanations}
-                  onChange={(e) => setExportExplanations(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Explanations</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportQuestionTypeBadges}
-                  onChange={(e) => setExportQuestionTypeBadges(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Question Type Badges</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportDifficulty}
-                  onChange={(e) => setExportDifficulty(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Difficulty</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportSource}
-                  onChange={(e) => setExportSource(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Source</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportWatermark}
-                  onChange={(e) => setExportWatermark(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Watermark</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportInstituteLogo}
-                  onChange={(e) => setExportInstituteLogo(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Include Institute Logo</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={exportShowQuestionMarks}
-                  onChange={(e) => setExportShowQuestionMarks(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Question Marks</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 border-t pt-4 dark:border-slate-700">
-            <Button variant="ghost" onClick={() => setShowExportModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleExportPdfSubmit} disabled={exportingId !== null}>
-              {exportingId !== null ? 'Exporting...' : 'Download PDF'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

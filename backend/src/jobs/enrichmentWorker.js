@@ -6,8 +6,8 @@ import { env } from '../config/env.js';
 let isRunning = false;
 
 export async function startEnrichmentWorker() {
-  if (env.ai.provider !== 'ollama') {
-    logger.info('[enrichment-worker] Ollama provider is not configured. Enrichment worker disabled.');
+  if (env.ai.provider !== 'huggingface' && env.ai.provider !== 'openai' && env.ai.provider !== 'gemini') {
+    logger.info('[enrichment-worker] No supported LLM provider is configured for enrichment worker.');
     return;
   }
 
@@ -103,7 +103,7 @@ async function pollAndEnrich() {
       action: 'semantic_enrichment',
       timestamp: new Date(),
       user: null,
-      notes: 'Ollama background semantic enrichment completed.',
+      notes: `${env.ai.provider} background semantic enrichment completed.`,
     });
 
     await question.save();
@@ -117,7 +117,7 @@ async function pollAndEnrich() {
         action: 'enrichment_failed',
         timestamp: new Date(),
         user: null,
-        notes: `Ollama enrichment failed after 3 attempts. Error: ${err.message}`,
+        notes: `${env.ai.provider} enrichment failed after 3 attempts. Error: ${err.message}`,
       });
       await question.save();
       logger.warn(`[enrichment-worker] Max retries reached for question ${question._id}. Marking as skipped.`);

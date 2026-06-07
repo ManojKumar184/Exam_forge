@@ -3,6 +3,7 @@ import { env, validateEnv, logEnvSummary } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Subject } from '../models/Subject.js';
 import { ExamType } from '../models/ExamType.js';
+import { seedSyllabus } from '../seedSyllabus.js';
 import bcrypt from 'bcryptjs';
 
 async function seed() {
@@ -47,6 +48,10 @@ async function seed() {
     await Subject.findOneAndUpdate({ code: s.code }, s, { upsert: true, new: true });
   }
   console.log('[seed] Subjects ready');
+
+  // Seed Syllabus Nodes
+  console.log('[seed] Seeding syllabus nodes...');
+  await seedSyllabus();
 
   await disconnectDatabase();
   console.log('[seed] Done');

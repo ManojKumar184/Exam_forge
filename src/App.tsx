@@ -12,12 +12,13 @@ import { COLORS, RADIUS } from './lib/designTokens';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage, RegisterPage } from './pages/auth';
 import { DashboardRouter } from './pages/dashboard';
-import { QuestionBankPage, UploadQuestionsPage, QuestionEditorPage, ModerationQueuePage } from './pages/questions';
-import { PaperGeneratorPage, PapersListPage } from './pages/paper';
+import { QuestionBankPage, ImportCenterPage, QuestionEditorPage, ModerationQueuePage, SyllabusManagerPage, QuestionBanksManagerPage, WorkspacePage, TemplateBuilderPage } from './pages/questions';
+import { PaperGeneratorPage, PapersListPage, PaperExportWorkspace } from './pages/paper';
 import { TestTakingPage, TestReviewPage, TestGradingPage, TestsListPage } from './pages/test';
 import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
+import { InstitutionProfilePage } from './pages/settings/InstitutionProfilePage';
 import { UsersPage } from './pages/users/UsersPage';
 
 // Layout
@@ -43,6 +44,17 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
 
   if (!profile || profile.role !== 'super_admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Admin or Faculty Route wrapper
+function AdminOrFacultyRoute({ children }: { children: React.ReactNode }) {
+  const { profile } = useAuth();
+
+  if (!profile || (profile.role !== 'super_admin' && profile.role !== 'faculty')) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -97,15 +109,41 @@ function AppRoutes() {
         <Route
           path=":questionId/edit"
           element={
-            <AdminRoute>
+            <AdminOrFacultyRoute>
               <QuestionEditorPage />
-            </AdminRoute>
+            </AdminOrFacultyRoute>
           }
         />
       </Route>
 
       <Route
-        path="/upload"
+        path="/workspace"
+        element={
+          <ProtectedRoute>
+            <AdminOrFacultyRoute>
+              <Layout />
+            </AdminOrFacultyRoute>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<WorkspacePage />} />
+      </Route>
+
+      <Route
+        path="/import-center"
+        element={
+          <ProtectedRoute>
+            <AdminOrFacultyRoute>
+              <Layout />
+            </AdminOrFacultyRoute>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<ImportCenterPage />} />
+      </Route>
+
+      <Route
+        path="/syllabus"
         element={
           <ProtectedRoute>
             <AdminRoute>
@@ -114,7 +152,18 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<UploadQuestionsPage />} />
+        <Route index element={<SyllabusManagerPage />} />
+      </Route>
+
+      <Route
+        path="/question-banks"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<QuestionBanksManagerPage />} />
       </Route>
 
       <Route
@@ -126,6 +175,28 @@ function AppRoutes() {
         }
       >
         <Route index element={<PapersListPage />} />
+      </Route>
+
+      <Route
+        path="/papers/:id/export"
+        element={
+          <ProtectedRoute>
+            <PaperExportWorkspace />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/templates"
+        element={
+          <ProtectedRoute>
+            <AdminOrFacultyRoute>
+              <Layout />
+            </AdminOrFacultyRoute>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TemplateBuilderPage />} />
       </Route>
 
       <Route
@@ -221,6 +292,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<SettingsPage />} />
+        <Route path="institution" element={<InstitutionProfilePage />} />
       </Route>
 
       <Route

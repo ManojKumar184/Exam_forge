@@ -57,10 +57,28 @@ export const createQuestionSchema = z.object({
   enrichment_attempts: z.number().optional(),
   correct_answers: z.array(z.string()).optional(),
   figures: z.array(z.any()).optional(),
-  formulas: z.array(z.string()).optional(),
+  formulas: z.array(z.string()).optional().default([]),
   semantic_blocks: z.array(z.any()).optional(),
   statement_groups: z.array(z.any()).optional(),
   comprehension_links: z.array(z.string()).optional(),
+  syllabus_mappings: z.array(z.object({
+    examPatternId: z.string().nullable().optional(),
+    classId: z.string().nullable().optional(),
+    subjectId: z.string().nullable().optional(),
+    chapterId: z.string().nullable().optional(),
+    topicId: z.string().nullable().optional(),
+    subtopicId: z.string().nullable().optional(),
+  })).optional(),
+  syllabusMappings: z.array(z.object({
+    examPatternId: z.string().nullable().optional(),
+    classId: z.string().nullable().optional(),
+    subjectId: z.string().nullable().optional(),
+    chapterId: z.string().nullable().optional(),
+    topicId: z.string().nullable().optional(),
+    subtopicId: z.string().nullable().optional(),
+  })).optional(),
+  bank_ids: z.array(z.string()).optional(),
+  bankIds: z.array(z.string()).optional(),
 });
 
 export const updateQuestionSchema = createQuestionSchema.partial();
@@ -150,7 +168,7 @@ export const listQuestionsSchema = z.object({
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),
   search: z.string().optional(),
-  status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
+  status: z.union([z.string(), z.array(z.string())]).optional(),
   subject_id: z.string().optional(),
   subject_ids: z.union([z.string(), z.array(z.string())]).optional(),
   chapter_id: z.string().optional(),
@@ -167,6 +185,14 @@ export const listQuestionsSchema = z.object({
   upload_id: z.string().optional(),
   sort_by: z.string().optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
+  syllabus_exam_pattern_id: z.string().optional(),
+  syllabus_class_id: z.string().optional(),
+  syllabus_subject_id: z.string().optional(),
+  syllabus_chapter_id: z.string().optional(),
+  syllabus_topic_id: z.string().optional(),
+  syllabus_subtopic_id: z.string().optional(),
+  bank_id: z.string().optional(),
+  bank_ids: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
 export const bulkUpdateMetadataSchema = z.object({
