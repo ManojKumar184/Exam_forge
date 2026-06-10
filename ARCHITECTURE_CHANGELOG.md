@@ -367,3 +367,16 @@ Phase 3 consolidates three frontend code-duplication hotspots:
 
 **Reason:**
 All 4 refactor phases are complete (20/20 tasks resolved — 16 completed, 4 deferred). Moving from architecture cleanup to product workflow improvements. The highest-impact area is AI Classification Validation, which directly affects question routing accuracy — a core pain point for faculty users.
+
+## Change Entry 011
+
+**Date:** 2026-06-10
+**Sprint:** AI Classification — Sprint A
+
+**Files Modified:**
+- `backend/src/ai/classificationPipeline.js` (per-field confidence, syllabus enforcement, LLM trigger)
+- `backend/src/ai/providers/huggingFaceProvider.js` (enhanced prompt with answer/explanation, extractAnswer helper)
+- `backend/src/ai/classifyQuestion.js` (topicId + fieldConfidence pass-through)
+
+**Summary:**
+Implemented per-field confidence scoring (class, subject, chapter, topic, difficulty) with weighted ensemble (rules + semantic + LLM). Added per-field threshold enforcement (class/subject: 90%, chapter: 85%, topic: 80%, difficulty: 75%) that marks questions for review when any field is below threshold. Added syllabus-only constraint enforcement with explicit warnings when LLM hints don't match existing nodes. Enhanced HF prompts to include answer and explanation text (truncated to 500/800 chars). Widened LLM invocation to trigger when any field confidence is below threshold, not just when overall score is low.
