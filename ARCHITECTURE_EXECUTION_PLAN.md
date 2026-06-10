@@ -116,7 +116,7 @@ Student Attempt → Results → Analytics
 | ID | Task | Status | Priority | Effort | Risk | Files |
 |---|---|---|---|---|---|---|
 | H1 | Remove extraction evaluation framework | NOT_STARTED | P3 | Medium | High | backend/src/extraction/evaluation/*, fixtures/*, benchmark/* |
-| H2 | Split dataStore into domain stores | NOT_STARTED | P2 | High | High | src/stores/dataStore.ts → 5 domain stores |
+| H2 | Split dataStore into domain stores | COMPLETED | P2 | High | High | src/stores/dataStore.ts → 5 domain stores |
 | H3 | Unify duplicate detection systems | NOT_STARTED | P2 | Medium | High | detectDuplicates.js, duplicateHash.js, backend validation |
 | H4 | Consolidate all three preview systems | NOT_STARTED | P2 | Medium | Medium | RichContent.tsx, QuestionBankPage.tsx, ImportCenterPage.tsx |
 | H5 | DB migration to remove deprecated fields | NOT_STARTED | P3 | Medium | High | Migration script + Question.js model |

@@ -315,3 +315,41 @@ Phase 3 consolidates three frontend code-duplication hotspots:
 **M6 — StagingEditModal:** Replaces ImportCenterPage's ~200-line inline staging edit form with a reusable `StagingEditModal` that wraps `QuestionEditorForm`. Field mapping maps staged question data to QuestionEditorForm's `initial` prop, and `onSubmit` calls `updateStagedQuestionApi`.
 
 **H4 — QuestionPreviewModal:** Replaces duplicate inline preview modals in ImportCenterPage and QuestionBankPage with a shared `QuestionPreviewModal` using `<Modal>` + `QuestionContentPreview`. Accepts `badges` prop for page-specific badges and a `children` slot for extra content.
+
+## Change Entry 009
+
+**Date:** 2026-06-10
+**Sprint:** Phase 4 / Sprint 6
+**Task:** H1, H2, H3
+
+**Files Deleted:**
+- `backend/src/extraction/evaluation/` (entire directory — 4 JS files, 4 JSON results)
+- `GROUND_TRUTH_EVALUATION.md` (generated report)
+- `EXTRACTION_FAILURE_ANALYSIS.md` (generated report)
+- `ACCURACY_IMPROVEMENT_REPORT.md` (generated report)
+- `REMAINING_BOTTLENECKS.md` (generated report)
+
+**Files Created:**
+- `src/stores/catalogStore.ts` (subjects, chapters, examTypes)
+- `src/stores/questionStore.ts` (questions CRUD, bulk ops, approvals)
+- `src/stores/paperStore.ts` (papers CRUD)
+- `src/stores/testStore.ts` (online tests, test attempts, analytics)
+- `src/stores/userStore.ts` (users CRUD)
+
+**Files Modified:**
+- `backend/src/extraction/index.js` (removed processAndDeduplicate & detectDuplicatesForQuestions — H3)
+- `src/stores/dataStore.ts` (rewritten as facade delegating to 5 domain stores — H2)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (H1, H2, H3: COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+
+**H1 — Remove evaluation framework:** The evaluation framework (4 JS files + 4 JSON result files) was used only for comparing legacy vs. new extraction pipelines. Since M1 removed the legacy path, the comparison is meaningless and the framework is dead code. Also cleaned up 4 stale generated report markdown files.
+
+**H2 — Split dataStore into domain stores:** Following the "incremental split" approach approved by the user, extracted 5 domain-specific Zustand stores from the monolithic dataStore.ts. The original `useDataStore` remains as a facade that:
+- Imports all 5 domain stores
+- Each method delegates to the corresponding domain store
+- Module-level subscribe() calls auto-sync all 5 stores into the facade
+- All 17 existing pages continue to import `useDataStore` unchanged
+
+**H3 — Unify duplicate detection:** Removed dead code `processAndDeduplicate` and `detectDuplicatesForQuestions` from extraction/index.js. These were only called by the legacy extraction path (removed in M1). Kept `detectDuplicatesInScopes` which is still used by uploadService.js and uploadController.js.

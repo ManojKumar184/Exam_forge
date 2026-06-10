@@ -1,22 +1,9 @@
 import { create } from 'zustand';
-import { fetchChaptersApi, fetchExamTypesApi, fetchSubjectsApi } from '../api/catalog';
-import {
-  fetchQuestionsApi,
-  approveQuestionApi,
-  rejectQuestionApi,
-  deleteQuestionApi,
-  updateQuestionApi,
-  createQuestionApi,
-  bulkApproveQuestionsApi,
-  bulkRejectQuestionsApi,
-  bulkDeleteQuestionsApi,
-  bulkUpdateQuestionsMetadataApi,
-} from '../api/questions';
-import { fetchPapersApi, createPaperApi, updatePaperApi, deletePaperApi } from '../api/papers';
-import { fetchTestsApi, createTestApi, updateTestApi, fetchTestAttemptsApi, deleteTestApi } from '../api/tests';
-import { fetchAdminAnalyticsApi } from '../api/analytics';
-import { fetchUsersApi, updateUserApi, deleteUserApi } from '../api/users';
-import { getApiErrorMessage } from '../api/client';
+import { useCatalogStore } from './catalogStore';
+import { useQuestionStore } from './questionStore';
+import { usePaperStore } from './paperStore';
+import { useTestStore } from './testStore';
+import { useUserStore } from './userStore';
 import type {
   Subject,
   Chapter,
@@ -69,282 +56,197 @@ interface DataState {
   clearError: () => void;
 }
 
-export const useDataStore = create<DataState>((set, get) => ({
-  subjects: [],
-  chapters: [],
-  examTypes: [],
-  questions: [],
-  papers: [],
-  onlineTests: [],
-  testAttempts: [],
-  users: [],
-  isLoading: false,
-  error: null,
+/** Merge reactive state from all 5 domain stores into a single snapshot. */
+function mergeState() {
+  const catalog = useCatalogStore.getState();
+  const question = useQuestionStore.getState();
+  const paper = usePaperStore.getState();
+  const test = useTestStore.getState();
+  const user = useUserStore.getState();
 
+  return {
+    subjects: catalog.subjects,
+    chapters: catalog.chapters,
+    examTypes: catalog.examTypes,
+    questions: question.questions,
+    papers: paper.papers,
+    onlineTests: test.onlineTests,
+    testAttempts: test.testAttempts,
+    users: user.users,
+    isLoading: question.isLoading || paper.isLoading || user.isLoading || test.isLoading,
+    error: catalog.error ?? question.error ?? paper.error ?? test.error ?? user.error ?? null,
+  };
+}
+
+export const useDataStore = create<DataState>((_set) => ({
+  ...mergeState(),
+
+  // ── Catalog domain ──────────────────────────────────────────────
   fetchSubjects: async () => {
-    try {
-      const subjects = await fetchSubjectsApi();
-      set({ subjects });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error) });
-    }
+    await useCatalogStore.getState().fetchSubjects();
+    useDataStore.setState(mergeState());
   },
 
   fetchChapters: async (subjectId) => {
-    try {
-      const chapters = await fetchChaptersApi(subjectId);
-      set({ chapters });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error) });
-    }
+    await useCatalogStore.getState().fetchChapters(subjectId);
+    useDataStore.setState(mergeState());
   },
 
   fetchExamTypes: async () => {
-    try {
-      const examTypes = await fetchExamTypesApi();
-      set({ examTypes });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error) });
-    }
+    await useCatalogStore.getState().fetchExamTypes();
+    useDataStore.setState(mergeState());
   },
 
-  fetchQuestions: async (filters = {}) => {
-    set({ isLoading: true, error: null });
-    try {
-      const result = await fetchQuestionsApi({
-        ...filters,
-        class: filters.class ? Number(filters.class) : undefined,
-        limit: Number(filters.limit || 100),
-        page: Number(filters.page || 1),
-      });
-      set({ questions: result.items || [], isLoading: false });
-    } catch (error: unknown) {
-      set({ error: getApiErrorMessage(error), isLoading: false });
-    }
-  },
-
-  fetchPapers: async (filters = {}) => {
-    set({ isLoading: true });
-    try {
-      const papers = await fetchPapersApi(filters);
-      set({ papers, isLoading: false });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error), isLoading: false });
-    }
-  },
-
-  fetchOnlineTests: async (filters = {}) => {
-    try {
-      const onlineTests = await fetchTestsApi(filters);
-      set({ onlineTests });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error) });
-    }
-  },
-
-  fetchTestAttempts: async (testId) => {
-    try {
-      const data = await fetchTestAttemptsApi(testId);
-      set({ testAttempts: data || [] });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error) });
-    }
-  },
-
-  fetchUsers: async (filters = {}) => {
-    try {
-      const data = await fetchUsersApi(filters);
-      set({ users: data.items });
-    } catch (error) {
-      set({ error: getApiErrorMessage(error), users: [] });
-    }
-  },
-
-  updateUser: async (id, updates) => {
-    try {
-      const data = await updateUserApi(id, updates);
-      set({ users: get().users.map((u) => (u.id === id ? data : u)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
-  },
-
-  deleteUser: async (id) => {
-    try {
-      await deleteUserApi(id);
-      set({ users: get().users.filter((u) => u.id !== id) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
-  },
-
-  fetchAnalytics: async () => {
-    return fetchAdminAnalyticsApi();
+  // ── Question domain ─────────────────────────────────────────────
+  fetchQuestions: async (filters) => {
+    await useQuestionStore.getState().fetchQuestions(filters);
+    useDataStore.setState(mergeState());
   },
 
   createQuestion: async (question) => {
-    try {
-      const data = await createQuestionApi(question);
-      set({ questions: [data, ...get().questions] });
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().createQuestion(question);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   updateQuestion: async (id, updates) => {
-    try {
-      const data = await updateQuestionApi(id, updates);
-      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().updateQuestion(id, updates);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   deleteQuestion: async (id) => {
-    try {
-      await deleteQuestionApi(id);
-      set({ questions: get().questions.filter((q) => q.id !== id) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().deleteQuestion(id);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   approveQuestion: async (id) => {
-    try {
-      const data = await approveQuestionApi(id);
-      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().approveQuestion(id);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   rejectQuestion: async (id, notes) => {
-    try {
-      const data = await rejectQuestionApi(id, notes);
-      set({ questions: get().questions.map((q) => (q.id === id ? data : q)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().rejectQuestion(id, notes);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   bulkApproveQuestions: async (ids) => {
-    try {
-      await bulkApproveQuestionsApi(ids);
-      set({
-        questions: get().questions.map((q) =>
-          ids.includes(q.id) ? { ...q, status: 'approved' } : q
-        ),
-      });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().bulkApproveQuestions(ids);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   bulkRejectQuestions: async (ids, notes) => {
-    try {
-      await bulkRejectQuestionsApi(ids, notes);
-      set({
-        questions: get().questions.map((q) =>
-          ids.includes(q.id) ? { ...q, status: 'rejected', review_notes: notes ?? null } : q
-        ),
-      });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().bulkRejectQuestions(ids, notes);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   bulkDeleteQuestions: async (ids) => {
-    try {
-      await bulkDeleteQuestionsApi(ids);
-      set({ questions: get().questions.filter((q) => !ids.includes(q.id)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().bulkDeleteQuestions(ids);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   bulkUpdateQuestionsMetadata: async (ids, updates) => {
-    try {
-      await bulkUpdateQuestionsMetadataApi(ids, updates);
-      set({
-        questions: get().questions.map((q) =>
-          ids.includes(q.id) ? { ...q, ...updates } : q
-        ),
-      });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useQuestionStore.getState().bulkUpdateQuestionsMetadata(ids, updates);
+    useDataStore.setState(mergeState());
+    return result;
+  },
+
+  // ── Paper domain ────────────────────────────────────────────────
+  fetchPapers: async (filters) => {
+    await usePaperStore.getState().fetchPapers(filters);
+    useDataStore.setState(mergeState());
   },
 
   createPaper: async (paper) => {
-    try {
-      const data = await createPaperApi(paper);
-      set({ papers: [data, ...get().papers] });
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await usePaperStore.getState().createPaper(paper);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   updatePaper: async (id, updates) => {
-    try {
-      const data = await updatePaperApi(id, updates);
-      set({ papers: get().papers.map((p) => (p.id === id ? data : p)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await usePaperStore.getState().updatePaper(id, updates);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   deletePaper: async (id) => {
-    try {
-      await deletePaperApi(id);
-      set({ papers: get().papers.filter((p) => p.id !== id) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await usePaperStore.getState().deletePaper(id);
+    useDataStore.setState(mergeState());
+    return result;
+  },
+
+  // ── Test domain ─────────────────────────────────────────────────
+  fetchOnlineTests: async (filters) => {
+    await useTestStore.getState().fetchOnlineTests(filters);
+    useDataStore.setState(mergeState());
+  },
+
+  fetchTestAttempts: async (testId) => {
+    await useTestStore.getState().fetchTestAttempts(testId);
+    useDataStore.setState(mergeState());
   },
 
   createOnlineTest: async (test) => {
-    try {
-      const data = await createTestApi(test);
-      set({ onlineTests: [data, ...get().onlineTests] });
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useTestStore.getState().createOnlineTest(test);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   updateOnlineTest: async (id, updates) => {
-    try {
-      const data = await updateTestApi(id, updates);
-      set({ onlineTests: get().onlineTests.map((t) => (t.id === id ? data : t)) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useTestStore.getState().updateOnlineTest(id, updates);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
   deleteOnlineTest: async (id) => {
-    try {
-      await deleteTestApi(id);
-      set({ onlineTests: get().onlineTests.filter((t) => t.id !== id) });
-      return { error: null };
-    } catch (error) {
-      return { error: { message: getApiErrorMessage(error) } };
-    }
+    const result = await useTestStore.getState().deleteOnlineTest(id);
+    useDataStore.setState(mergeState());
+    return result;
   },
 
-  clearError: () => set({ error: null }),
+  fetchAnalytics: async () => {
+    return useTestStore.getState().fetchAnalytics();
+  },
+
+  // ── User domain ─────────────────────────────────────────────────
+  fetchUsers: async (filters) => {
+    await useUserStore.getState().fetchUsers(filters);
+    useDataStore.setState(mergeState());
+  },
+
+  updateUser: async (id, updates) => {
+    const result = await useUserStore.getState().updateUser(id, updates);
+    useDataStore.setState(mergeState());
+    return result;
+  },
+
+  deleteUser: async (id) => {
+    const result = await useUserStore.getState().deleteUser(id);
+    useDataStore.setState(mergeState());
+    return result;
+  },
+
+  // ── Shared utilities ────────────────────────────────────────────
+  clearError: () => {
+    useCatalogStore.setState({ error: null });
+    useQuestionStore.setState({ error: null });
+    usePaperStore.setState({ error: null });
+    useTestStore.setState({ error: null });
+    useUserStore.setState({ error: null });
+    useDataStore.setState(mergeState());
+  },
 }));
+
+// ── Auto-sync: subscribe to all domain stores so the facade stays reactive ──
+const syncFacade = () => useDataStore.setState(mergeState());
+useCatalogStore.subscribe(syncFacade);
+useQuestionStore.subscribe(syncFacade);
+usePaperStore.subscribe(syncFacade);
+useTestStore.subscribe(syncFacade);
+useUserStore.subscribe(syncFacade);
