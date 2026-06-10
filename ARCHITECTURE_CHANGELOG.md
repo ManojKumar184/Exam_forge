@@ -100,3 +100,34 @@ Initial architecture audit was conducted across the entire codebase to identify 
 
 **Rollback:** `git restore src/pages/questions/UploadQuestionsPage.tsx`
 
+
+## Change Entry 003
+
+**Date:** 2026-06-10
+**Sprint:** Phase 1 / Sprint 1
+**Task:** S7 — Remove semanticDuplicates.js (inline into detectDuplicates.js)
+
+**Files Modified:**
+- `backend/src/extraction/semanticDuplicates.js` (deleted)
+- `backend/src/extraction/detectDuplicates.js` (inlined findSemanticDuplicate locally)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (S7 status: NOT_STARTED → IN_PROGRESS → COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+semanticDuplicates.js contained a single exported function (`findSemanticDuplicate`) that was only imported by `detectDuplicates.js`. All of its imports (`combinedTextSimilarity`, `equationSimilarity`, `findDuplicateCandidate`, `computeDuplicateHash`) were already imported by `detectDuplicates.js`. Inlining eliminates an unnecessary module boundary.
+
+**Implementation:**
+1. Copied `findSemanticDuplicate` function and its constants (SEMANTIC_THRESHOLD=0.88, EQUATION_THRESHOLD=0.85) into `detectDuplicates.js` as a local non-exported function
+2. Removed the `import { findSemanticDuplicate } from './semanticDuplicates.js'` line
+3. Deleted `backend/src/extraction/semanticDuplicates.js`
+4. Verified TypeScript compilation — 0 errors
+
+**Testing:**
+- Full TypeScript check: `npx tsc --noEmit --pretty` — 0 errors
+- Verified no other file imports semanticDuplicates.js (only detectDuplicates.js did)
+- All imports were already present in detectDuplicates.js — no new import lines needed
+
+**Result:** SUCCESS — Module flattened, build clean, no logic changes.
+
+**Rollback:** `git restore backend/src/extraction/detectDuplicates.js backend/src/extraction/semanticDuplicates.js`
+

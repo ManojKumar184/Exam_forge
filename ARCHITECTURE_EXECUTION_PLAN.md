@@ -89,7 +89,7 @@ Student Attempt → Results → Analytics
 | S4 | Fix duplicate /catalog/chapters API | NOT_STARTED | P0 | Low | None | Route + controller files |
 | S5 | Remove residual Gemini/Ollama references | NOT_STARTED | P0 | Low | None | backend/src/services/questionReconstructService.js, validators |
 | S6 | Remove dead extraction scripts | NOT_STARTED | P0 | Low | None | 11 scripts in backend/src/extraction/ |
-| S7 | Remove semanticDuplicates.js | NOT_STARTED | P0 | Low | None | backend/src/extraction/semanticDuplicates.js |
+| S7 | Remove semanticDuplicates.js | COMPLETED | P0 | Low | None | backend/src/extraction/semanticDuplicates.js |
 
 ---
 
