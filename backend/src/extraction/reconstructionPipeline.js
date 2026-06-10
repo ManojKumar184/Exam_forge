@@ -4,6 +4,8 @@ import { DOMParser } from 'linkedom';
 import { getLlmProvider } from '../ai/providerRegistry.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { parseHtmlTableToJson } from './docxMathHtml.js';
+import { extractOptionsReverse } from './optionParser.js';
 
 function getParentBlockType(html, xmlMatch) {
   if (!html || !xmlMatch) return 'paragraph';
@@ -262,7 +264,7 @@ export function shieldMathRegions(text) {
   work = work.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
   work = work.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-  const eqRegex = /[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
+  const eqRegex = /(?!\s*\(?[a-zA-Z0-9][\.\)]\s*[-+])[a-zA-Z0-9_α-ωΑ-Ω\(\[\{\\\^_\.]+[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]*(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
   work = work.replace(eqRegex, addPlaceholder);
 
   work = work.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_α-ωΑ-Ω∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
@@ -276,13 +278,21 @@ export function shieldMathRegions(text) {
 export function mergeLinesSemantically(text) {
   const lines = text.split('\n').map((l) => l.trimEnd());
   const merged = [];
+  let inTable = false;
 
   for (let i = 0; i < lines.length; i++) {
     const current = lines[i].trim();
     if (!current) continue;
 
+    if (current.includes('[TABLE_START]')) {
+      inTable = true;
+    }
+
     if (merged.length === 0) {
       merged.push(current);
+      if (current.includes('[TABLE_END]')) {
+        inTable = false;
+      }
       continue;
     }
 
@@ -299,7 +309,9 @@ export function mergeLinesSemantically(text) {
 
     const isNextQuestionOrOption = QUESTION_START_RE.test(current) || OPTION_LINE_START.test(current);
 
-    if (!isNextQuestionOrOption && (
+    if (inTable || current.includes('[TABLE_START]') || prev.includes('[TABLE_END]')) {
+      merged.push(current);
+    } else if (!isNextQuestionOrOption && (
       nextStartsLowercase ||
       nextStartsPunc ||
       nextStartsMath ||
@@ -309,6 +321,10 @@ export function mergeLinesSemantically(text) {
       merged[prevIdx] = `${prev} ${current}`.trim();
     } else {
       merged.push(current);
+    }
+
+    if (current.includes('[TABLE_END]')) {
+      inTable = false;
     }
   }
 
@@ -669,23 +685,23 @@ function isolateFigures(html, plain) {
 function semanticClassify(stemText, optionsCount) {
   const lower = stemText.toLowerCase();
   
-  if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lower)) {
-    return 'COMPREHENSION';
-  }
-  if (/case\s*study|read\s+the\s+following\s+case/i.test(lower)) {
-    return 'CASE_STUDY';
-  }
   if (/assertion\s*[:\-–—]?\s*(?:reason|reasoning)?/i.test(lower) && /reason\s*[:\-–—]?\s*/i.test(lower)) {
-    return 'ASSERTION_REASON';
+    return { type: 'ASSERTION_REASON', contextType: 'ASSERTION_REASON' };
   }
   if (/match\s+(?:the\s+)?following|column\s+i\b|list-?\s*i\b/i.test(lower)) {
-    return 'MATCH_COLUMNS';
+    return { type: 'MATCH_FOLLOWING', contextType: 'MATCH_FOLLOWING' };
+  }
+  if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lower)) {
+    return { type: 'DESCRIPTIVE', contextType: 'COMPREHENSION' };
+  }
+  if (/case\s*study|read\s+the\s+following\s+case/i.test(lower)) {
+    return { type: 'DESCRIPTIVE', contextType: 'CASE_STUDY' };
   }
   if (/matrix\s*match/i.test(lower)) {
-    return 'MATRIX_MATCH';
+    return { type: 'MCQ_SINGLE', contextType: 'MATRIX_MATCH' };
   }
   if (/true\s+or\s+false|true\s*\/\s*false/i.test(lower)) {
-    return 'TRUE_FALSE';
+    return { type: 'MCQ_SINGLE', contextType: 'TRUE_FALSE' };
   }
   
   // Count inline option markers in stem text
@@ -697,23 +713,20 @@ function semanticClassify(stemText, optionsCount) {
     const hasStatementLayer = /\b(statement|i|ii|iii|iv|a|b|c)\b/i.test(lower) && 
                               /(?:only\s+[a-f]\s+and\s+[a-f]|[a-f]\s*,\s*[a-f]\s*only)/i.test(lower);
     if (hasStatementLayer) {
-      return 'NESTED_OPTION_MCQ';
+      return { type: 'MCQ_SINGLE', contextType: 'NESTED_OPTION_MCQ' };
     }
     
     if (/one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(lower)) {
-      return 'MCQ_MULTI';
+      return { type: 'MCQ_MULTIPLE' };
     }
-    return 'MCQ_SINGLE';
+    return { type: 'MCQ_SINGLE' };
   }
   
-  if (/[iI]nteger/i.test(lower)) {
-    return 'INTEGER';
-  }
-  if (/numerical/i.test(lower) || /numeric/i.test(lower)) {
-    return 'NUMERICAL';
+  if (/[iI]nteger|numerical|numeric/i.test(lower)) {
+    return { type: 'NUMERICAL_INTEGER' };
   }
   
-  return 'DESCRIPTIVE';
+  return { type: 'DESCRIPTIVE' };
 }
 
 /**
@@ -761,11 +774,12 @@ export function extractOfficeSemantics(html, plainText) {
   const figures = [];
   const lineage = {};
   const unresolvedMath = [];
+  const tablesList = [];
   let figureCounter = 1;
   let mathCounter = 1;
   
   if (!html) {
-    return { html: '', mathMap, figures, lineage, unresolvedMath };
+    return { html: '', mathMap, figures, lineage, unresolvedMath, tables: tablesList };
   }
 
   try {
@@ -1304,9 +1318,17 @@ export function extractOfficeSemantics(html, plainText) {
       }
       
       if (cleanTag === 'table') {
-        const md = compileTableMarkdown(el);
-        if (md) {
-          el.parentNode.replaceChild(doc.createTextNode(md), el);
+        try {
+          const tableJson = parseHtmlTableToJson(el);
+          tablesList.push(tableJson);
+          const placeholder = ` [TABLE_${tablesList.length - 1}] `;
+          el.parentNode.replaceChild(doc.createTextNode(placeholder), el);
+        } catch (err) {
+          console.warn("reconstructionPipeline table parsing failed, falling back to markdown:", err);
+          const md = compileTableMarkdown(el);
+          if (md) {
+            el.parentNode.replaceChild(doc.createTextNode(md), el);
+          }
         }
         continue;
       }
@@ -1335,12 +1357,13 @@ export function extractOfficeSemantics(html, plainText) {
       mathMap,
       figures,
       lineage,
-      unresolvedMath
+      unresolvedMath,
+      tables: tablesList
     };
 
   } catch (err) {
     console.warn("DOM-based semantic extraction failed, falling back:", err);
-    return { html: html || '', mathMap, figures, lineage, unresolvedMath };
+    return { html: html || '', mathMap, figures, lineage, unresolvedMath, tables: tablesList };
   }
 }
 
@@ -1448,6 +1471,12 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   // Stage 1: Office Semantic Extraction (BEFORE sanitization)
   const semanticRes = extractOfficeSemantics(srcHtml, plainText);
   let cleanedHtml = semanticRes.html;
+  let collectedTables = [];
+  if (pipelineOptions && pipelineOptions.tables && pipelineOptions.tables.length > 0) {
+    collectedTables = pipelineOptions.tables;
+  } else if (semanticRes.tables && semanticRes.tables.length > 0) {
+    collectedTables = semanticRes.tables;
+  }
 
   if (srcHtml) {
     const styleCount = (srcHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).length;
@@ -1478,6 +1507,24 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   // Stage 3: Figure/Image Isolation
   const { isolatedHtml, isolatedPlain, figures: extraFigures } = isolateFigures(normalizedHtml, plainText || '');
   const figures = [...semanticRes.figures, ...extraFigures];
+  
+  // Parse figure placeholders from plainText if figures is empty
+  if (figures.length === 0 && plainText && plainText.includes('[FIGURE_')) {
+    const figMatch = plainText.match(/\[FIGURE_(\d+)\]/g);
+    if (figMatch) {
+      for (const m of figMatch) {
+        if (!figures.some(f => f.id === m)) {
+          figures.push({
+            id: m,
+            url: `/uploads/images/${m.slice(1, -1).toLowerCase()}.png`,
+            caption: null,
+            type: 'figure'
+          });
+        }
+      }
+    }
+  }
+
   stages.stage3.figures_extracted = figures;
   stages.stage3.isolated_html = isolatedHtml;
 
@@ -1503,6 +1550,19 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     shieldedPlain = preNormalizeMathText(shieldedPlain);
     shieldedPlain = cleanUnicodeText(shieldedPlain);
     
+    // Protect special tags (like TABLE_START, TABLE_END, TABLE_0, FIGURE_1, etc.) from math shielding regexes
+    const tagPlaceholders = new Map();
+    let tagCount = 0;
+    const addTagPlaceholder = (match) => {
+      const key = `TAGPLACEHOLDER${tagCount++}`;
+      tagPlaceholders.set(key, match);
+      return key;
+    };
+    // Match [TABLE_START]...[TABLE_END] block
+    shieldedPlain = shieldedPlain.replace(/\[TABLE_START\][\s\S]*?\[TABLE_END\]/g, addTagPlaceholder);
+    // Match remaining tag placeholders like [FIGURE_1], [TABLE_0], [DIAGRAM_2]
+    shieldedPlain = shieldedPlain.replace(/\[(?:TABLE_\d+|FIGURE_\d+|DIAGRAM_\d+)\]/g, addTagPlaceholder);
+
     // Protect HTML tags from math shielding regexes
     const htmlPlaceholders = new Map();
     let htmlCount = 0;
@@ -1513,12 +1573,12 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     };
     shieldedPlain = shieldedPlain.replace(/<[^>]+>/g, addHtmlPlaceholder);
 
-    shieldedPlain = shieldedPlain.replace(/\$\$([\s\S]+?)\$\$/g, addPlaceholder);
+    shieldedPlain = shieldedPlain.replace(/\$$([\s\S]+?)\$$/g, addPlaceholder);
     shieldedPlain = shieldedPlain.replace(/\\\[([\s\S]+?)\\\]/g, addPlaceholder);
     shieldedPlain = shieldedPlain.replace(/\$([^$\n]+?)\$/g, addPlaceholder);
     shieldedPlain = shieldedPlain.replace(/\\\(([\s\S]+?)\\\)/g, addPlaceholder);
 
-    const eqRegex = /[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
+    const eqRegex = /(?!\s*\(?[a-zA-Z0-9][\.\)]\s*[-+])[a-zA-Z0-9_α-ωΑ-Ω\(\[\{\\\^_\.]+[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]*(?:\s*[-+=\*\/<>≤≥≠∩∪−±×÷|]\s*[a-zA-Z0-9_α-ωΑ-Ω\(\)\[\]\{\}\\\^_\.]+)+/g;
     shieldedPlain = shieldedPlain.replace(eqRegex, addPlaceholder);
 
     shieldedPlain = shieldedPlain.replace(/\b[PQR]\s*\(\s*[a-zA-Z0-9_α-ωΑ-Ω∪∩⊂⊆\+\-\*\/|\\−\s\(\)]+?\s*\)/g, addPlaceholder);
@@ -1530,6 +1590,12 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     const htmlKeys = Array.from(htmlPlaceholders.keys()).sort((a, b) => b.length - a.length);
     for (const key of htmlKeys) {
       shieldedPlain = shieldedPlain.split(key).join(htmlPlaceholders.get(key));
+    }
+
+    // Restore special tags
+    const tagKeys = Array.from(tagPlaceholders.keys()).sort((a, b) => b.length - a.length);
+    for (const key of tagKeys) {
+      shieldedPlain = shieldedPlain.split(key).join(tagPlaceholders.get(key));
     }
   }
 
@@ -1546,77 +1612,80 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const optMatch = trimmed.match(OPTION_LINE_START);
-      if (optMatch) {
-        const label = (optMatch[1] || optMatch[2] || '').toUpperCase();
-        const content = trimmed.replace(OPTION_LINE_START, '').trim();
-        extractedBlocks.push({ type: 'option', label, content });
-      } else {
-        extractedBlocks.push({ type: 'paragraph', content: trimmed });
-      }
+      extractedBlocks.push({ type: 'paragraph', content: trimmed });
     }
   }
   stages.stage5.blocks = extractedBlocks;
 
-  // Stage 6: Semantic Question Typing
-  const stemBlocks = extractedBlocks.filter(b => b.type !== 'option');
-  const optionBlocks = extractedBlocks.filter(b => b.type === 'option');
-  const rawStemText = stemBlocks.map(b => b.content).join('\n');
-  const questionType = semanticClassify(rawStemText, optionBlocks.length);
-  stages.stage6.classified_type = questionType;
-  stages.stage6.evidence = [
-    `Stem Length: ${rawStemText.length} chars`,
-    `Options Count: ${optionBlocks.length}`,
-  ];
-
-  // Stage 7: Adaptive Parser Selection
-  let parserName = "General Parser";
-  if (questionType === "COMPREHENSION") parserName = "Comprehension Parser";
-  else if (questionType === "MATCH_COLUMNS") parserName = "Column Match Parser";
-  else if (questionType === "NESTED_OPTION_MCQ") parserName = "Nested MCQ Parser";
-  stages.stage7.selected_parser = parserName;
-
-  // Stage 8: MCQ / Statement / Comprehension Reconstruction
-  let stem = rawStemText.replace(QUESTION_START_RE, '').trim();
+  // Stage 6: Option Detection via Reverse Scan
+  let stem = '';
   let options = [];
-  let statementGroups = extractStatements(stem);
+  let optionConfidence = 1.0;
 
-  if (optionBlocks.length >= 2) {
-    options = optionBlocks.map(o => ({ text: o.content }));
-  } else if (optionBlocks.length === 1) {
-    // Try to split the single option block
-    const label = optionBlocks[0].label || 'A';
-    const textToSplit = `${label}. ${optionBlocks[0].content}`;
-    const splitResult = splitOptionsByMarkers(normalizeOptionPrefixes(textToSplit));
-    if (splitResult.success && splitResult.options.length >= 2) {
-      options = splitResult.options.map(o => ({ text: o.text }));
-    } else {
-      // Use the single option block as is
-      options = optionBlocks.map(o => ({ text: o.content }));
-      
-      // Fallback split on stem if option block wasn't inline-split and stem has inline options
-      const stemSplit = splitOptionsByMarkers(normalizeOptionPrefixes(stem));
-      if (stemSplit.success) {
-        stem = stemSplit.stem.replace(QUESTION_START_RE, '').trim();
-        options = stemSplit.options.map(o => ({ text: o.text }));
-        if (stages.stage6.classified_type === 'DESCRIPTIVE' || stages.stage6.classified_type === 'mcq') {
-          stages.stage6.classified_type = 'MCQ_SINGLE';
-        }
+  const preSplitOptions = extractedBlocks.filter(b => b.type === 'option');
+  if (preSplitOptions.length >= 2) {
+    const stemBlocks = extractedBlocks.filter(b => b.type !== 'option');
+    stem = stemBlocks.map(b => b.content || b.text || '').join('\n').trim();
+    options = preSplitOptions.map(o => ({ text: o.content || o.text || '' }));
+    optionConfidence = options.length === 4 ? 0.98 : (options.length === 3 || options.length === 2 ? 0.88 : 0.60);
+  } else {
+    const blockLines = extractedBlocks.map(b => b.content || b.text || '').join('\n').split('\n');
+    const reverseResult = extractOptionsReverse(blockLines);
+    stem = reverseResult.stem;
+    options = reverseResult.options;
+    optionConfidence = reverseResult.confidence;
+  }
+  stages.stage6.title = "Stage 6 — Option Detection via Reverse Scan";
+  stages.stage6.detected_options = options;
+  stages.stage6.option_confidence = optionConfidence;
+
+  // Stage 7: Statement Detection
+  let stemClean = stem.replace(QUESTION_START_RE, '').trim();
+  let statementGroups = extractStatements(stemClean);
+  stages.stage7.title = "Stage 7 — Statement Detection";
+  stages.stage7.statement_groups = statementGroups;
+
+  // Stage 8: Table Reconstruction
+  stages.stage8.title = "Stage 8 — Table Reconstruction";
+  
+  // If no tables were collected but the stem contains [TABLE_START], parse it
+  if ((!collectedTables || collectedTables.length === 0) && stem.includes('[TABLE_START]')) {
+    const tableRegex = /\[TABLE_START\]([\s\S]*?)\[TABLE_END\]/g;
+    let match;
+    const pTables = [];
+    while ((match = tableRegex.exec(stem)) !== null) {
+      const tableContent = match[1];
+      const rows = tableContent.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && l !== '[TABLE_START]' && l !== '[TABLE_END]')
+        .map(line => {
+          const cells = line.split(' | ').map(cell => ({
+            text: cell.trim(),
+            html: cell.trim(),
+            colspan: 1,
+            rowspan: 1
+          }));
+          return cells;
+        });
+      if (rows.length > 0) {
+        pTables.push({ rows });
       }
     }
-  } else {
-    // optionBlocks.length === 0, try splitting the stem
-    const splitResult = splitOptionsByMarkers(normalizeOptionPrefixes(stem));
-    if (splitResult.success) {
-      stem = splitResult.stem.replace(QUESTION_START_RE, '').trim();
-      options = splitResult.options.map(o => ({ text: o.text }));
-      if (stages.stage6.classified_type === 'DESCRIPTIVE' || stages.stage6.classified_type === 'mcq') {
-        stages.stage6.classified_type = 'MCQ_SINGLE';
-      }
+    if (pTables.length > 0) {
+      collectedTables = pTables;
     }
   }
 
-  // Restore Math regions in stem, options, and statementGroups for Stage 8
+  stages.stage8.tables = collectedTables;
+  
+  // Replace plain text table block in stem with [TABLE_n]
+  if (stem.includes('[TABLE_START]')) {
+    const tableRegex = /\[TABLE_START\]([\s\S]*?)\[TABLE_END\]/g;
+    let tIdx = 0;
+    stem = stem.replace(tableRegex, () => `[TABLE_${tIdx++}]`);
+  }
+
+  // Stage 9: Question Reconstruction & AI Refinement
   const { normalized: normalizedPlaceholders } = normalizeAllMathPlaceholders(placeholders);
   stem = restoreMathRegions(stem, normalizedPlaceholders);
   options = options.map(o => ({
@@ -1625,14 +1694,28 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }));
   statementGroups = statementGroups.map(s => restoreMathRegions(s, normalizedPlaceholders));
 
-  stages.stage8.reconstructed_stem = stem;
-  stages.stage8.reconstructed_options = options;
-  stages.stage8.statement_groups = statementGroups;
+  // Restore math placeholders in tables as well
+  if (collectedTables && collectedTables.length > 0) {
+    for (const table of collectedTables) {
+      if (table && table.rows) {
+        for (const row of table.rows) {
+          for (const cell of row) {
+            if (cell) {
+              if (cell.text) {
+                cell.text = restoreMathRegions(cell.text, normalizedPlaceholders);
+              }
+              if (cell.html) {
+                cell.html = restoreMathRegions(cell.html, normalizedPlaceholders);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-  // Now, shield math regions specifically for Stage 9 (Ollama refinement) to ensure they are deterministic + immutable!
   const tempPlaceholders = new Map();
   const counterObj = { count: 0 };
-
   const shieldedStemForOllama = shieldText(stem, tempPlaceholders, counterObj);
   const shieldedOptionsForOllama = options.map(o => ({
     ...o,
@@ -1640,27 +1723,29 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }));
   const shieldedStatementGroupsForOllama = statementGroups.map(s => shieldText(s, tempPlaceholders, counterObj));
 
-  // Stage 9: Hugging Face Semantic Refinement (Cloud Inference)
   let correctAnswers = [];
   let explanation = "";
   let formulas = Array.from(normalizedPlaceholders.values());
-  let tags = [questionType.toLowerCase()];
+  let tags = [];
 
-  const shouldSkipLlm = pipelineOptions.skipLlm !== false; // defaults to true unless skipLlm is explicitly set to false
+  const shouldSkipLlm = pipelineOptions.skipLlm !== false;
   
+  stages.stage9.title = "Stage 9 — Question Reconstruction & AI Refinement";
+  stages.stage9.refined = false;
+  stages.stage9.warnings = [];
+
   if (env.ai.provider === 'huggingface' && !shouldSkipLlm) {
     try {
       const llmProvider = getLlmProvider();
       if (llmProvider && typeof llmProvider.refineQuestion === 'function') {
         const refined = await llmProvider.refineQuestion(
-          { questionText: shieldedStemForOllama, questionType, options: shieldedOptionsForOllama },
+          { questionText: shieldedStemForOllama, questionType: 'mcq', options: shieldedOptionsForOllama },
           plainText
         );
         if (refined) {
           stages.stage9.refined = true;
           stages.stage9.response = refined;
           if (refined.stem) stem = refined.stem;
-          if (refined.questionType) stages.stage6.classified_type = refined.questionType;
           if (Array.isArray(refined.options)) {
             options = refined.options.map(o => ({ text: o.text || o || '' }));
           } else {
@@ -1706,7 +1791,6 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     stages.stage9.warnings.push("Semantic refinement skipped — using deterministic parser.");
   }
 
-  // Restore the temporary placeholders from Ollama's output (or fallbacks)
   stem = restoreMathRegions(stem, tempPlaceholders);
   options = options.map(o => ({
     ...o,
@@ -1715,38 +1799,98 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   statementGroups = statementGroups.map(s => restoreMathRegions(s, tempPlaceholders));
   explanation = restoreMathRegions(explanation, tempPlaceholders);
 
-  // Stage 10: Final Validation
-  const validation = validateReconstruction(stem, options);
-  stages.stage10.warnings = [...validation.warnings, ...stages.stage9.warnings];
-  stages.stage10.parser_confidence = validation.confidence;
-  
+  stages.stage9.stem = stem;
+  stages.stage9.options = options;
+  stages.stage9.explanation = explanation;
+
+  // Stage 10: Question Type Classification (canonical)
+  let questionType = 'DESCRIPTIVE';
+  let contextType = null;
+  const lowerStem = stem.toLowerCase();
+
+  // 1. Structural Analysis & 2. Rule Engine
+  if (/assertion\s*[:\-–—]?\s*(?:reason|reasoning)?/i.test(lowerStem) && /reason\s*[:\-–—]?\s*/i.test(lowerStem)) {
+    questionType = 'ASSERTION_REASON';
+    contextType = 'ASSERTION_REASON';
+  } else if (/match\s+(?:the\s+)?following|column\s+i\b|list-?\s*i\b/i.test(lowerStem)) {
+    questionType = 'MATCH_FOLLOWING';
+    contextType = 'MATCH_FOLLOWING';
+  } else if (/matrix\s*match/i.test(lowerStem)) {
+    questionType = 'MCQ_SINGLE';
+    contextType = 'MATRIX_MATCH';
+  } else if (/true\s+or\s+false|true\s*\/\s*false/i.test(lowerStem)) {
+    questionType = 'MCQ_SINGLE';
+    contextType = 'TRUE_FALSE';
+  } else if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lowerStem)) {
+    questionType = 'DESCRIPTIVE';
+    contextType = 'COMPREHENSION';
+  } else if (/case\s*study|read\s+the\s+following\s+case/i.test(lowerStem)) {
+    questionType = 'DESCRIPTIVE';
+    contextType = 'CASE_STUDY';
+  } else if (options.length >= 2) {
+    if (/one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(lowerStem)) {
+      questionType = 'MCQ_MULTIPLE';
+    } else {
+      questionType = 'MCQ_SINGLE';
+    }
+  } else if (/[iI]nteger|numerical|numeric/i.test(lowerStem)) {
+    questionType = 'NUMERICAL_INTEGER';
+  } else if (options.length === 0 && (/calculate|find|determine|value of|ratio of|magnitude of|what is|solve|evaluate|____/i.test(lowerStem)) && (/[0-9]|\$|\\/.test(lowerStem))) {
+    questionType = 'NUMERICAL_INTEGER';
+  }
+
+  // Normalize to canonical via imported helper
+  const { normalizeQuestionType, getContextTypeForType } = await import('../utils/questionTypeNormalizer.js');
+  if (!contextType) {
+    contextType = getContextTypeForType(questionType);
+  }
+  questionType = normalizeQuestionType(questionType);
+
+  // 3. AI Verification for uncertain cases
+  const isUncertain = questionType === 'DESCRIPTIVE' || optionConfidence < 0.70;
+  if (isUncertain && env.ai.provider === 'huggingface' && !shouldSkipLlm) {
+    try {
+      const llmProvider = getLlmProvider();
+      if (llmProvider && typeof llmProvider.classify === 'function') {
+        const aiResult = await llmProvider.classify({ questionText: stem, options }, catalog || {});
+        if (aiResult && aiResult.questionType) {
+          questionType = normalizeQuestionType(aiResult.questionType);
+          contextType = getContextTypeForType(aiResult.questionType) || contextType;
+        }
+      }
+    } catch (err) {
+      logger.warn('AI type verification failed', { error: err.message });
+    }
+  }
+
+  stages.stage10.title = "Stage 10 — Question Type Classification (canonical)";
+  stages.stage10.classified_type = questionType;
+  stages.stage10.context_type = contextType;
+  stages.stage10.evidence = [
+    `Stem Length: ${stem.length} chars`,
+    `Options Count: ${options.length}`,
+    `Option Confidence: ${optionConfidence}`,
+    `Uncertain Case: ${isUncertain}`
+  ];
+
+  // Stage 11: Metadata Classification & Confidence Scoring
+  let mathPreservationConfidence = 1.0;
   const unresolved = stem.match(/MATHPLACEHOLDER\d+/g) || [];
   options.forEach(o => {
     const match = o.text.match(/MATHPLACEHOLDER\d+/g);
     if (match) unresolved.push(...match);
   });
-  stages.stage10.unresolved_placeholders = [...new Set(unresolved)];
-
-  // Stage 11: KaTeX Verification
-  stages.stage11.final_katex_source = stem;
-  stages.stage11.malformed_expressions = checkMalformedExpressions(stem);
+  const malformed = checkMalformedExpressions(stem);
   options.forEach(o => {
     const mal = checkMalformedExpressions(o.text);
-    if (mal.length) stages.stage11.malformed_expressions.push(...mal);
+    if (mal.length) malformed.push(...mal);
   });
 
-  // Stage 12: Metadata Classification
-  stages.stage12.class = 11;
-  stages.stage12.difficulty = "medium";
-  stages.stage12.tags = tags;
-
-  // Math Preservation Confidence
-  let mathPreservationConfidence = 1.0;
-  if (stages.stage10.unresolved_placeholders.length > 0) {
-    mathPreservationConfidence -= stages.stage10.unresolved_placeholders.length * 0.25;
+  if (unresolved.length > 0) {
+    mathPreservationConfidence -= unresolved.length * 0.25;
   }
-  if (stages.stage11.malformed_expressions.length > 0) {
-    mathPreservationConfidence -= stages.stage11.malformed_expressions.length * 0.15;
+  if (malformed.length > 0) {
+    mathPreservationConfidence -= malformed.length * 0.15;
   }
   const unresolvedMathCount = semanticRes.unresolvedMath ? semanticRes.unresolvedMath.length : 0;
   if (unresolvedMathCount > 0) {
@@ -1754,11 +1898,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }
   mathPreservationConfidence = Math.max(0.1, Math.min(1.0, mathPreservationConfidence));
 
-  // Semantic Confidence
   let semanticConfidence = 1.0;
-  if (!questionType || questionType === 'DESCRIPTIVE') {
-    semanticConfidence -= 0.1;
-  }
   if (questionType === 'MCQ_SINGLE' || questionType === 'MCQ_MULTI') {
     if (options.length < 2) {
       semanticConfidence -= 0.4;
@@ -1771,47 +1911,62 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   }
   semanticConfidence = Math.max(0.1, Math.min(1.0, semanticConfidence));
 
-  // Metadata Confidence
-  let metadataConfidence = 1.0;
-  if (stages.stage12.tags.length === 0) {
-    metadataConfidence -= 0.1;
-  }
-  if (!stages.stage12.class) {
-    metadataConfidence -= 0.2;
-  }
-  metadataConfidence = Math.max(0.1, Math.min(1.0, metadataConfidence));
+  const reconstructionFidelity = Math.max(0.1, 1 - (malformed.length * 0.1) - (unresolved.length * 0.15) - (unresolvedMathCount * 0.25));
+  
+  const compositeConfidence = Math.min(optionConfidence, mathPreservationConfidence, semanticConfidence);
 
-  const reconstructionFidelity = Math.max(0.1, 1 - (stages.stage11.malformed_expressions.length * 0.1) - (unresolved.length * 0.15) - (unresolvedMathCount * 0.25));
+  const validation = validateReconstruction(stem, options);
+  const warnings = [...validation.warnings, ...stages.stage9.warnings];
+  const lowConfidence = compositeConfidence < 0.70;
+  const hasMalformedOrUnresolved = (unresolved.length > 0) || (malformed.length > 0);
 
-  // Stage 13: Database-ready Semantic Object Generation
+  const status = (warnings.length > 0 || lowConfidence || hasMalformedOrUnresolved) ? 'needs_review' : 'pending';
+
+  stages.stage11.title = "Stage 11 — Metadata Classification & Confidence Scoring";
+  stages.stage11.class = 11;
+  stages.stage11.difficulty = "medium";
+  stages.stage11.tags = [questionType.toLowerCase(), ...tags];
+  stages.stage11.status = status;
+
+  // Stage 12: KaTeX Verification
+  stages.stage12.title = "Stage 12 — KaTeX Verification";
+  stages.stage12.final_katex_source = stem;
+  stages.stage12.malformed_expressions = malformed;
+
+  // Stage 13: Database-ready Semantic Object Generation (canonical types)
   const dbObject = {
-    questionType: stages.stage6.classified_type,
+    questionType,
+    contextType,
     stem,
     options,
     correctAnswers,
     explanation,
     figures,
     metadata: {
-      class: stages.stage12.class,
-      difficulty: stages.stage12.difficulty,
-      tags: stages.stage12.tags,
+      class: stages.stage11.class,
+      difficulty: stages.stage11.difficulty,
+      tags: stages.stage11.tags,
     },
     formulas,
-    difficulty: stages.stage12.difficulty,
-    tags,
+    difficulty: stages.stage11.difficulty,
+    tags: stages.stage11.tags,
     source: rawHtml ? 'paste' : 'docx',
     semanticBlocks: extractedBlocks,
     statementGroups,
     comprehensionLinks: [],
-    parserConfidence: stages.stage10.parser_confidence,
+    parserConfidence: optionConfidence,
     reconstructionFidelity,
     semanticConfidence,
     mathPreservationConfidence,
-    metadataConfidence,
+    metadataConfidence: 1.0,
+    status,
+    renderingMetadata: {
+      tables: collectedTables
+    }
   };
+  stages.stage13.title = "Stage 13 — Database-ready Semantic Object Generation";
   stages.stage13.db_object = dbObject;
 
-  // Build the final result mapping for backward compatibility
   const debugInfo = {
     rawClipboardHtml: htmlText,
     extractedSemanticBlocks: extractedBlocks.map(b => `[${b.type}]: ${b.content || b.text || ''}`),
@@ -1841,10 +1996,11 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     stem,
     options,
     explanation,
-    questionType: (questionType === "MCQ_SINGLE" || questionType === "MCQ_MULTI") ? "mcq" : questionType.toLowerCase(),
+    questionType,
+    contextType,
     subtype: questionType.toLowerCase(),
-    warnings: stages.stage10.warnings,
-    confidence: stages.stage10.parser_confidence,
+    warnings,
+    confidence: optionConfidence,
     correctAnswers,
     figures,
     formulas,
@@ -1854,9 +2010,10 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     reconstructionFidelity,
     semanticConfidence,
     mathPreservationConfidence,
-    metadataConfidence,
+    metadataConfidence: 1.0,
     lineage: semanticRes.lineage,
     unresolvedMath: semanticRes.unresolvedMath,
+    tables: collectedTables,
     debugInfo,
   };
 }

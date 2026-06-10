@@ -3,6 +3,7 @@ import { TestAttempt } from '../models/TestAttempt.js';
 import { AppError } from '../utils/AppError.js';
 import { mapTestAttempt } from '../utils/examMapper.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
+import { getQuestionCategory as getNormalizedCategory } from '../utils/questionTypeNormalizer.js';
 
 function assertFacultyOwnsTest(test, user) {
   if (user.role === 'super_admin') return;
@@ -23,19 +24,7 @@ function buildQuestionMap(paper) {
 }
 
 function getQuestionCategory(type) {
-  if (!type) return 'descriptive';
-  const upper = type.toUpperCase();
-  if (
-    ['MCQ', 'MCQ_SINGLE', 'MCQ_MULTI', 'TRUE_FALSE', 'ASSERTION_REASON', 'NESTED_OPTION_MCQ'].includes(upper)
-  ) {
-    return 'mcq';
-  }
-  if (
-    ['NUMERICAL', 'INTEGER'].includes(upper)
-  ) {
-    return 'numerical';
-  }
-  return 'descriptive';
+  return getNormalizedCategory(type);
 }
 
 export function computeGradingStatus(attempt, questionMap) {

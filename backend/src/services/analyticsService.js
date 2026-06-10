@@ -1,4 +1,4 @@
-import { User, Question, Paper, OnlineTest, TestAttempt, Upload } from '../models/index.js';
+import { User, Question, Paper, OnlineTest, TestAttempt, Upload, QuestionBank } from '../models/index.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,18 +6,72 @@ import { spawn } from 'child_process';
 import { env } from '../config/env.js';
 
 export async function getAdminAnalytics() {
-  const [roleCounts, questionCounts, totalPapers, totalTests, totalAttempts, totalUploads] =
-    await Promise.all([
-      User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
-      Question.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Paper.countDocuments(),
-      OnlineTest.countDocuments(),
-      TestAttempt.countDocuments(),
-      Upload.countDocuments(),
-    ]);
+  const [
+    roleCounts,
+    questionCounts,
+    totalPapers,
+    totalTests,
+    activeTests,
+    totalAttempts,
+    totalUploads,
+    totalBanks,
+    recentUploads,
+    recentAttempts,
+    recentPapers,
+  ] = await Promise.all([
+    User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
+    Question.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Paper.countDocuments(),
+    OnlineTest.countDocuments(),
+    OnlineTest.countDocuments({ status: 'active' }),
+    TestAttempt.countDocuments(),
+    Upload.countDocuments(),
+    QuestionBank.countDocuments(),
+    Upload.find().sort({ createdAt: -1 }).limit(5).populate('uploadedBy', 'full_name email'),
+    TestAttempt.find().sort({ createdAt: -1 }).limit(5).populate('userId', 'full_name email').populate('testId', 'testCode'),
+    Paper.find().sort({ createdAt: -1 }).limit(5).populate('createdBy', 'full_name email'),
+  ]);
 
   const roleMap = Object.fromEntries(roleCounts.map((r) => [r._id, r.count]));
   const questionMap = Object.fromEntries(questionCounts.map((r) => [r._id, r.count]));
+
+  // Build activity feed
+  const activityFeed = [];
+  for (const u of recentUploads) {
+    activityFeed.push({
+      id: `upload-${u._id}`,
+      type: 'upload',
+      user: u.uploadedBy?.full_name || u.uploadedBy?.email || 'Unknown User',
+      action: `uploaded file "${u.originalName}"`,
+      timestamp: u.createdAt.toISOString(),
+      status: u.status,
+    });
+  }
+  for (const ta of recentAttempts) {
+    activityFeed.push({
+      id: `attempt-${ta._id}`,
+      type: 'test_attempt',
+      user: ta.userId?.full_name || ta.userId?.email || 'Student',
+      action: `attempted test "${ta.testId?.testCode || 'N/A'}" (Score: ${ta.percentage || 0}%)`,
+      timestamp: ta.createdAt.toISOString(),
+      status: ta.status,
+    });
+  }
+  for (const p of recentPapers) {
+    activityFeed.push({
+      id: `paper-${p._id}`,
+      type: 'paper_generation',
+      user: p.createdBy?.full_name || p.createdBy?.email || 'Faculty',
+      action: `generated exam paper "${p.title}"`,
+      timestamp: p.createdAt.toISOString(),
+      status: p.status,
+    });
+  }
+  activityFeed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // HuggingFace token check for quick dashboard display
+  const hfToken = env.ai.hfToken;
+  const hfConfigured = Boolean(hfToken);
 
   return {
     total_users: (roleMap.super_admin || 0) + (roleMap.faculty || 0) + (roleMap.student || 0),
@@ -27,12 +81,16 @@ export async function getAdminAnalytics() {
     total_questions: Object.values(questionMap).reduce((sum, n) => sum + Number(n), 0),
     total_papers: totalPapers,
     total_tests: totalTests,
+    active_tests: activeTests,
     total_attempts: totalAttempts,
     total_uploads: totalUploads,
+    total_banks: totalBanks,
     pending_questions: questionMap.pending || 0,
     approved_questions: questionMap.approved || 0,
     rejected_questions: questionMap.rejected || 0,
     needs_review_questions: questionMap.needs_review || 0,
+    activity_feed: activityFeed,
+    hf_configured: hfConfigured,
   };
 }
 
@@ -205,29 +263,25 @@ export function getReplayStatus() {
 }
 
 export async function getSystemMonitor() {
-  const baseUrl = (env.ai.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
-  const model = env.ai.ollamaModel || 'llama3.2';
+  const hfToken = env.ai.hfToken;
+  let hfStatus = 'offline';
   
-  let ollamaStatus = 'offline';
-  let ollamaModelFound = false;
-  
-  try {
-    const res = await fetch(`${baseUrl}/api/tags`);
-    if (res.ok) {
-      ollamaStatus = 'online';
-      const data = await res.json();
-      const installedModels = data.models || [];
-      ollamaModelFound = installedModels.some((m) => {
-        const name = m.name || '';
-        return (
-          name.toLowerCase() === model.toLowerCase() ||
-          name.toLowerCase().startsWith(`${model.toLowerCase()}:`) ||
-          model.toLowerCase().startsWith(`${name.toLowerCase()}:`)
-        );
+  if (hfToken) {
+    try {
+      const res = await fetch("https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct", {
+        headers: { Authorization: `Bearer ${hfToken}` },
+        signal: AbortSignal.timeout(3000)
       });
+      if (res.ok) {
+        hfStatus = 'online';
+      } else if (res.status === 401 || res.status === 403) {
+        hfStatus = 'invalid_token';
+      } else {
+        hfStatus = 'degraded';
+      }
+    } catch (err) {
+      hfStatus = 'offline';
     }
-  } catch (err) {
-    // offline
   }
 
   // Calculate parsing metrics from latest 100 questions
@@ -252,12 +306,13 @@ export async function getSystemMonitor() {
   const avgWarnings = count > 0 ? (totalWarnings / count) : 0.2;
 
   // DB stats
-  const [usersCount, questionsCount, papersCount, testsCount, attemptsCount] = await Promise.all([
+  const [usersCount, questionsCount, papersCount, testsCount, attemptsCount, banksCount] = await Promise.all([
     User.countDocuments(),
     Question.countDocuments(),
     Paper.countDocuments(),
     OnlineTest.countDocuments(),
     TestAttempt.countDocuments(),
+    QuestionBank.countDocuments(),
   ]);
 
   // Simulated storage usage
@@ -265,11 +320,10 @@ export async function getSystemMonitor() {
   const storageLimitBytes = 5 * 1024 * 1024 * 1024; // 5 GB limit
 
   return {
-    ollama: {
-      status: ollamaStatus,
-      model,
-      modelInstalled: ollamaModelFound,
-      baseUrl,
+    huggingFace: {
+      status: hfStatus,
+      primaryModel: 'Qwen/Qwen2.5-7B-Instruct',
+      configured: Boolean(hfToken)
     },
     parser: {
       healthStatus: avgConfidence > 75 ? 'healthy' : avgConfidence > 50 ? 'warning' : 'critical',
@@ -284,6 +338,7 @@ export async function getSystemMonitor() {
       papers: papersCount,
       tests: testsCount,
       attempts: attemptsCount,
+      banks: banksCount,
     },
     storage: {
       usedBytes: storageUsedBytes,

@@ -14,7 +14,6 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { env, isProduction, validateEnv, logEnvSummary } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
-import { ensureOllamaReady } from './ai/ollamaSetup.js';
 import { startBackgroundJobs } from './jobs/index.js';
 import apiRoutes from './routes/index.js';
 import { Question } from './models/Question.js';
@@ -57,13 +56,6 @@ async function bootstrap() {
   }
 
   startBackgroundJobs();
-
-  // Asynchronously initialize local Ollama model fallback if configured
-  if (env.ai.provider === 'ollama') {
-    ensureOllamaReady().catch((err) => {
-      logger.error('Failed to initialize local Ollama model', { error: err.message });
-    });
-  }
 
   const app = express();
   app.set('trust proxy', 1);

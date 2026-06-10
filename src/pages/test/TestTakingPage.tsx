@@ -18,9 +18,10 @@ import {
 import { Input, Textarea } from '../../components/ui';
 import { QuestionContentPreview, RichOptionContent } from '../../components/content/RichContent';
 import {
-  Clock, ChevronLeft, ChevronRight, Flag, Trophy
+  Clock, ChevronLeft, ChevronRight, Flag, Trophy, Eye, EyeOff
 } from 'lucide-react';
 import type { Question, TestAttempt, OnlineTest, QuestionOption } from '../../types';
+import toast from 'react-hot-toast';
 
 interface QuestionWithOrder {
   id: string;
@@ -57,6 +58,7 @@ export function getQuestionCategory(type: string): 'mcq' | 'descriptive' | 'nume
     upper === 'MCQ' ||
     upper === 'MCQ_SINGLE' ||
     upper === 'MCQ_MULTI' ||
+    upper === 'MCQ_MULTIPLE' ||
     upper === 'TRUE_FALSE' ||
     upper === 'ASSERTION_REASON' ||
     upper === 'NESTED_OPTION_MCQ'
@@ -65,7 +67,8 @@ export function getQuestionCategory(type: string): 'mcq' | 'descriptive' | 'nume
   }
   if (
     upper === 'NUMERICAL' ||
-    upper === 'INTEGER'
+    upper === 'INTEGER' ||
+    upper === 'NUMERICAL_INTEGER'
   ) {
     return 'numerical';
   }
@@ -171,6 +174,8 @@ export function TestTakingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [focusMode, setFocusMode] = useState(false);
   const [result, setResult] = useState<{
     score: number;
     maxScore: number;
@@ -319,13 +324,23 @@ export function TestTakingPage() {
         }
         const saved = started.attempt.answers?.find((a) => a.question_id === pq.question_id);
         const mapped = mapSavedAnswer(saved);
+        
+        // Recover locally saved progress (page reload/refresh recovery)
+        const localSaved = session?.answers?.[pq.question_id];
+        if (localSaved) {
+          if (localSaved.user_answer !== undefined) mapped.user_answer = localSaved.user_answer;
+          if (localSaved.text_answer !== undefined) mapped.text_answer = localSaved.text_answer;
+          if (localSaved.numerical_answer !== undefined) mapped.numerical_answer = localSaved.numerical_answer as any;
+          if (localSaved.is_visited !== undefined) mapped.is_visited = localSaved.is_visited;
+        }
+
         return {
           id: pq.question_id,
           question: pq.question as Question,
           order_index: index,
           shuffled_options: shuffledOptions,
           ...mapped,
-          is_marked: saved?.is_marked_for_review ?? false,
+          is_marked: localSaved?.is_marked ?? saved?.is_marked_for_review ?? false,
           marks: pq.custom_marks || pq.question?.marks || 4,
         };
       });
@@ -430,6 +445,12 @@ export function TestTakingPage() {
   const finalizeSubmit = useCallback(
     async (auto = false) => {
       if (!testId || isReviewMode || submittingRef.current) return;
+      
+      if (!isOnline && !auto) {
+        toast.error("You are currently offline. Your progress is securely saved in local storage. Reconnect to submit your test.");
+        return;
+      }
+
       submittingRef.current = true;
       setIsLoading(true);
       setShowSubmitModal(false);
@@ -441,18 +462,35 @@ export function TestTakingPage() {
         applySubmitResult(submitted, auto);
       } catch (error) {
         console.error('Submit failed:', error);
-        alert('Failed to submit test. Please try again.');
+        alert('Failed to submit test. Please check your internet connection and try again.');
       } finally {
         submittingRef.current = false;
         setIsLoading(false);
       }
     },
-    [testId, isReviewMode, persistProgress]
+    [testId, isReviewMode, persistProgress, isOnline]
   );
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success("Internet connection restored. Answers syncing enabled.");
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.error("Internet connection lost! Your progress is being saved locally.");
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     questionsRef.current = questions;
@@ -477,8 +515,18 @@ export function TestTakingPage() {
 
   useEffect(() => {
     if (!testId || isReviewMode || !attempt || timeLeft <= 0) return;
-    saveTestSession(testId, { timeLeft, currentIndex });
-  }, [testId, timeLeft, currentIndex, attempt, isReviewMode]);
+    const answersBackup: Record<string, any> = {};
+    questions.forEach((q) => {
+      answersBackup[q.id] = {
+        user_answer: q.user_answer,
+        text_answer: q.text_answer,
+        numerical_answer: q.numerical_answer,
+        is_marked: q.is_marked,
+        is_visited: q.is_visited,
+      };
+    });
+    saveTestSession(testId, { timeLeft, currentIndex, answers: answersBackup });
+  }, [testId, timeLeft, currentIndex, attempt, isReviewMode, questions]);
 
   useEffect(() => {
     questionEnteredAtRef.current = Date.now();
@@ -695,45 +743,141 @@ export function TestTakingPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
-      <div className="sticky top-0 z-20 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="font-semibold text-slate-900 dark:text-white">
-              {test.test_code}
-              {isReviewMode && (
-                <Badge className="ml-2" variant="info" size="sm">
-                  Review
-                </Badge>
-              )}
-            </h1>
-            <p className="text-sm text-slate-500">
-              Question {currentIndex + 1} of {questions.length}
-            </p>
-          </div>
-          {!isReviewMode && (
-            <div
-              className={`px-4 py-2 rounded-lg ${
-                timeLeft < 300 ? 'bg-red-100 text-red-700' : 'bg-slate-100 dark:bg-slate-700'
-              } flex items-center gap-2`}
-            >
-              <Clock className="w-5 h-5" />
-              <span className="text-lg font-mono font-semibold">{formatTime(timeLeft)}</span>
-            </div>
-          )}
-          {!isReviewMode ? (
-            <Button onClick={() => handleSubmit()} variant="danger">
-              Submit Test
-            </Button>
+      <div className={`sticky top-0 z-20 transition-all duration-300 ${
+        focusMode 
+          ? 'bg-slate-950 text-white border-b border-slate-800 shadow-lg' 
+          : 'bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm'
+      }`}>
+        <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          {focusMode ? (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-extrabold tracking-wider uppercase bg-slate-800 px-2.5 py-1 rounded text-slate-300 border border-slate-700">
+                  Focus Mode Active
+                </span>
+                <span className="text-xs text-slate-450">
+                  Question {currentIndex + 1} of {questions.length}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {!isReviewMode && !isOnline && (
+                  <Badge variant="warning" className="animate-pulse">
+                    Offline
+                  </Badge>
+                )}
+                {!isReviewMode && (
+                  <div className="flex items-center gap-1.5 text-rose-400 font-mono font-bold text-sm bg-slate-900 px-3 py-1.5 rounded border border-slate-800">
+                    <Clock className="w-4 h-4 animate-pulse text-rose-500" />
+                    <span>{formatTime(timeLeft)}</span>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFocusMode(false)}
+                  leftIcon={<EyeOff className="w-4 h-4" />}
+                  className="text-slate-350 hover:text-white border-slate-800 hover:bg-slate-900"
+                >
+                  Exit Focus
+                </Button>
+                {!isReviewMode ? (
+                  <Button onClick={() => handleSubmit()} variant="danger" size="sm">
+                    Submit Test
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/tests')}>
+                    Exit Review
+                  </Button>
+                )}
+              </div>
+            </>
           ) : (
-            <Button variant="outline" onClick={() => navigate('/tests')}>
-              Back to Tests
-            </Button>
+            <>
+              <div className="min-w-0">
+                <h1 className="font-bold text-slate-900 dark:text-white truncate text-sm sm:text-base flex items-center gap-1.5">
+                  <span>{test.test_code}</span>
+                  {isReviewMode && (
+                    <Badge variant="info" size="sm">
+                      Review
+                     </Badge>
+                  )}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  Question {currentIndex + 1} of {questions.length}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isReviewMode && !isOnline && (
+                  <Badge variant="warning" className="animate-pulse">
+                    Offline Mode
+                  </Badge>
+                )}
+                {!isReviewMode && (
+                  <div
+                    className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 transition-all duration-300 ${
+                      timeLeft < 300
+                        ? 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900 animate-pulse font-extrabold shadow-sm'
+                        : timeLeft < 600
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900 font-bold'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900'
+                    }`}
+                  >
+                    <Clock className={`w-4 h-4 ${timeLeft < 300 ? 'animate-bounce text-rose-600' : ''}`} />
+                    <span className="text-sm sm:text-base font-mono font-bold">{formatTime(timeLeft)}</span>
+                  </div>
+                )}
+                {!isReviewMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFocusMode(true)}
+                    leftIcon={<Eye className="w-4 h-4" />}
+                  >
+                    Focus Mode
+                  </Button>
+                )}
+                {!isReviewMode ? (
+                  <Button onClick={() => handleSubmit()} variant="danger" size="sm">
+                    Submit Test
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => navigate('/tests')}>
+                    Exit Review
+                  </Button>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>
 
+      {/* Sync Status Banner */}
+      {!isReviewMode && (
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          {!isOnline ? (
+            <Alert variant="warning" title="Working Offline">
+              Your internet connection is offline. {questions.filter(isAnswered).length} answers are currently cached securely in your browser's local storage. They will sync automatically when your connection is restored. Do not refresh or exit.
+            </Alert>
+          ) : (
+            !focusMode && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-lg p-2.5 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200 shadow-sm transition-all duration-300">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>All answers successfully synchronized and secured on the server.</span>
+                </div>
+                <span className="font-mono opacity-75">Cloud Sync Active</span>
+              </div>
+            )
+          )}
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-3 p-6">
+        <Card className={`${focusMode ? 'lg:col-span-4' : 'lg:col-span-3'} p-6 transition-all duration-300`}>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <Badge size="md" variant="info">Q{currentIndex + 1}</Badge>
             <Badge size="md" variant="info">
@@ -943,51 +1087,53 @@ export function TestTakingPage() {
           </div>
         </Card>
 
-        <Card className="p-4 h-fit sticky top-24">
-          <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Question Palette</h3>
-          <div className="grid grid-cols-5 gap-2">
-            {questions.map((q, index) => (
-              <button
-                key={q.id}
-                type="button"
-                onClick={() => setCurrentIndex(index)}
-                className={`w-10 h-10 rounded-lg font-bold text-sm ${STATUS_COLORS[getQuestionStatus(q)]} ${
-                  index === currentIndex
-                    ? 'ring-4 ring-blue-500 ring-offset-2 scale-110 dark:ring-offset-slate-900 border-2 border-white'
-                    : 'border border-transparent'
-                } transition-all`}
-              >
-                {index + 1}
-              </button>
-            ))}
-          </div>
+        {!focusMode && (
+          <Card className="p-4 h-fit sticky top-24">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Question Palette</h3>
+            <div className="grid grid-cols-5 gap-2">
+              {questions.map((q, index) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => setCurrentIndex(index)}
+                  className={`w-10 h-10 rounded-lg font-bold text-sm ${STATUS_COLORS[getQuestionStatus(q)]} ${
+                    index === currentIndex
+                      ? 'ring-4 ring-blue-500 ring-offset-2 scale-110 dark:ring-offset-slate-900 border-2 border-white'
+                      : 'border border-transparent'
+                  } transition-all`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
 
-          <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3 text-xs">
-            <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Legend</h4>
-            <div className="grid grid-cols-1 gap-2 text-slate-600 dark:text-slate-400">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">#</span>
-                <span>Not Visited</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-red-500 text-white">#</span>
-                <span>Visited (Unanswered)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-green-500 text-white">#</span>
-                <span>Answered</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-purple-500 text-white">#</span>
-                <span>Marked for Review</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-blue-500 text-white">#</span>
-                <span>Answered & Marked</span>
+            <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3 text-xs">
+              <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Legend</h4>
+              <div className="grid grid-cols-1 gap-2 text-slate-600 dark:text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">#</span>
+                  <span>Not Visited</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-red-500 text-white">#</span>
+                  <span>Visited (Unanswered)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-green-500 text-white">#</span>
+                  <span>Answered</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-purple-500 text-white">#</span>
+                  <span>Marked for Review</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] bg-blue-500 text-white">#</span>
+                  <span>Answered & Marked</span>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        )}
       </div>
 
       <Modal isOpen={showSubmitModal} onClose={() => setShowSubmitModal(false)} title="Submit Test?">

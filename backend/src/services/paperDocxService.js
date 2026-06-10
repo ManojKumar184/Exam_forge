@@ -4,59 +4,56 @@ import { mml2omml } from 'mathml2omml';
 import fs from 'fs';
 import path from 'path';
 import { env } from '../config/env.js';
+import { DOMParser } from 'linkedom';
+import { normalizeQuestionType as normalizeQT } from '../utils/questionTypeNormalizer.js';
+import { decodeHtmlEntities, splitContentParts, groupBySection } from '../utils/exportUtils.js';
 
-// Decode HTML entities
-function decodeHtmlEntities(str) {
-  if (!str) return '';
-  return str
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&#x2F;/gi, '/');
+// ── Caches for expensive operations ──
+const katexMathmlCache = new Map();
+const imageBufferCache = new Map();
+const fontConfigCache = new Map();
+
+function getKatexMathml(latex, displayMode) {
+  const key = `${displayMode ? 'd:' : 'i:'}${latex}`;
+  if (katexMathmlCache.has(key)) return katexMathmlCache.get(key);
+  try {
+    const mathml = katex.renderToString(latex, { throwOnError: false, output: 'mathml', displayMode });
+    const clean = mathml.match(/<math[\s\S]*?<\/math>/);
+    const result = clean ? clean[0] : mathml;
+    katexMathmlCache.set(key, result);
+    return result;
+  } catch {
+    katexMathmlCache.set(key, null);
+    return null;
+  }
 }
 
-// Split content by LaTeX math delimiters
-function splitContentParts(raw) {
-  if (!raw?.trim()) return [];
-  const parts = [];
-  let remaining = raw;
-  let safety = 0;
-  while (remaining.length > 0 && safety < 200) {
-    safety += 1;
-    const displayMatch = remaining.match(/\$\$([\s\S]+?)\$\$/) || remaining.match(/\\\[([\s\S]+?)\\\]/);
-    const inlineMatch = remaining.match(/\$([^$\n]+?)\$/) || remaining.match(/\\\(([\s\S]+?)\\\)/);
-
-    const displayIndex = displayMatch ? remaining.indexOf(displayMatch[0]) : -1;
-    const inlineIndex = inlineMatch ? remaining.indexOf(inlineMatch[0]) : -1;
-
-    let useDisplay = false;
-    let match = null;
-
-    if (displayIndex >= 0 && (inlineIndex < 0 || displayIndex <= inlineIndex)) {
-      useDisplay = true;
-      match = displayMatch;
-    } else if (inlineIndex >= 0) {
-      match = inlineMatch;
-    }
-
-    if (!match || match.index === undefined) {
-      parts.push({ type: 'text', value: remaining });
-      break;
-    }
-
-    const matchIndex = remaining.indexOf(match[0]);
-    if (matchIndex > 0) {
-      parts.push({ type: 'text', value: remaining.slice(0, matchIndex) });
-    }
-
-    const latex = match[1] || match[2] || '';
-    parts.push({ type: 'math', value: latex.trim(), display: useDisplay });
-    remaining = remaining.slice(matchIndex + match[0].length);
+function getOMML(latex, displayMode) {
+  const mathml = getKatexMathml(latex, displayMode);
+  if (!mathml) return null;
+  try {
+    return mml2omml(mathml);
+  } catch {
+    return null;
   }
-  return parts;
+}
+
+function getImageBuffer(url) {
+  if (!url) return null;
+  if (imageBufferCache.has(url)) return imageBufferCache.get(url);
+  
+  let buffer = null;
+  if (url.startsWith('data:image/')) {
+    const b64 = url.match(/^data:image\/\w+;base64,(.+)$/);
+    if (b64) buffer = Buffer.from(b64[1], 'base64');
+  } else {
+    const disk = diskPathForUrl(url);
+    if (disk) {
+      try { buffer = fs.readFileSync(disk); } catch { buffer = null; }
+    }
+  }
+  imageBufferCache.set(url, buffer);
+  return buffer;
 }
 
 // Disk path resolver
@@ -67,32 +64,12 @@ function diskPathForUrl(url) {
   return fs.existsSync(disk) ? disk : null;
 }
 
-// Base64 or local image buffer resolver
-function resolveImageBuffer(url) {
-  if (!url) return null;
-  if (url.startsWith('data:image/')) {
-    const base64Match = url.match(/^data:image\/\w+;base64,(.+)$/);
-    if (base64Match) {
-      return Buffer.from(base64Match[1], 'base64');
-    }
-  }
-  const disk = diskPathForUrl(url);
-  if (disk) {
-    try {
-      return fs.readFileSync(disk);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
 // Convert image paths to docx paragraphs
 function createImageParagraphs(imageUrls) {
   const paragraphs = [];
   const uniqueUrls = [...new Set(imageUrls.filter(Boolean))];
   for (const url of uniqueUrls) {
-    const buffer = resolveImageBuffer(url);
+    const buffer = getImageBuffer(url);
     if (buffer) {
       try {
         paragraphs.push(
@@ -119,6 +96,377 @@ function createImageParagraphs(imageUrls) {
   return paragraphs;
 }
 
+function parseTextToParagraphsAndTables(text) {
+  if (!text) return [];
+  const regex = /\[TABLE_(\d+)\]/g;
+  const elements = [];
+  let lastIdx = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const tableIndex = parseInt(match[1], 10);
+    const before = text.slice(lastIdx, match.index);
+    if (before.trim()) {
+      elements.push({ type: 'text', content: before });
+    }
+    elements.push({ type: 'table', index: tableIndex });
+    lastIdx = regex.lastIndex;
+  }
+  const remaining = text.slice(lastIdx);
+  if (remaining.trim()) {
+    elements.push({ type: 'text', content: remaining });
+  }
+  return elements;
+}
+
+function parseHtmlToDocxComponents(html, fontConfig = {}) {
+  const fontName = fontConfig.font || 'Times New Roman';
+  const fontSizeHalfPt = fontConfig.size ? fontConfig.size * 2 : 22;
+  const textRunOpts = { font: fontName, size: fontSizeHalfPt };
+
+  if (!html) return [];
+
+  // Parse HTML
+  let doc;
+  try {
+    const parser = new DOMParser();
+    doc = parser.parseFromString(`<html><body>${html}</body></html>`, 'text/html');
+  } catch (err) {
+    console.error("DOMParser failed in docx export:", err);
+    return [
+      new docx.Paragraph({
+        children: parseTextAndMath(html, null, fontConfig)
+      })
+    ];
+  }
+
+  const body = doc.body;
+  const components = [];
+
+  // Process child elements of body
+  function processNodes(nodes, paragraphChildren = [], currentStyle = {}) {
+    for (const node of nodes) {
+      if (node.nodeType === 3) { // TextNode
+        const textVal = node.nodeValue || '';
+        if (textVal) {
+          const parts = splitContentParts(textVal);
+          for (const part of parts) {
+            if (part.type === 'math') {
+              try {
+                const omml = getOMML(part.value, part.display);
+                if (omml) {
+                  const comp = docx.ImportedXmlComponent.fromXmlString(omml);
+                  paragraphChildren.push(comp);
+                } else {
+                  paragraphChildren.push(new docx.TextRun({ text: `$${part.value}$`, ...textRunOpts, ...currentStyle }));
+                }
+              } catch {
+                paragraphChildren.push(new docx.TextRun({ text: `$${part.value}$`, ...textRunOpts, ...currentStyle }));
+              }
+            } else {
+              paragraphChildren.push(new docx.TextRun({ text: part.value, ...textRunOpts, ...currentStyle }));
+            }
+          }
+        }
+      } else if (node.nodeType === 1) { // Element
+        const tag = node.tagName.toLowerCase();
+        if (tag === 'strong' || tag === 'b') {
+          processNodes(node.childNodes, paragraphChildren, { ...currentStyle, bold: true });
+        } else if (tag === 'em' || tag === 'i') {
+          processNodes(node.childNodes, paragraphChildren, { ...currentStyle, italics: true });
+        } else if (tag === 'sup') {
+          processNodes(node.childNodes, paragraphChildren, { ...currentStyle, superScript: true });
+        } else if (tag === 'sub') {
+          processNodes(node.childNodes, paragraphChildren, { ...currentStyle, subScript: true });
+        } else if (tag === 'span' || tag === 'font') {
+          processNodes(node.childNodes, paragraphChildren, currentStyle);
+        } else if (tag === 'br') {
+          paragraphChildren.push(new docx.TextRun({ break: 1 }));
+        } else if (tag === 'img') {
+          const src = node.getAttribute('src');
+          if (src) {
+            const buffer = getImageBuffer(src);
+            if (buffer) {
+              try {
+                paragraphChildren.push(
+                  new docx.ImageRun({
+                    data: buffer,
+                    transformation: {
+                      width: 150,
+                      height: 90
+                    }
+                  })
+                );
+              } catch (e) {
+                console.error("Failed to include image inside HTML cell for docx", e);
+              }
+            }
+          }
+        } else {
+          processNodes(node.childNodes, paragraphChildren, currentStyle);
+        }
+      }
+    }
+  }
+
+  const childElements = Array.from(body.childNodes);
+  let inlineBuffer = [];
+
+  const flushInlineBuffer = (paragraphOpts = {}) => {
+    if (inlineBuffer.length > 0) {
+      components.push(
+        new docx.Paragraph({
+          keepNext: true,
+          spacing: { before: 80, after: 80, line: 280 },
+          children: inlineBuffer,
+          ...paragraphOpts
+        })
+      );
+      inlineBuffer = [];
+    }
+  };
+
+  for (const node of childElements) {
+    if (node.nodeType === 3) {
+      processNodes([node], inlineBuffer);
+    } else if (node.nodeType === 1) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'p' || tag === 'div') {
+        flushInlineBuffer();
+        const pChildren = [];
+        processNodes(node.childNodes, pChildren);
+        if (pChildren.length > 0) {
+          components.push(
+            new docx.Paragraph({
+              keepNext: true,
+              spacing: { before: 100, after: 100, line: 280 },
+              children: pChildren
+            })
+          );
+        }
+      } else if (tag === 'ul' || tag === 'ol') {
+        flushInlineBuffer();
+        const lis = Array.from(node.querySelectorAll('li'));
+        let index = 1;
+        for (const li of lis) {
+          const liChildren = [];
+          processNodes(li.childNodes, liChildren);
+          
+          if (tag === 'ol') {
+            liChildren.unshift(new docx.TextRun({ text: `${index++}.  `, bold: true, ...textRunOpts }));
+          }
+
+          components.push(
+            new docx.Paragraph({
+              bullet: tag === 'ul' ? { level: 0 } : undefined,
+              spacing: { before: 60, after: 60, line: 240 },
+              indent: { left: 360 },
+              children: liChildren
+            })
+          );
+        }
+      } else if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+        flushInlineBuffer();
+        const hChildren = [];
+        processNodes(node.childNodes, hChildren);
+        const headingSize = tag === 'h1' ? 32 : tag === 'h2' ? 28 : 24;
+        components.push(
+          new docx.Paragraph({
+            keepNext: true,
+            spacing: { before: 200, after: 100 },
+            children: hChildren.map(run => {
+              if (run instanceof docx.TextRun) {
+                run.bold = true;
+                run.size = headingSize;
+              }
+              return run;
+            })
+          })
+        );
+      } else {
+        processNodes([node], inlineBuffer);
+      }
+    }
+  }
+
+  flushInlineBuffer();
+
+  return components;
+}
+
+function renderJsonTableToDocx(tableJson, fontConfig) {
+  if (!tableJson || !tableJson.rows || !tableJson.rows.length) {
+    return new docx.Table({
+      rows: [
+        new docx.TableRow({
+          children: [
+            new docx.TableCell({ children: [new docx.Paragraph("Empty Table")] })
+          ]
+        })
+      ]
+    });
+  }
+
+  const parsedRows = [];
+  for (let rIdx = 0; rIdx < tableJson.rows.length; rIdx++) {
+    const row = tableJson.rows[rIdx];
+    const isHeader = rIdx === 0;
+
+    const tableCells = row.map((cell) => {
+      let cellText = '';
+      let cellHtml = '';
+      let cellColspan = 1;
+      let cellRowspan = 1;
+      let cellBold = isHeader;
+
+      if (typeof cell === 'object' && cell !== null) {
+        cellText = cell.text || '';
+        cellHtml = cell.html || cell.text || '';
+        if (cell.colspan) cellColspan = cell.colspan;
+        if (cell.rowspan) cellRowspan = cell.rowspan;
+        if (cell.bold !== undefined) cellBold = cell.bold;
+      } else {
+        cellText = String(cell || '');
+        cellHtml = cellText;
+      }
+
+      let cellChildren = parseHtmlToDocxComponents(cellHtml, fontConfig);
+      
+      if (cellChildren.length === 0) {
+        cellChildren = [new docx.Paragraph({ spacing: { before: 60, after: 60 } })];
+      }
+
+      if (cellBold) {
+        cellChildren.forEach(p => {
+          if (p.children) {
+            p.children.forEach(run => {
+              if (run instanceof docx.TextRun) {
+                run.bold = true;
+              }
+            });
+          }
+        });
+      }
+
+      if (isHeader) {
+        cellChildren.forEach(p => {
+          p.alignment = docx.AlignmentType.CENTER;
+        });
+      }
+
+      return new docx.TableCell({
+        columnSpan: cellColspan > 1 ? cellColspan : undefined,
+        rowSpan: cellRowspan > 1 ? cellRowspan : undefined,
+        shading: isHeader ? { fill: "F1F5F9", type: docx.ShadingType.CLEAR, color: "auto" } : undefined,
+        margins: { top: 100, bottom: 100, left: 150, right: 150 },
+        children: cellChildren
+      });
+    });
+
+    parsedRows.push(
+      new docx.TableRow({
+        cantSplit: true,
+        tblHeader: isHeader ? true : undefined,
+        children: tableCells
+      })
+    );
+  }
+
+  return new docx.Table({
+    borders: {
+      top: { style: docx.BorderStyle.SINGLE, size: 8, color: "CBD5E1" },
+      bottom: { style: docx.BorderStyle.SINGLE, size: 8, color: "CBD5E1" },
+      left: { style: docx.BorderStyle.SINGLE, size: 8, color: "CBD5E1" },
+      right: { style: docx.BorderStyle.SINGLE, size: 8, color: "CBD5E1" },
+      insideHorizontal: { style: docx.BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+      insideVertical: { style: docx.BorderStyle.SINGLE, size: 4, color: "E2E8F0" }
+    },
+    width: {
+      size: 100,
+      type: docx.WidthType.PERCENTAGE
+    },
+    rows: parsedRows
+  });
+}
+
+function addTextOrTableToChildren(text, tablesList, container, prefixes = [], fontConfig = {}, lineSpacing = 1.25) {
+  const elements = parseTextToParagraphsAndTables(text);
+  if (elements.length === 0) {
+    const isHtml = /<(ul|ol|p|div|br|strong|b|em|i)\b/i.test(text);
+    if (isHtml) {
+      const docxParas = parseHtmlToDocxComponents(text, fontConfig);
+      if (docxParas.length > 0) {
+        docxParas[0].children.unshift(...prefixes);
+        container.push(...docxParas);
+      } else {
+        container.push(
+          new docx.Paragraph({
+            keepNext: true,
+            spacing: { before: 200, after: 120, line: lineSpacing * 240 },
+            children: prefixes
+          })
+        );
+      }
+    } else {
+      const parsedRuns = parseTextAndMath(text || '', null, fontConfig);
+      container.push(
+        new docx.Paragraph({
+          keepNext: true,
+          spacing: { before: 200, after: 120, line: lineSpacing * 240 },
+          children: [...prefixes, ...parsedRuns]
+        })
+      );
+    }
+    return;
+  }
+
+  let isFirstText = true;
+  for (const el of elements) {
+    if (el.type === 'table') {
+      try {
+        const tableJson = tablesList[el.index];
+        const docxTable = renderJsonTableToDocx(tableJson, fontConfig);
+        container.push(docxTable);
+        container.push(new docx.Paragraph({ spacing: { before: 100, after: 100 } }));
+      } catch (err) {
+        console.error("Failed to render native JSON table to docx:", err);
+      }
+    } else {
+      const isHtml = /<(ul|ol|p|div|br|strong|b|em|i)\b/i.test(el.content);
+      if (isHtml) {
+        const docxParas = parseHtmlToDocxComponents(el.content, fontConfig);
+        if (isFirstText && docxParas.length > 0) {
+          docxParas[0].children.unshift(...prefixes);
+          isFirstText = false;
+        }
+        container.push(...docxParas);
+      } else {
+        const paragraphs = el.content.split('\n\n').filter(p => p.trim());
+        for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+          const pText = paragraphs[pIdx];
+          const parsedRuns = parseTextAndMath(pText, null, fontConfig);
+          
+          const children = [];
+          if (isFirstText && pIdx === 0) {
+            children.push(...prefixes);
+          }
+          children.push(...parsedRuns);
+
+          container.push(
+            new docx.Paragraph({
+              keepNext: true,
+              spacing: { before: (isFirstText && pIdx === 0) ? 200 : 100, after: 120, line: lineSpacing * 240 },
+              children
+            })
+          );
+        }
+        if (paragraphs.length > 0) {
+          isFirstText = false;
+        }
+      }
+    }
+  }
+}
+
 // Parse rich text and math into docx runs/components
 function parseTextAndMath(rawText, blockLatex, fontConfig = {}) {
   const children = [];
@@ -133,11 +481,13 @@ function parseTextAndMath(rawText, blockLatex, fontConfig = {}) {
 
   if (blockLatex && !primaryText.includes('$')) {
     try {
-      const mathml = katex.renderToString(blockLatex.trim(), { throwOnError: false, output: 'mathml' });
-      const cleanMathml = mathml.match(/<math[\s\S]*?<\/math>/)[0];
-      const omml = mml2omml(cleanMathml);
-      const comp = docx.ImportedXmlComponent.fromXmlString(omml);
-      children.push(comp);
+      const omml = getOMML(blockLatex.trim(), true);
+      if (omml) {
+        const comp = docx.ImportedXmlComponent.fromXmlString(omml);
+        children.push(comp);
+      } else {
+        children.push(new docx.TextRun({ text: blockLatex, ...textRunOpts }));
+      }
     } catch (e) {
       children.push(new docx.TextRun({ text: blockLatex, ...textRunOpts }));
     }
@@ -150,11 +500,13 @@ function parseTextAndMath(rawText, blockLatex, fontConfig = {}) {
     for (const part of parts) {
       if (part.type === 'math') {
         try {
-          const mathml = katex.renderToString(part.value, { throwOnError: false, output: 'mathml' });
-          const cleanMathml = mathml.match(/<math[\s\S]*?<\/math>/)[0];
-          const omml = mml2omml(cleanMathml);
-          const comp = docx.ImportedXmlComponent.fromXmlString(omml);
-          children.push(comp);
+          const omml = getOMML(part.value, part.display);
+          if (omml) {
+            const comp = docx.ImportedXmlComponent.fromXmlString(omml);
+            children.push(comp);
+          } else {
+            children.push(new docx.TextRun({ text: `$${part.value}$`, ...textRunOpts }));
+          }
         } catch {
           children.push(new docx.TextRun({ text: `$${part.value}$`, ...textRunOpts }));
         }
@@ -259,45 +611,37 @@ function renderOptionsTable(options, correctOptionIndex, showAnswers, fontConfig
   return [table];
 }
 
-// Group section utility
-function groupBySection(paper) {
-  const map = new Map();
-  for (const pq of paper.questions || []) {
-    const key = pq.section || 'A';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(pq);
-  }
-  const sectionMeta = new Map((paper.sections || []).map((s) => [s.name, s]));
-  return [...map.entries()].map(([sectionKey, items]) => {
-    const meta = sectionMeta.get(sectionKey);
-    return {
-      key: sectionKey,
-      title: meta?.name || `Section ${sectionKey}`,
-      items: items.sort((a, b) => (a.question_order ?? 0) - (b.question_order ?? 0)),
-    };
-  });
-}
 
-// Get answer value helper
+
+// Get answer value helper (canonical-aware)
 function getAnswerValue(q) {
-  const type = (q.question_type || 'descriptive').toLowerCase();
-  if (type === 'mcq' || type === 'mcq_single' || type === 'nested_option_mcq') {
+  const type = normalizeQT(q.question_type || 'descriptive');
+  
+  if (type === 'MCQ_SINGLE' || type === 'MCQ_MULTIPLE') {
+    if (type === 'MCQ_MULTIPLE') {
+      if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
+        return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
+      }
+    }
     if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
       return String.fromCharCode(65 + Number(q.correct_option));
     }
   }
-  if (type === 'mcq_multi' || type === 'msq') {
-    if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
-      return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
-    } else if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
-      return String.fromCharCode(65 + Number(q.correct_option));
-    }
-  }
-  if (type === 'numerical' || type === 'integer') {
+  if (type === 'NUMERICAL_INTEGER') {
     if (q.numerical_answer !== null && q.numerical_answer !== undefined) {
       return String(q.numerical_answer);
     }
   }
+  if (type === 'MATCH_FOLLOWING') {
+    return q.answer_text ? q.answer_text.replace(/<\/?[^>]+(>|$)/g, "") : 'Match the Following';
+  }
+  if (type === 'ASSERTION_REASON') {
+    if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
+      return String.fromCharCode(65 + Number(q.correct_option));
+    }
+    return q.answer_text ? q.answer_text.replace(/<\/?[^>]+(>|$)/g, "") : 'Assertion/Reason';
+  }
+  // DESCRIPTIVE or fallback
   if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
     return String.fromCharCode(65 + Number(q.correct_option));
   }
@@ -358,7 +702,7 @@ export async function buildPaperExportDocx(paper, options = {}) {
   const fontName = fontNameMap[fontFamily] || 'Times New Roman';
   const fontConfig = { font: fontName, size: fontSize, lineSpacing };
 
-  const sections = groupBySection(paper);
+  const sections = groupBySection(paper);  // imported from exportUtils.js
   const docSections = [];
 
   // Footer Setup
@@ -646,8 +990,6 @@ export async function buildPaperExportDocx(paper, options = {}) {
         const marks = pq.custom_marks ?? q.marks ?? 4;
         const showMarksForThisQuestion = !allSameMarks;
         
-        const parsedRuns = parseTextAndMath(q.question_text, q.question_latex, fontConfig);
-        
         const qNumRun = new docx.TextRun({
           text: `Q${displayQNum}. `,
           bold: true,
@@ -663,18 +1005,11 @@ export async function buildPaperExportDocx(paper, options = {}) {
           color: "475569"
         }) : null;
 
-        const childrenRuns = [qNumRun];
-        if (marksRun) childrenRuns.push(marksRun);
-        childrenRuns.push(...parsedRuns);
+        const prefixes = [qNumRun];
+        if (marksRun) prefixes.push(marksRun);
 
-        // Add question stem paragraph
-        questionSectionChildren.push(
-          new docx.Paragraph({
-            keepNext: true,
-            spacing: { before: 200, after: 120, line: lineSpacing * 240 },
-            children: childrenRuns
-          })
-        );
+        const tablesList = (q.renderingMetadata?.tables || []).concat(q.imageMetadata?.filter(img => img.type === 'table') || []);
+        addTextOrTableToChildren(q.question_text || '', tablesList, questionSectionChildren, prefixes, fontConfig, lineSpacing);
 
         // Add question images
         const qImages = [
@@ -735,38 +1070,92 @@ export async function buildPaperExportDocx(paper, options = {}) {
       })
     );
 
-    // Build the grid table
-    const tableRows = [];
-    const textRunOpts = { font: fontName, size: 20 };
-    
-    // Add grid header
-    tableRows.push(
-      new docx.TableRow({
-        children: [
-          new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Question", bold: true, ...textRunOpts })] })] }),
-          new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: "Answer Key", bold: true, ...textRunOpts })] })] })
-        ]
-      })
-    );
+    // Split answer keys into columns of 10 items
+    const columns = [];
+    const keysCopy = [...allAnswerKeys];
+    while (keysCopy.length > 0) {
+      columns.push(keysCopy.splice(0, 10));
+    }
 
-    // Add entries
-    for (const k of allAnswerKeys) {
-      tableRows.push(
+    const subTables = columns.map((col) => {
+      const subRows = [];
+      const textRunOpts = { font: fontName, size: 20 };
+      
+      // Sub-table Header
+      subRows.push(
         new docx.TableRow({
           children: [
-            new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: k.label, ...textRunOpts })] })] }),
-            new docx.TableCell({ children: [new docx.Paragraph({ children: [new docx.TextRun({ text: k.answer, bold: true, color: "1E3A8A", ...textRunOpts })] })] })
+            new docx.TableCell({
+              shading: { fill: "F1F5F9", type: docx.ShadingType.CLEAR, color: "auto" },
+              children: [new docx.Paragraph({ alignment: docx.AlignmentType.CENTER, children: [new docx.TextRun({ text: "Question", bold: true, ...textRunOpts })] })]
+            }),
+            new docx.TableCell({
+              shading: { fill: "F1F5F9", type: docx.ShadingType.CLEAR, color: "auto" },
+              children: [new docx.Paragraph({ alignment: docx.AlignmentType.CENTER, children: [new docx.TextRun({ text: "Answer Key", bold: true, ...textRunOpts })] })]
+            })
           ]
         })
       );
-    }
 
-    answerKeyChildren.push(
-      new docx.Table({
-        width: { size: 50, type: docx.WidthType.PERCENTAGE },
-        rows: tableRows
-      })
-    );
+      // Sub-table Rows
+      for (const k of col) {
+        subRows.push(
+          new docx.TableRow({
+            children: [
+              new docx.TableCell({
+                children: [new docx.Paragraph({ alignment: docx.AlignmentType.CENTER, children: [new docx.TextRun({ text: k.label, ...textRunOpts })] })]
+              }),
+              new docx.TableCell({
+                children: [new docx.Paragraph({ alignment: docx.AlignmentType.CENTER, children: [new docx.TextRun({ text: k.answer, bold: true, color: "1E3A8A", ...textRunOpts })] })]
+              })
+            ]
+          })
+        );
+      }
+
+      return new docx.Table({
+        borders: {
+          top: { style: docx.BorderStyle.SINGLE, size: 8, color: "000000" },
+          bottom: { style: docx.BorderStyle.SINGLE, size: 8, color: "000000" },
+          left: { style: docx.BorderStyle.SINGLE, size: 8, color: "000000" },
+          right: { style: docx.BorderStyle.SINGLE, size: 8, color: "000000" },
+          insideHorizontal: { style: docx.BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
+          insideVertical: { style: docx.BorderStyle.SINGLE, size: 4, color: "E2E8F0" }
+        },
+        width: { size: 100, type: docx.WidthType.PERCENTAGE },
+        rows: subRows
+      });
+    });
+
+    // Embed sub-tables in a parent borderless grid table
+    const borderlessStyle = {
+      top: { style: docx.BorderStyle.NONE, size: 0, color: "auto" },
+      bottom: { style: docx.BorderStyle.NONE, size: 0, color: "auto" },
+      left: { style: docx.BorderStyle.NONE, size: 0, color: "auto" },
+      right: { style: docx.BorderStyle.NONE, size: 0, color: "auto" },
+      insideHorizontal: { style: docx.BorderStyle.NONE, size: 0, color: "auto" },
+      insideVertical: { style: docx.BorderStyle.NONE, size: 0, color: "auto" }
+    };
+
+    const gridCells = subTables.map(subTable => {
+      return new docx.TableCell({
+        borders: borderlessStyle,
+        children: [subTable, new docx.Paragraph({ spacing: { before: 120 } })]
+      });
+    });
+
+    const gridRow = new docx.TableRow({
+      cantSplit: true,
+      children: gridCells
+    });
+
+    const masterTable = new docx.Table({
+      borders: borderlessStyle,
+      width: { size: 100, type: docx.WidthType.PERCENTAGE },
+      rows: [gridRow]
+    });
+
+    answerKeyChildren.push(masterTable);
   }
 
   docSections.push({
@@ -799,23 +1188,12 @@ export async function buildPaperExportDocx(paper, options = {}) {
 
       for (const k of listHtml) {
         const q = k.question;
-        const parsedRuns = parseTextAndMath(q.explanation || 'No step-by-step solution provided.', q.explanation_latex, fontConfig);
-        
-        solutionsChildren.push(
-          new docx.Paragraph({
-            keepNext: true,
-            spacing: { before: 200, after: 100 },
-            children: [
-              new docx.TextRun({ text: `${k.label}. `, bold: true, font: fontName, size: fontSize * 2 }),
-              new docx.TextRun({ text: "Solution:", bold: true, font: fontName, size: fontSize * 2, color: "475569" })
-            ]
-          }),
-          new docx.Paragraph({
-            keepNext: true,
-            spacing: { after: 120, line: lineSpacing * 240 },
-            children: parsedRuns
-          })
-        );
+        const prefixes = [
+          new docx.TextRun({ text: `${k.label}. `, bold: true, font: fontName, size: fontSize * 2 }),
+          new docx.TextRun({ text: "Solution:", bold: true, font: fontName, size: fontSize * 2, color: "475569" })
+        ];
+        const tablesList = q.renderingMetadata?.tables || [];
+        addTextOrTableToChildren(q.explanation || 'No step-by-step solution provided.', tablesList, solutionsChildren, prefixes, fontConfig, lineSpacing);
 
         if (q.explanation_images?.length > 0) {
           solutionsChildren.push(...createImageParagraphs(q.explanation_images));

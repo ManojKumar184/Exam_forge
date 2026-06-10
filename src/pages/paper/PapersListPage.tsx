@@ -92,6 +92,38 @@ export function PapersListPage() {
     fetchPapers(apiFilters);
   }, [bankFilter, syllabusFilters]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paperIdToCreateTest = params.get('createTestFor');
+    if (paperIdToCreateTest && papers.length > 0) {
+      const paper = papers.find(p => p.id === paperIdToCreateTest);
+      if (paper) {
+        setSelectedPaper(paper);
+        const now = new Date();
+        const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+        
+        const toLocalISO = (d: Date) => {
+          const pad = (n: number) => n.toString().padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        
+        setTestStartTime(toLocalISO(start));
+        setTestEndTime(toLocalISO(end));
+        setShuffleQuestions(true);
+        setShuffleOptions(true);
+        setShowResults(true);
+        setAllowReview(true);
+        setIsPublic(true);
+        setAccessCode('');
+        setShowCreateTestModal(true);
+        
+        // Clean query param
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [papers]);
+
   const handleCreateOnlineTest = async () => {
     if (!selectedPaper) return;
 

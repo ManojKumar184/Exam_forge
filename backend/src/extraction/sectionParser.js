@@ -3,16 +3,16 @@
  */
 
 const SECTION_RE =
-  /^(?:SECTION|PART)\s*[-:]?\s*([A-Z0-9]+)(?:\s*[-:]\s*(.+))?$/i;
+  /^(?:SECTION|PART)\s+([A-Z0-9]+)(?:\s*[-:]?\s*(.+))?$/i;
 
 const JEE_SECTION_HINTS = [
-  { re: /section\s*a/i, name: 'Section A', examPart: 'mcq' },
-  { re: /section\s*b/i, name: 'Section B', examPart: 'numerical' },
-  { re: /single\s*correct/i, name: 'Single Correct MCQ', examPart: 'mcq' },
-  { re: /multiple\s*correct/i, name: 'Multiple Correct MCQ', examPart: 'mcq_multiple' },
-  { re: /numerical\s*value|integer\s*type/i, name: 'Numerical/Integer', examPart: 'numerical' },
-  { re: /match\s*the\s*following/i, name: 'Match the Following', examPart: 'match' },
-  { re: /comprehension|passage\s*based/i, name: 'Comprehension', examPart: 'comprehension' },
+  { re: /\bsection\s+a\b/i, name: 'Section A', examPart: 'mcq' },
+  { re: /\bsection\s+b\b/i, name: 'Section B', examPart: 'numerical' },
+  { re: /\bmultiple\s+correct\b|one\s+or\s+more\s+(?:than\s+one\s+)?correct\b/i, name: 'Multiple Correct MCQ', examPart: 'mcq_multiple' },
+  { re: /\bsingle\s+correct\b|one\s+correct\b|\bmultiple\s+choice\b/i, name: 'Single Correct MCQ', examPart: 'mcq' },
+  { re: /\bnumeric\s+value\b|\bnumerical\s+value\b|\binteger\s+type\b/i, name: 'Numerical/Integer', examPart: 'numerical' },
+  { re: /\bmatch\s+the\s+following\b/i, name: 'Match the Following', examPart: 'match' },
+  { re: /\bcomprehension\b|\bpassage\s+based\b/i, name: 'Comprehension', examPart: 'comprehension' },
 ];
 
 export function detectSectionHeader(line) {

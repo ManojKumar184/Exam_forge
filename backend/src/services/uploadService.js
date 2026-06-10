@@ -6,11 +6,13 @@ import { getFileType } from '../config/multer.js';
 import { extractionService, normalizeQuestions } from '../extraction/index.js';
 import { classifyQuestionMetadata, classifyQuestionMetadataBatch } from '../ai/classifyQuestion.js';
 import { loadClassificationCatalog, parseDocumentMetadata } from '../extraction/metadataClassifier.js';
+import { loadSyllabusCatalog } from '../ai/syllabusCatalog.js';
 import { mapUpload, mapUploadDetail, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 import { retryAsync } from '../utils/retry.js';
 import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
+import { validateQuestion } from '../extraction/validationEngine.js';
 
 export async function startAsyncUpload(file, user, options = {}) {
   const fileType = getFileType(file.mimetype, file.originalname);
@@ -70,7 +72,16 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
     // Stage 1: extracting
     await onStageChange('extracting', 15, 'XML extraction and ZIP extraction initiated');
 
-    const catalog = await loadClassificationCatalog();
+    const [catalog, syllabusCatalog] = await Promise.all([
+      loadClassificationCatalog(),
+      loadSyllabusCatalog().catch(() => null),
+    ]);
+
+    // Enrich catalog with syllabus for pipeline consumption
+    if (syllabusCatalog) {
+      catalog.syllabus = syllabusCatalog;
+    }
+
     const uploadContext = {
       imageDir: path.join(env.uploadDir, 'images'),
       class: options.class ? Number(options.class) : undefined,
@@ -96,7 +107,8 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
     const docMeta = parseDocumentMetadata(
       extractResult.rawText || '',
       catalog,
-      uploadContext
+      uploadContext,
+      syllabusCatalog
     );
 
     const blocks = extractResult.blocks || [];
@@ -210,6 +222,7 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
             extractionWarnings,
             aiConfidence: classified.aiConfidence ?? 0,
             aiMetadata: classified.aiMetadata || {},
+            syllabusMappings: classified.syllabusMappings || null,
             uploadId: upload._id,
             createdBy: user._id,
             ownerId: user._id,
@@ -224,9 +237,19 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
             isApproved: false,
             isRejected: false,
             savedQuestionId: null,
-          };
+          };            // Run structural validation on the staged question
+            const validationResult = validateQuestion(stagedQuestionObj);
+            stagedQuestionObj.validationResult = {
+              valid: validationResult.valid,
+              issues: validationResult.issues,
+              confidence: validationResult.confidence,
+            };
+            if (!validationResult.valid) {
+              stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
+              stagedQuestionObj.status = 'needs_review';
+            }
 
-          stagedQuestions.push(stagedQuestionObj);
+            stagedQuestions.push(stagedQuestionObj);
           logger.info(`[upload-worker] Staged question ${blockIndex + 1}/${blocks.length}`);
         } catch (err) {
           logger.error(`Failed to stage question block ${blockIndex + 1} during upload`, { error: err.message });
@@ -330,7 +353,16 @@ async function processManualImportInternal(upload, html, plain, user, options = 
   await onStageChange('uploaded', 5, 'Manual content paste received on server');
 
   try {
-    const catalog = await loadClassificationCatalog();
+    const [catalog, syllabusCatalog] = await Promise.all([
+      loadClassificationCatalog(),
+      loadSyllabusCatalog().catch(() => null),
+    ]);
+
+    // Enrich catalog with syllabus for pipeline consumption
+    if (syllabusCatalog) {
+      catalog.syllabus = syllabusCatalog;
+    }
+
     const uploadContext = {
       class: options.class ? Number(options.class) : undefined,
       subjectId: options.subjectId || options.subject_id || null,
@@ -341,32 +373,27 @@ async function processManualImportInternal(upload, html, plain, user, options = 
     };
 
     await onStageChange('parsing', 15, 'Extracting structured blocks from paste');
-    const { splitTextIntoBlocks } = await import('../extraction/normalizeQuestions.js');
-    const blocks = splitTextIntoBlocks(plain);
-
-    if (!blocks || !blocks.length) {
-      upload.status = 'failed';
-      upload.progress = 100;
-      upload.processingError = 'No questions could be extracted from the manual input';
-      upload.processingStage = 'failed';
-      await upload.save();
-      return;
-    }
-
-    await onStageChange('reconstructing', 30, `Found ${blocks.length} raw blocks. Normalizing questions...`);
-    const { normalizeQuestions } = await import('../extraction/normalizeQuestions.js');
-    const reconstructedQuestions = await normalizeQuestions(blocks, uploadContext);
+    const extractResult = await extractionService.processClipboard(
+      { html, plain },
+      {
+        ...uploadContext,
+        sourceFile: 'Manual Import',
+        returnRawBlocks: false,
+      }
+    );
+    const reconstructedQuestions = extractResult.questions || [];
 
     if (!reconstructedQuestions.length) {
       upload.status = 'failed';
       upload.progress = 100;
-      upload.processingError = 'No valid questions reconstructed from blocks';
+      upload.processingError = extractResult.warnings?.join('; ') || 'No valid questions reconstructed from paste';
       upload.processingStage = 'failed';
+      upload.extractionWarnings = extractResult.warnings || [];
       await upload.save();
       return;
     }
 
-    await onStageChange('reconstructing', 50, `Reconstructed ${reconstructedQuestions.length} questions. Running duplicate checking...`);
+    await onStageChange('reconstructing', 50, `Reconstructed ${reconstructedQuestions.length} questions through semantic pipeline. Running duplicate checking...`);
 
     const stagedQuestions = [];
     let totalDuplicatesCount = 0;
@@ -443,13 +470,23 @@ async function processManualImportInternal(upload, html, plain, user, options = 
           isApproved: false,
           isRejected: false,
           savedQuestionId: null,
-        };
+        };          // Run structural validation on the staged question
+          const validationResult = validateQuestion(stagedQuestionObj);
+          stagedQuestionObj.validationResult = {
+            valid: validationResult.valid,
+            issues: validationResult.issues,
+            confidence: validationResult.confidence,
+          };
+          if (!validationResult.valid) {
+            stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
+            stagedQuestionObj.status = 'needs_review';
+          }
 
-        stagedQuestions.push(stagedQuestionObj);
-      } catch (err) {
-        logger.error(`Failed to stage manual question block ${blockIndex + 1}`, { error: err.message });
+          stagedQuestions.push(stagedQuestionObj);
+        } catch (err) {
+          logger.error(`Failed to stage manual question block ${blockIndex + 1}`, { error: err.message });
+        }
       }
-    }
 
     upload.status = 'completed';
     upload.progress = 100;
@@ -581,6 +618,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       answerText: q.answerText || q.answerKey || null,
       difficulty: q.difficulty || 'medium',
       class: q.class || 11,
+      year: q.year || null,
       explanation: q.explanation || null,
       explanationLatex: q.explanationLatex || null,
       explanationImages: q.explanationImages || [],
@@ -604,6 +642,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       isPrivate: user.role === 'faculty',
       visibility: user.role === 'faculty' ? 'private' : 'public',
       bankIds: user.role === 'super_admin' && systemBankId ? [systemBankId] : [],
+      syllabusMappings: q.syllabusMappings || [],
     });
 
     q.isApproved = true;

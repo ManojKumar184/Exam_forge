@@ -129,7 +129,7 @@ export function estimateDifficulty(question, context = {}) {
 /**
  * Parse document header (first ~3k chars) for mixed-paper signals.
  */
-export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {}) {
+export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {}, syllabusCatalog = null) {
   const header = (rawText || '').slice(0, 3500);
   const classesFound = detectClassesInDocument(header);
   const defaultClass = uploadContext.class
@@ -169,22 +169,32 @@ export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {})
 
 /**
  * Classify a single extracted question with catalog + document context.
+ * When available, also produces syllabusMappings from the syllabus tree.
+ *
+ * @param {Object} question - The question object
+ * @param {Object} catalog - Flat catalog (subjects, topics, examTypes)
+ * @param {Object} docMeta - Document-level metadata
+ * @param {Object} uploadContext - Upload context
+ * @param {Object|null} syllabusCatalog - SyllabusNode-based catalog for tree-aware classification
  */
-export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploadContext = {}) {
+export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploadContext = {}, syllabusCatalog = null) {
   const text = question.questionText || '';
   const blockClass = detectClassFromText(text, docMeta.defaultClass || 11);
   const classLevel = docMeta.isMixed ? blockClass : docMeta.defaultClass || blockClass;
 
+  const detectedSubject = detectSubjectFromText(text, catalog.subjects || []);
+  const detectedExamType = detectExamTypeFromText(text, catalog.examTypes || []);
+
   const subjectId =
     uploadContext.subjectId ||
     docMeta.subjectId ||
-    detectSubjectFromText(text, catalog.subjects || [])?._id ||
+    detectedSubject?._id ||
     null;
 
   const examTypeId =
     uploadContext.examTypeId ||
     docMeta.examTypeId ||
-    detectExamTypeFromText(text, catalog.examTypes || [])?._id ||
+    detectedExamType?._id ||
     null;
 
   const topic = detectTopicFromText(text, catalog.topics || [], subjectId, classLevel);
@@ -214,11 +224,18 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
     status = 'needs_review';
   }
 
+  // syllabusMappings are resolved in rulesProvider.classify() to keep this function synchronous
+  // The rulesProvider passes syllabusCatalog and resolves mappings after calling this function
+  let syllabusMappings = null;
+
   return {
     class: classLevel,
     subjectId,
     chapterId: topic?._id || null,
     examTypeId,
+    subjectName: detectedSubject?.name || null,
+    topicName: topic?.name || null,
+    examTypeName: detectedExamType?.name || null,
     difficulty,
     tags: [...new Set(tags)],
     status,
@@ -238,6 +255,7 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
       },
     },
     extractionWarnings: warnings,
+    syllabusMappings,
   };
 }
 

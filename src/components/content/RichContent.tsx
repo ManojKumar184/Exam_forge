@@ -55,7 +55,7 @@ interface RichContentProps {
   images?: string[];
   imageMetadata?: Question['image_metadata'];
   diagrams?: Question['diagrams'];
-  tables?: { html?: string }[];
+  tables?: any[];
   className?: string;
   compact?: boolean;
 }
@@ -86,12 +86,96 @@ function renderTextWithMath(text: string, compact?: boolean) {
   );
 }
 
+function renderTextWithTablesAndMath(text: string, tables: any[] = [], compact?: boolean) {
+  const decoded = decodeHtmlEntities(text);
+  const regex = /\[TABLE_(\d+)\]/g;
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let match;
+  
+  while ((match = regex.exec(decoded)) !== null) {
+    const tableIndex = parseInt(match[1], 10);
+    const before = decoded.slice(lastIdx, match.index);
+    if (before) {
+      parts.push(<span key={`text-${lastIdx}`}>{renderTextWithMath(before, compact)}</span>);
+    }
+    
+    const tableData = tables && tables[tableIndex];
+    if (tableData) {
+      parts.push(
+        <div key={`table-${tableIndex}`} className="my-4 overflow-x-auto w-full border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-850">
+              {tableData.rows?.map((row: any, rIdx: number) => {
+                const isHeader = rIdx === 0;
+                const CellTag = isHeader ? 'th' : 'td';
+                return (
+                  <tr key={rIdx} className={isHeader ? 'bg-slate-50 dark:bg-slate-800/50' : ''}>
+                    {row.map((cell: any, cIdx: number) => {
+                      let cellText = '';
+                      let cellHtml = '';
+                      let colspan = 1;
+                      let rowspan = 1;
+                      let isBold = isHeader;
+                      
+                      if (typeof cell === 'object' && cell !== null) {
+                        cellText = cell.text || '';
+                        cellHtml = cell.html || cell.text || '';
+                        if (cell.colspan) colspan = cell.colspan;
+                        if (cell.rowspan) rowspan = cell.rowspan;
+                        if (cell.bold !== undefined) isBold = cell.bold;
+                      } else {
+                        cellText = String(cell || '');
+                        cellHtml = cellText;
+                      }
+                      
+                      const hasHtml = /<(ul|ol|li|img|p|div|span|br|strong|b|em|i)\b/i.test(cellHtml);
+
+                      return (
+                        <CellTag
+                          key={cIdx}
+                          colSpan={colspan > 1 ? colspan : undefined}
+                          rowSpan={rowspan > 1 ? rowspan : undefined}
+                          className={`border border-slate-200 dark:border-slate-700 p-2 text-left align-middle ${
+                            isBold ? 'font-bold text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {hasHtml ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none text-xs" dangerouslySetInnerHTML={{ __html: cellHtml }} />
+                          ) : (
+                            renderTextWithMath(cellText, compact)
+                          )}
+                        </CellTag>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    } else {
+      parts.push(<span key={`table-missing-${tableIndex}`} className="text-slate-400"> [Table {tableIndex} missing] </span>);
+    }
+    lastIdx = regex.lastIndex;
+  }
+  
+  const remaining = decoded.slice(lastIdx);
+  if (remaining) {
+    parts.push(<span key={`text-remaining-${lastIdx}`}>{renderTextWithMath(remaining, compact)}</span>);
+  }
+  
+  return <div className="space-y-2">{parts}</div>;
+}
+
 export function RichContent({
   text,
   latex,
   images = [],
   imageMetadata = [],
   diagrams = [],
+  tables = [],
   className = '',
   compact = false,
 }: RichContentProps) {
@@ -122,7 +206,7 @@ export function RichContent({
           {hasHtmlMarkup ? (
             <div dangerouslySetInnerHTML={{ __html: primaryText }} />
           ) : (
-            renderTextWithMath(primaryText, compact)
+            renderTextWithTablesAndMath(primaryText, tables, compact)
           )}
         </div>
       ) : null}
@@ -213,6 +297,7 @@ export function QuestionContentPreview({
         images={question.question_images}
         imageMetadata={question.image_metadata}
         diagrams={question.diagrams}
+        tables={question.rendering_metadata?.tables || (question as any).renderingMetadata?.tables || []}
         compact={compact}
       />
       {showOptions && opts.length > 0 && (
@@ -242,9 +327,12 @@ export function QuestionContentPreview({
       {showExplanation && question.explanation && (
         <div className="mt-2 p-2.5 bg-indigo-50/60 dark:bg-indigo-950/20 rounded border border-indigo-100/50 dark:border-indigo-900/40 text-xs">
           <span className="font-semibold text-indigo-900 dark:text-indigo-400 block uppercase mb-1 text-[10px]">Explanation</span>
-          <p className="text-indigo-950 dark:text-indigo-200 leading-relaxed whitespace-pre-wrap">
-            {question.explanation}
-          </p>
+          <RichContent
+            text={question.explanation}
+            latex={question.explanation_latex}
+            tables={question.rendering_metadata?.tables || (question as any).renderingMetadata?.tables || []}
+            compact
+          />
         </div>
       )}
     </div>

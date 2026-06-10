@@ -8,11 +8,11 @@ Evaluation report verifying quality, preservation metrics, and extraction matchi
 | --- | --- |
 | **Primary Dataset** | `MATHS JUT - 40 QUESTION.docx` |
 | **Total Detected Questions** | **106** |
-| **Pipeline A Time** | `5460ms` |
-| **Pipeline B Time** | `2565ms` |
-| **Average Stem Match Similarity** | **96.71%** |
+| **Pipeline A Time** | `5472ms` |
+| **Pipeline B Time** | `1751ms` |
+| **Average Stem Match Similarity** | **95.40%** |
 | **Option Count Alignment Rate** | **100.00%** |
-| **AI Classification Metadata Match** | **64.15%** |
+| **AI Classification Metadata Match** | **63.21%** |
 | **Total Warnings Generated** | `222` |
 
 ## Pipeline Comparison Matrix
@@ -24,7 +24,7 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 1 | 1 | 96% | ✅ Yes | ❌ No | 🟢 Success |
 | 2 | 1 | 91% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 3 | 2 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 4 | 3 | 97% | ✅ Yes | ✅ Yes | 🟢 Success |
+| 4 | 3 | 82% | ✅ Yes | ❌ No | 🟡 Review |
 | 5 | 4 | 97% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 6 | 5 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 7 | 6 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
@@ -42,11 +42,11 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 19 | 18 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 20 | 19 | 89% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 21 | 20 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 22 | 21 | 96% | ✅ Yes | ❌ No | 🟢 Success |
+| 22 | 21 | 97% | ✅ Yes | ❌ No | 🟢 Success |
 | 23 | 22 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 24 | 23 | 99% | ✅ Yes | ❌ No | 🟢 Success |
 | 25 | 24 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 26 | 25 | 95% | ✅ Yes | ✅ Yes | 🟢 Success |
+| 26 | 25 | 93% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 27 | 26 | 96% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 28 | 27 | 95% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 29 | 28 | 98% | ✅ Yes | ❌ No | 🟢 Success |
@@ -71,7 +71,7 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 48 | 47 | 98% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 49 | 48 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 50 | 49 | 91% | ✅ Yes | ❌ No | 🟢 Success |
-| 51 | 50 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
+| 51 | 50 | 92% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 52 | 51 | 97% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 53 | 52 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 54 | 53 | 93% | ✅ Yes | ✅ Yes | 🟢 Success |
@@ -90,7 +90,7 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 67 | 66 | 98% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 68 | 67 | 100% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 69 | 68 | 98% | ✅ Yes | ❌ No | 🟢 Success |
-| 70 | 69 | 91% | ✅ Yes | ✅ Yes | 🟢 Success |
+| 70 | 69 | 87% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 71 | 70 | 91% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 72 | 1 | 98% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 73 | 2 | 91% | ✅ Yes | ❌ No | 🟢 Success |
@@ -105,14 +105,14 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 82 | 11 | 93% | ✅ Yes | ❌ No | 🟢 Success |
 | 83 | 12 | 99% | ✅ Yes | ❌ No | 🟢 Success |
 | 84 | 13 | 96% | ✅ Yes | ❌ No | 🟢 Success |
-| 85 | 14 | 94% | ✅ Yes | ❌ No | 🟢 Success |
+| 85 | 14 | 73% | ✅ Yes | ❌ No | 🟡 Review |
 | 86 | 85 | 99% | ✅ Yes | ❌ No | 🟢 Success |
 | 87 | 86 | 94% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 88 | 87 | 97% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 89 | 88 | 94% | ✅ Yes | ❌ No | 🟢 Success |
 | 90 | 89 | 99% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 91 | 90 | 84% | ✅ Yes | ❌ No | 🟡 Review |
-| 92 | 91 | 89% | ✅ Yes | ❌ No | 🟢 Success |
+| 91 | 90 | 62% | ✅ Yes | ❌ No | 🟡 Review |
+| 92 | 91 | 66% | ✅ Yes | ❌ No | 🟡 Review |
 | 93 | 92 | 97% | ✅ Yes | ❌ No | 🟢 Success |
 | 94 | 93 | 97% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 95 | 94 | 99% | ✅ Yes | ❌ No | 🟢 Success |
@@ -120,13 +120,13 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 | 97 | 96 | 98% | ✅ Yes | ❌ No | 🟢 Success |
 | 98 | 97 | 98% | ✅ Yes | ❌ No | 🟢 Success |
 | 99 | 98 | 97% | ✅ Yes | ❌ No | 🟢 Success |
-| 100 | 99 | 88% | ✅ Yes | ❌ No | 🟢 Success |
+| 100 | 99 | 77% | ✅ Yes | ❌ No | 🟡 Review |
 | 101 | 100 | 95% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 102 | 101 | 98% | ✅ Yes | ✅ Yes | 🟢 Success |
 | 103 | 102 | 97% | ✅ Yes | ❌ No | 🟢 Success |
-| 104 | 103 | 93% | ✅ Yes | ❌ No | 🟢 Success |
+| 104 | 103 | 78% | ✅ Yes | ❌ No | 🟡 Review |
 | 105 | 104 | 92% | ✅ Yes | ✅ Yes | 🟢 Success |
-| 106 | 105 | 83% | ✅ Yes | ❌ No | 🟡 Review |
+| 106 | 105 | 62% | ✅ Yes | ❌ No | 🟡 Review |
 
 ## Analysis & Critical Observations
 
@@ -134,4 +134,4 @@ A detailed comparison of both pipelines across all evaluated question blocks:
 2. **Inline Option Splitting**: Manual paste simulation pipeline successfully parses inline option chains, matching Pipeline A's structured blocks.
 3. **Equation Safety**: kaTeX brackets, subscripts, and unicode symbols are successfully shielded and normalized across both pipelines with 0 placeholder leaks.
 
-Report generated automatically at **28/5/2026, 10:01:13 am**.
+Report generated automatically at **7/6/2026, 8:40:37 pm**.

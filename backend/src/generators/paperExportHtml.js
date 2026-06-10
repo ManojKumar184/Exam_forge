@@ -2,6 +2,25 @@ import katex from 'katex';
 import { env } from '../config/env.js';
 import path from 'path';
 import fs from 'fs';
+import { decodeHtmlEntities, splitContentParts, groupBySection, getQuestionTypeLabel } from '../utils/exportUtils.js';
+import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
+
+// ── Caches for expensive operations ──
+const katexHtmlCache = new Map();
+const imageResolveCache = new Map();
+
+function katexRender(latex, displayMode) {
+  const key = `${displayMode ? 'd' : 'i'}:${latex}`;
+  if (katexHtmlCache.has(key)) return katexHtmlCache.get(key);
+  try {
+    const html = katex.renderToString(latex, { throwOnError: false, displayMode });
+    katexHtmlCache.set(key, html);
+    return html;
+  } catch {
+    katexHtmlCache.set(key, null);
+    return null;
+  }
+}
 
 function escapeHtml(text) {
   return String(text || '')
@@ -11,111 +30,36 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-function decodeHtmlEntities(str) {
-  if (!str) return '';
-  return str
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/gi, "'")
-    .replace(/&#x2F;/gi, '/');
-}
-
-function splitContentParts(raw) {
-  if (!raw?.trim()) return [];
-
-  const parts = [];
-  let remaining = raw;
-  let safety = 0;
-
-  while (remaining.length > 0 && safety < 200) {
-    safety += 1;
-    const displayMatch = remaining.match(/\$\$([\s\S]+?)\$\$/) || remaining.match(/\\\[([\s\S]+?)\\\]/);
-    const inlineMatch = remaining.match(/\$([^$\n]+?)\$/) || remaining.match(/\\\(([\s\S]+?)\\\)/);
-
-    const displayIndex = displayMatch ? remaining.indexOf(displayMatch[0]) : -1;
-    const inlineIndex = inlineMatch ? remaining.indexOf(inlineMatch[0]) : -1;
-
-    let useDisplay = false;
-    let match = null;
-
-    if (displayIndex >= 0 && (inlineIndex < 0 || displayIndex <= inlineIndex)) {
-      useDisplay = true;
-      match = displayMatch;
-    } else if (inlineIndex >= 0) {
-      match = inlineMatch;
-    }
-
-    if (!match || match.index === undefined) {
-      parts.push({ type: 'text', value: remaining });
-      break;
-    }
-
-    const matchIndex = remaining.indexOf(match[0]);
-    if (matchIndex > 0) {
-      parts.push({ type: 'text', value: remaining.slice(0, matchIndex) });
-    }
-
-    const latex = match[1] || match[2] || '';
-    parts.push({ type: 'math', value: latex.trim(), display: useDisplay });
-    remaining = remaining.slice(matchIndex + match[0].length);
-  }
-
-  return parts;
-}
-
 function renderRichContent(text, latex) {
   const primaryText = decodeHtmlEntities(text || '');
   const blockLatex = latex?.trim();
   
   let html = '';
   if (blockLatex && !primaryText.includes('$')) {
-    try {
-      html += katex.renderToString(blockLatex, { throwOnError: false, displayMode: true });
-    } catch (e) {
-      html += `<pre class="math-error">${escapeHtml(blockLatex)}</pre>`;
-    }
+    html += katexRender(blockLatex, true) || `<pre class="math-error">${escapeHtml(blockLatex)}</pre>`;
   }
   
   if (primaryText) {
-    const hasHtmlMarkup = /<(table|img|p|div|span|br|sup|sub)\b/i.test(primaryText);
+    const hasHtmlMarkup = /<(table|img|p|div|span|br|sup|sub|ul|ol|li|strong|b|em|i)\b/i.test(primaryText);
     if (hasHtmlMarkup) {
       // For HTML markup, parse and replace math delimiters inline
       let out = primaryText;
       
       // Replace $$ ... $$
       out = out.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
-        try {
-          return katex.renderToString(decodeHtmlEntities(tex).trim(), { throwOnError: false, displayMode: true });
-        } catch {
-          return tex;
-        }
+        return katexRender(decodeHtmlEntities(tex).trim(), true) || tex;
       });
       // Replace \[ ... \]
       out = out.replace(/\\\[([\s\S]+?)\\\]/g, (_, tex) => {
-        try {
-          return katex.renderToString(decodeHtmlEntities(tex).trim(), { throwOnError: false, displayMode: true });
-        } catch {
-          return tex;
-        }
+        return katexRender(decodeHtmlEntities(tex).trim(), true) || tex;
       });
       // Replace $ ... $
       out = out.replace(/\$([^$\n]+?)\$/g, (_, tex) => {
-        try {
-          return katex.renderToString(decodeHtmlEntities(tex).trim(), { throwOnError: false, displayMode: false });
-        } catch {
-          return tex;
-        }
+        return katexRender(decodeHtmlEntities(tex).trim(), false) || tex;
       });
       // Replace \( ... \)
       out = out.replace(/\\\(([\s\S]+?)\\\)/g, (_, tex) => {
-        try {
-          return katex.renderToString(decodeHtmlEntities(tex).trim(), { throwOnError: false, displayMode: false });
-        } catch {
-          return tex;
-        }
+        return katexRender(decodeHtmlEntities(tex).trim(), false) || tex;
       });
       
       html += out;
@@ -124,11 +68,7 @@ function renderRichContent(text, latex) {
       const parts = splitContentParts(primaryText);
       const renderedParts = parts.map(part => {
         if (part.type === 'math') {
-          try {
-            return katex.renderToString(part.value, { throwOnError: false, displayMode: part.display });
-          } catch {
-            return escapeHtml(part.value);
-          }
+          return katexRender(part.value, part.display) || escapeHtml(part.value);
         }
         return escapeHtml(part.value);
       });
@@ -138,54 +78,96 @@ function renderRichContent(text, latex) {
   return html;
 }
 
-const qTypeMap = {
-  mcq: 'MCQ',
-  'MCQ_SINGLE': 'MCQ(single)',
-  'MCQ_MULTI': 'MCQ(multiple)',
-  numerical: 'Numerical',
-  'NUMERICAL': 'Numerical',
-  'INTEGER': 'Integer',
-  descriptive: 'Descriptive',
-  'DESCRIPTIVE': 'Descriptive',
-  'ASSERTION_REASON': 'Assertion/Reason',
-  'MATCH_COLUMNS': 'Match the Following',
-  'COMPREHENSION': 'Comprehension',
-  'PARAGRAPH_BASED': 'Comprehension',
-  'STATEMENT_SET': 'Statement Set',
-  'MATRIX_MATCH': 'Matrix Match',
-  'TRUE_FALSE': 'True/False',
-  'NESTED_OPTION_MCQ': 'MCQ(nested)',
-  'CASE_STUDY': 'Case Study'
-};
-
-function getQuestionTypeLabel(type) {
-  if (!type) return '';
-  return qTypeMap[type] || qTypeMap[type.toUpperCase()] || type;
+function renderJsonTableToHtml(tableJson) {
+  if (!tableJson || !tableJson.rows || !tableJson.rows.length) return '';
+  const rowsHtml = [];
+  for (let rIdx = 0; rIdx < tableJson.rows.length; rIdx++) {
+    const row = tableJson.rows[rIdx];
+    const isHeader = rIdx === 0;
+    const cellTag = isHeader ? 'th' : 'td';
+    const cellsHtml = row.map(cell => {
+      let cellText = '';
+      let cellHtml = '';
+      let attrs = '';
+      let isBold = isHeader;
+      if (typeof cell === 'object' && cell !== null) {
+        cellText = cell.text || '';
+        cellHtml = cell.html || cell.text || '';
+        if (cell.colspan > 1) attrs += ` colspan="${cell.colspan}"`;
+        if (cell.rowspan > 1) attrs += ` rowspan="${cell.rowspan}"`;
+        if (cell.bold !== undefined) isBold = cell.bold;
+      } else {
+        cellText = String(cell || '');
+        cellHtml = cellText;
+      }
+      const renderedText = renderRichContent(cellHtml, null);
+      const content = isBold ? `<strong>${renderedText}</strong>` : renderedText;
+      return `<${cellTag}${attrs}>${content}</${cellTag}>`;
+    }).join('');
+    rowsHtml.push(`<tr>${cellsHtml}</tr>`);
+  }
+  return `<table class="publication-table"><tbody>${rowsHtml.join('')}</tbody></table>`;
 }
 
-function diskPathForUrl(url) {
-  if (!url) return null;
-  const rel = url.startsWith('/') ? url.slice(1) : url;
-  const disk = path.join(env.uploadDir, rel.replace(/^uploads\/?/, ''));
-  return fs.existsSync(disk) ? disk : null;
+function renderBodyWithTables(text, tables) {
+  if (!text) return '';
+  const regex = /\[TABLE_(\d+)\]/g;
+  let lastIdx = 0;
+  let html = '';
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const tableIndex = parseInt(match[1], 10);
+    const before = text.slice(lastIdx, match.index);
+    if (before) {
+      html += before.split('\n\n').map(p => {
+        if (!p.trim()) return '';
+        return `<p>${renderRichContent(p, null)}</p>`;
+      }).join('');
+    }
+    
+    if (tables && tables[tableIndex]) {
+      html += renderJsonTableToHtml(tables[tableIndex]);
+    }
+    lastIdx = regex.lastIndex;
+  }
+  
+  const remaining = text.slice(lastIdx);
+  if (remaining) {
+    html += remaining.split('\n\n').map(p => {
+      if (!p.trim()) return '';
+      return `<p>${renderRichContent(p, null)}</p>`;
+    }).join('');
+  }
+  return html;
 }
+
+// getQuestionTypeLabel imported from exportUtils.js
 
 function resolveImageSrc(url, { publicBaseUrl, embedImages }) {
   if (!url) return null;
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
-  const disk = diskPathForUrl(url);
-  if (embedImages && disk) {
+  
+  const cacheKey = `${url}|${publicBaseUrl || ''}|${embedImages ? 'embed' : 'url'}`;
+  if (imageResolveCache.has(cacheKey)) return imageResolveCache.get(cacheKey);
+  
+  const rel = url.startsWith('/') ? url.slice(1) : url;
+  const disk = path.join(env.uploadDir, rel.replace(/^uploads\/?/, ''));
+  
+  let result = null;
+  if (embedImages && fs.existsSync(disk)) {
     const ext = path.extname(disk).slice(1).toLowerCase() || 'png';
     const mime = ext === 'jpg' ? 'jpeg' : ext;
     const buf = fs.readFileSync(disk);
-    return `data:image/${mime};base64,${buf.toString('base64')}`;
-  }
-  if (publicBaseUrl) {
+    result = `data:image/${mime};base64,${buf.toString('base64')}`;
+  } else if (publicBaseUrl) {
     const base = publicBaseUrl.replace(/\/$/, '');
-    return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+    result = `${base}${url.startsWith('/') ? url : `/${url}`}`;
+  } else if (fs.existsSync(disk)) {
+    result = `file://${disk}`;
   }
-  if (disk) return `file://${disk}`;
-  return null;
+  
+  imageResolveCache.set(cacheKey, result);
+  return result;
 }
 
 function renderImages(question, exportOpts) {
@@ -232,46 +214,37 @@ function renderOptions(options, correctIndex, showAnswers, exportOpts) {
 }
 
 function getAnswerValue(q) {
-  const type = (q.question_type || 'descriptive').toLowerCase();
-  if (type === 'mcq' || type === 'mcq_single' || type === 'nested_option_mcq') {
+  const type = normalizeQuestionType(q.question_type || 'descriptive');
+  
+  if (type === 'MCQ_SINGLE' || type === 'MCQ_MULTIPLE') {
+    if (type === 'MCQ_MULTIPLE') {
+      if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
+        return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
+      }
+    }
     if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
       return String.fromCharCode(65 + Number(q.correct_option));
     }
   }
-  if (type === 'mcq_multi' || type === 'msq') {
-    if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
-      return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
-    } else if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
-      return String.fromCharCode(65 + Number(q.correct_option));
-    }
-  }
-  if (type === 'numerical' || type === 'integer') {
+  if (type === 'NUMERICAL_INTEGER') {
     if (q.numerical_answer !== null && q.numerical_answer !== undefined) {
       return String(q.numerical_answer);
     }
   }
+  if (type === 'MATCH_FOLLOWING') {
+    return q.answer_text ? q.answer_text.replace(/<\/?[^>]+(>|$)/g, "") : 'Match the Following';
+  }
+  if (type === 'ASSERTION_REASON') {
+    if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
+      return String.fromCharCode(65 + Number(q.correct_option));
+    }
+    return q.answer_text ? renderRichContent(q.answer_text) : 'Assertion/Reason';
+  }
+  // DESCRIPTIVE or fallback
   if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
     return String.fromCharCode(65 + Number(q.correct_option));
   }
   return q.answer_text ? renderRichContent(q.answer_text) : 'Descriptive';
-}
-
-function groupBySection(paper) {
-  const map = new Map();
-  for (const pq of paper.questions || []) {
-    const key = pq.section || 'A';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(pq);
-  }
-  const sectionMeta = new Map((paper.sections || []).map((s) => [s.name, s]));
-  return [...map.entries()].map(([sectionKey, items]) => {
-    const meta = sectionMeta.get(sectionKey);
-    return {
-      key: sectionKey,
-      title: meta?.name || `Section ${sectionKey}`,
-      items: items.sort((a, b) => (a.question_order ?? 0) - (b.question_order ?? 0)),
-    };
-  });
 }
 
 /**
@@ -315,11 +288,12 @@ export function buildPaperExportHtml(paper, options = {}) {
     watermarkSize = Number(options.watermarkSize || exportSettings.watermark_size || 64),
     watermarkRotation = Number(options.watermarkRotation !== undefined ? options.watermarkRotation : (exportSettings.watermark_rotation !== undefined ? exportSettings.watermark_rotation : -25)),
     exportTypeFormat = options.exportTypeFormat || 'paper_with_solutions',
+    logoUrl = options.logoUrl || exportSettings.logo_url || paper.logo_url || paper.logoUrl || null,
   } = options;
 
   const exportOpts = { publicBaseUrl, embedImages };
+  const resolvedLogoUrl = logoUrl ? resolveImageSrc(logoUrl, exportOpts) : null;
 
-  // Map the export format toggles
   const showQuestions = exportTypeFormat !== 'answer_key_only' && exportTypeFormat !== 'solutions_only';
   const showAnswersInline = exportTypeFormat === 'paper_with_answers' || exportTypeFormat === 'paper_with_solutions';
   const showFinalAnswerKey = exportTypeFormat === 'paper_with_answers' || exportTypeFormat === 'paper_with_solutions' || exportTypeFormat === 'answer_key_only';
@@ -380,7 +354,13 @@ export function buildPaperExportHtml(paper, options = {}) {
             <div class="q-stem-row">
               ${marksHtml}
               <span class="q-num">Q${displayQNum}.</span>
-              <span class="q-stem-text">${renderRichContent(q.question_text, q.question_latex)}</span>
+              <span class="q-stem-text">
+                ${
+                  q.question_latex && !(q.question_text || '').includes('$')
+                    ? renderRichContent('', q.question_latex) + renderBodyWithTables(q.question_text || '', q.renderingMetadata?.tables || [])
+                    : renderBodyWithTables(q.question_text || '', q.renderingMetadata?.tables || [])
+                }
+              </span>
             </div>
             ${renderImages(q, exportOpts)}
             ${renderOptions(q.options, q.correct_option, showAnswersInline, exportOpts)}
@@ -513,7 +493,11 @@ export function buildPaperExportHtml(paper, options = {}) {
           </div>
           <div class="exp-correct-answer">Correct Answer: <strong>${k.answer}</strong></div>
           <div class="exp-body">
-            ${renderRichContent(q.explanation || 'No step-by-step solution provided.', q.explanation_latex)}
+            ${
+              q.explanation_latex && !(q.explanation || '').includes('$')
+                ? renderRichContent('', q.explanation_latex) + renderBodyWithTables(q.explanation || '', q.renderingMetadata?.tables || [])
+                : renderBodyWithTables(q.explanation || 'No step-by-step solution provided.', q.renderingMetadata?.tables || [])
+            }
           </div>
           ${expImgHtml}
         </div>`;
@@ -536,14 +520,17 @@ export function buildPaperExportHtml(paper, options = {}) {
   let headerHtml = '';
   if (showQuestions) {
     if (showInstitutionLogo) {
+      const logoTag = resolvedLogoUrl
+        ? `<img class="header-logo" src="${escapeHtml(resolvedLogoUrl)}" alt="Logo" />`
+        : `<svg class="header-logo" viewBox="0 0 100 100">
+            <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
+            <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
+            <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
+            <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
+          </svg>`;
       headerHtml = `
       <div class="header-container">
-        <svg class="header-logo" viewBox="0 0 100 100">
-          <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
-          <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
-          <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
-          <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
-        </svg>
+        ${logoTag}
         <div class="header-text">
           <div class="institution-name">${escapeHtml(institutionName)}</div>
           <div class="exam-name">${escapeHtml(examinationName)}</div>
@@ -563,19 +550,21 @@ export function buildPaperExportHtml(paper, options = {}) {
   // Cover Page
   let coverPageHtml = '';
   if (showCoverPage) {
-    const logoSvg = showInstitutionLogo 
-      ? `<svg viewBox="0 0 100 100" style="width:72px;height:72px;fill:#0f172a;margin:0 auto 20px auto;display:block;">
-          <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
-          <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
-          <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
-          <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
-        </svg>`
+    const logoTag = showInstitutionLogo 
+      ? (resolvedLogoUrl
+          ? `<img class="cover-logo" src="${escapeHtml(resolvedLogoUrl)}" alt="Logo" style="max-height:72px;max-width:72px;object-fit:contain;margin:0 auto 20px auto;display:block;" />`
+          : `<svg viewBox="0 0 100 100" style="width:72px;height:72px;fill:#0f172a;margin:0 auto 20px auto;display:block;">
+              <path d="M50 10 L85 25 L85 55 C85 75 50 90 50 90 C50 90 15 75 15 55 L15 25 Z" />
+              <path d="M30 42 L50 32 L70 42 L50 52 Z" fill="#ffffff" />
+              <path d="M50 52 L50 72" stroke="#ffffff" stroke-width="4" />
+              <rect x="40" y="68" width="20" height="6" fill="#ffffff" rx="1" />
+            </svg>`)
       : '';
 
     coverPageHtml = `
     <div class="cover-page">
       <div class="cover-content">
-        ${logoSvg}
+        ${logoTag}
         <h1 class="cover-institution">${escapeHtml(institutionName)}</h1>
         <h2 class="cover-exam">${escapeHtml(examinationName)}</h2>
         <h3 class="cover-subject">${escapeHtml(subjectName)}</h3>
@@ -716,7 +705,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     /* Header Styles */
     .header-outer { border-bottom: 4px double #000; padding-bottom: 8px; margin-bottom: 22px; clear: both; column-span: all; -webkit-column-span: all; }
     .header-container { display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; margin-bottom: 8px; }
-    .header-logo { width: 56px; height: 56px; fill: #0f172a; margin-right: 18px; flex-shrink: 0; }
+    .header-logo { width: 56px; height: 56px; fill: #0f172a; margin-right: 18px; flex-shrink: 0; object-fit: contain; }
     .header-text { text-align: center; }
     .institution-name { font-size: 17pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; font-family: 'Segoe UI', Arial, sans-serif; color: #000; }
     .exam-name { font-size: 11.5pt; font-weight: 600; text-transform: uppercase; color: #1e293b; margin-bottom: 4px; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -731,7 +720,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     /* Layout flow control */
     .paper-content {
       column-count: ${layout === 'two_column' ? 2 : 1};
-      column-gap: 24px;
+      column-gap: ${layout === 'two_column' ? '16px' : '24px'};
       column-fill: auto;
     }
 
@@ -764,7 +753,7 @@ export function buildPaperExportHtml(paper, options = {}) {
     .q-marks { float: right; font-weight: bold; margin-left: 14px; color: #000; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9.5pt; flex-shrink: 0; }
     
     /* Option Styles (Auto Columns layout) */
-    .options { margin: 10px 0 10px 34px; padding: 0; list-style: none; page-break-inside: avoid; break-inside: avoid; }
+    .options { margin: ${layout === 'two_column' ? '6px 0 6px 18px' : '10px 0 10px 34px'}; padding: 0; list-style: none; page-break-inside: avoid; break-inside: avoid; }
     .options-4col { display: flex; flex-wrap: wrap; }
     .options-4col .option { width: 25%; min-width: 120px; box-sizing: border-box; padding-right: 12px; }
     .options-2col { display: flex; flex-wrap: wrap; }
@@ -785,6 +774,10 @@ export function buildPaperExportHtml(paper, options = {}) {
     table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 10pt; page-break-inside: avoid; break-inside: avoid; }
     table th, table td { border: 1.5px solid #000; padding: 8px 12px; text-align: left; }
     table th { background-color: #f1f5f9; font-weight: bold; color: #000; }
+
+    .publication-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 9.5pt; page-break-inside: avoid; break-inside: avoid; }
+    .publication-table th, .publication-table td { border: 1px solid #1e293b; padding: 6px 10px; text-align: left; vertical-align: middle; }
+    .publication-table th { background-color: #f1f5f9; font-weight: bold; color: #000; }
     
     /* Answer Key Styles */
     .answer-key-section { column-span: all; -webkit-column-span: all; }

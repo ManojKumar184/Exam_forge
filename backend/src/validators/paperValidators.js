@@ -34,8 +34,8 @@ export const updatePaperSchema = createPaperSchema.partial();
 
 const sectionSpecSchema = sectionSchema.extend({
   id: z.string().optional(),
-  question_types: z.array(z.enum(['mcq', 'descriptive', 'numerical'])).optional(),
-  question_type: z.enum(['mcq', 'descriptive', 'numerical']).optional(),
+  question_types: z.array(z.string()).optional(),
+  question_type: z.string().optional(),
   difficulty_distribution: z
     .object({
       easy: z.coerce.number().nonnegative().optional(),

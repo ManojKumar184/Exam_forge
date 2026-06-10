@@ -13,6 +13,7 @@ import {
   alignHtmlSegmentsToBlocks,
 } from './docxAdvancedParser.js';
 import { enrichBlockFromHtml } from './docxMathHtml.js';
+import { semanticDocumentFromDocxStructure } from './documentIntelligence/semanticDocumentModel.js';
 
 export async function extractDocxQuestions(filePath, context = {}) {
   const buffer = await fs.readFile(filePath);
@@ -43,6 +44,10 @@ export async function extractDocxQuestions(filePath, context = {}) {
     structure.paragraphs?.length > 2
       ? buildTextFromDocxStructure(structure)
       : preprocessDocumentText(rawTextFallback.value || '');
+  const semanticDocument = semanticDocumentFromDocxStructure(structure, {
+    sourceFile: path.basename(filePath),
+    imageCount: images.length,
+  });
 
   if (!xmlOrdered.trim()) {
     return {
@@ -60,7 +65,7 @@ export async function extractDocxQuestions(filePath, context = {}) {
   const blocksWithMedia = blocks.map((block, idx) => {
     let enriched = block;
     if (block.html) {
-      enriched = enrichBlockFromHtml(block, block.html);
+      enriched = enrichBlockFromHtml(block, block.html, structure.tables);
     }
     const segment = htmlSegments[idx] || htmlSegments.find((s) => enriched.lines?.[0] && s.text?.includes(enriched.lines[0].slice(0, 40)));
     if (segment) {
@@ -85,6 +90,7 @@ export async function extractDocxQuestions(filePath, context = {}) {
       questions: [],
       warnings,
       images,
+      semanticDocument,
       rawText: xmlOrdered,
       rawTextLength: xmlOrdered.length,
       extractionMode: structure.paragraphs?.length > 2 ? 'docx_xml+html' : 'docx_html',
@@ -124,6 +130,7 @@ export async function extractDocxQuestions(filePath, context = {}) {
     questions,
     warnings,
     images,
+    semanticDocument,
     rawText: xmlOrdered,
     rawTextLength: xmlOrdered.length,
     extractionMode: structure.paragraphs?.length > 2 ? 'docx_xml+html' : 'docx_html',

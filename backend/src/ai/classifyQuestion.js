@@ -26,6 +26,7 @@ export async function classifyQuestionMetadata(
     tags: result.tags,
     status: result.status,
     extractionWarnings: result.extractionWarnings,
+    syllabusMappings: result.syllabusMappings,
   };
 }
 
@@ -55,6 +56,7 @@ export async function classifyQuestionMetadataBatch(
       tags: result.tags,
       status: result.status,
       extractionWarnings: result.extractionWarnings,
+      syllabusMappings: result.syllabusMappings,
     };
   });
 }

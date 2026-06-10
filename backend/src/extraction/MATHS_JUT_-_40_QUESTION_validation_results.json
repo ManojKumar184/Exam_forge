@@ -1,13 +1,13 @@
 {
   "summary": {
     "totalQuestions": 106,
-    "pipelineATimeMs": 5460,
-    "pipelineBTimeMs": 2565,
-    "avgStemSimilarityPercent": "96.71",
+    "pipelineATimeMs": 5472,
+    "pipelineBTimeMs": 1751,
+    "avgStemSimilarityPercent": "95.40",
     "optionsMatchRatePercent": "100.00",
-    "classificationMatchRatePercent": "64.15",
+    "classificationMatchRatePercent": "63.21",
     "totalWarningsCount": 222,
-    "timestamp": "2026-05-28T04:31:13.420Z"
+    "timestamp": "2026-06-07T15:10:37.144Z"
   },
   "evaluations": [
     {
@@ -33,8 +33,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -66,8 +66,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -99,8 +99,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -112,12 +112,12 @@
     {
       "index": 4,
       "qnum": 3,
-      "status": "success",
-      "stemSimilarity": 0.967032967032967,
+      "status": "review_needed",
+      "stemSimilarity": 0.8230277185501066,
       "optionsCountMatch": true,
-      "classificationMatch": true,
+      "classificationMatch": false,
       "pipelineA": {
-        "stem": "Given three indenticalbagseach containing 10 balls, whose coloursare as follows :\n[TABLE]\n| Red | Blue | Green\nBag I |  |  |\nBag II |  |  |\nBag III |  |  |\nA person chooses a bag at random and takes out a ball. If the ball is Red, the probability that it is from bag I is p and if the balls is Green, the probability that it is from bag III is  $q$ , then the value of  $\\left( \\frac{1}{p}+\\frac{1}{q} \\right)$ is :[April 2, 2025 (II)](A) 6(B) 9(C) 7(D) 8",
+        "stem": "Given three indenticalbagseach containing 10 balls, whose coloursare as follows :\n[TABLE_0]\nA person chooses a bag at random and takes out a ball. If the ball is Red, the probability that it is from bag I is p and if the balls is Green, the probability that it is from bag III is  $q$ , then the value of  $\\left( \\frac{1}{p}+\\frac{1}{q} \\right)$ is :[April 2, 2025 (II)](A) 6(B) 9(C) 7(D) 8",
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [],
@@ -128,16 +128,16 @@
         }
       },
       "pipelineB": {
-        "stem": "Given three indenticalbagseach containing 10 balls, whose coloursare as follows : $[TABLE] | Red | Blue | Green$\nBag I | | | Bag II | | | Bag III | | | A person chooses a bag at random and takes out a ball. If the ball is Red, the probability that it is from bag I is p and if the balls is Green, the probability that it is from bag III is $q$ , then the value of $\\left( \\frac{1}{p}+\\frac{1}{q} \\right)$ is :[April 2, 2025 (II)](A) 6(B) 9(C) 7(D) 8",
+        "stem": "Given three indenticalbagseach containing 10 balls, whose coloursare as follows : $[TABLE_START] | Red | Blue | Green$\nBag I | | | Bag II | | | Bag III | | | [$TABLE_END$]\nA person chooses a bag at random and takes out a ball. If the ball is Red, the probability that it is from bag I is p and if the balls is Green, the probability that it is from bag III is $q$ , then the value of $\\left( \\frac{1}{p}+\\frac{1}{q} \\right)$ is :[April 2, 2025 (II)](A) 6(B) 9(C) 7(D) 8",
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
-          "difficulty": "medium",
+          "difficulty": "hard",
           "type": "mcq"
         }
       }
@@ -165,8 +165,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -198,8 +198,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -231,8 +231,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -264,8 +264,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -297,8 +297,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -330,8 +330,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -363,8 +363,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -396,8 +396,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -429,8 +429,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -462,8 +462,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -495,8 +495,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -528,8 +528,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -561,8 +561,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -594,8 +594,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -627,8 +627,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -662,8 +662,8 @@
         "warnings": [
           "⚠ Reconstruction uncertain",
           "Mathematical KaTeX delimiters are unbalanced",
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -695,8 +695,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -709,12 +709,12 @@
       "index": 22,
       "qnum": 21,
       "status": "success",
-      "stemSimilarity": 0.9638752052545156,
+      "stemSimilarity": 0.9746835443037974,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "Two dice are thrown independently. Let A be the eventthat the number appeared on the  $1^{st }$ die is less than the number appeared on the  $2^{nd }$ die, B be the event that the number appeared on the  $1^{st }$ die is even and that on the second die is odd, and C be the event that the number appeared on the  $1^{st }$ die is odd and that on the  $2^{nd }$ is even. Then :[Feb. 1, 2023 (II)](A) B and C are independent(B) A and B are mutually exclusive(C) The number of favourablecases of the event  $(A∪B)∩C$ is 6(D) The number of favourablecases of the events  $A,B$ and C are 15, 6 and 6 respectively.",
-        "optionsCount": 0,
+        "stem": "Two dice are thrown independently. Let A be the eventthat the number appeared on the  $1^{st }$ die is less than the number appeared on the  $2^{nd }$ die, B be the event that the number appeared on the  $1^{st }$ die is even and that on the second die is odd, and C be the event that the number appeared on the  $1^{st }$ die is odd and that on the  $2^{nd }$ is even. Then :[Feb. 1, 2023 (II)]",
+        "optionsCount": 3,
         "questionType": "mcq",
         "warnings": [],
         "classification": {
@@ -724,12 +724,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Two dice are thrown independently. Let A be the eventthat the number appeared on the $1^{st }$ die is less than the number appeared on the $2^{nd }$ die, B be the event that the number appeared on the $1^{st }$ die is even and that on the second die is odd, and C be the event that the number appeared on the $1^{st }$ die is odd and that on the $2^{nd }$ is even. Then :[Feb. 1, 2023 (II)](A) B and C are independent(B) A and B are mutually exclusive(C) The number of favourablecases of the event $(A\\cup B)\\cap C$ is 6(D) The number of favourablecases of the events $A,B$ and C are 15, 6 and 6 respectively.",
-        "optionsCount": 0,
+        "stem": "Two dice are thrown independently. Let A be the eventthat the number appeared on the $1^{st }$ die is less than the number appeared on the $2^{nd }$ die, B be the event that the number appeared on the $1^{st }$ die is even and that on the second die is odd, and C be the event that the number appeared on the $1^{st }$ die is odd and that on the $2^{nd }$ is even. Then :[Feb. 1, 2023 (II)]",
+        "optionsCount": 3,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -761,8 +761,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -794,8 +794,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -827,8 +827,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -841,12 +841,12 @@
       "index": 26,
       "qnum": 25,
       "status": "success",
-      "stemSimilarity": 0.9502617801047121,
+      "stemSimilarity": 0.9314079422382672,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "Let A and b be two events such that  $P\\left( \\frac{B}{A} \\right)=\\frac{2}{5},P\\left( \\frac{A}{B} \\right)=\\frac{1}{7}$ and  $P(A∩B)=\\frac{1}{9}$ . Consider, (S1)  $P\\left( A^{'}∪B \\right)=\\frac{5}{6}$ (S2)  $P\\left( A^{'}∩B^{'} \\right)=\\frac{1}{18}$ [July 28, 2022(II)](A) Both (S1) and (S2) are true(B) Both (S1) and (S2) are false(C) Only (S1) is true(D) Only (S2) is true",
-        "optionsCount": 0,
+        "stem": "Let A and b be two events such that  $P\\left( \\frac{B}{A} \\right)=\\frac{2}{5},P\\left( \\frac{A}{B} \\right)=\\frac{1}{7}$ and  $P(A∩B)=\\frac{1}{9}$ . Consider, (S1)  $P\\left( A^{'}∪B \\right)=\\frac{5}{6}$ (S2)  $P\\left( A^{'}∩B^{'} \\right)=\\frac{1}{18}$ [July 28, 2022(II)]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
         "classification": {
@@ -856,12 +856,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Let A and b be two events such that $P\\left( \\frac{B}{A} \\right)=\\frac{2}{5},P\\left( \\frac{A}{B} \\right)=\\frac{1}{7}$ and $P(A\\cap B)=\\frac{1}{9}$ . Consider, (S1) $P\\left( A^{'}\\cup B \\right)=\\frac{5}{6}$ (S2) $P\\left( A^{'}\\cap B^{'} \\right)=\\frac{1}{18}$ [July 28, 2022(II)](A) Both (S1) and (S2) are true(B) Both (S1) and (S2) are false(C) Only (S1) is true(D) Only (S2) is true",
-        "optionsCount": 0,
+        "stem": "Let A and b be two events such that $P\\left( \\frac{B}{A} \\right)=\\frac{2}{5},P\\left( \\frac{A}{B} \\right)=\\frac{1}{7}$ and $P(A\\cap B)=\\frac{1}{9}$ . Consider, (S1) $P\\left( A^{'}\\cup B \\right)=\\frac{5}{6}$ (S2) $P\\left( A^{'}\\cap B^{'} \\right)=\\frac{1}{18}$ [July 28, 2022(II)]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -893,8 +893,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -926,8 +926,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -959,8 +959,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -992,8 +992,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1025,8 +1025,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1058,8 +1058,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1091,8 +1091,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1124,8 +1124,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1157,8 +1157,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -1190,8 +1190,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -1223,8 +1223,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1256,8 +1256,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1289,8 +1289,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1322,8 +1322,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1355,8 +1355,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1388,8 +1388,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1421,8 +1421,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1454,8 +1454,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1487,8 +1487,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1520,8 +1520,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1553,8 +1553,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1586,8 +1586,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1619,8 +1619,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1633,11 +1633,11 @@
       "index": 50,
       "qnum": 49,
       "status": "success",
-      "stemSimilarity": 0.9061371841155235,
+      "stemSimilarity": 0.9078014184397163,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "Let  $E^{C}$ denote the complement of an event E . Let  $E_1,E_2$ and  $E_3$ be any pairwise independent events with  $P\\left( E_1 \\right)&gt;0$ and  $P\\left( E_1∩\\overset{˙}{E}_2∩E_3 \\right)=0$ . Then  $P\\left( E_{2}^{C}∩E_{3}^{C}/E_1 \\right)$ is equal to:[Sep. 02, 2020 (II)]",
+        "stem": "Let  $E^{C}$ denote the complement of an event OPTION_E Let  $E_1,E_2$ and  $E_3$ be any pairwise independent events with  $P\\left( E_1 \\right)&gt;0$ and  $P\\left( E_1∩\\overset{˙}{E}_2∩E_3 \\right)=0$ . Then  $P\\left( E_{2}^{C}∩E_{3}^{C}/E_1 \\right)$ is equal to:[Sep. 02, 2020 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -1648,12 +1648,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Let $E^{C}$ denote the complement of an event E . Let $E_1,E_2$ and $E_3$ be any pairwise independent events with $P\\left( E_1 \\right)0$ and $P\\left( E_1\\cap overset{}{E}_2\\cap E_3 \\right)=0$ . Then $P\\left( E_{2}^{C}\\cap E_{3}^{C}/E_1 \\right)$ is equal to:[Sep. 02, 2020 (II)]",
+        "stem": "Let $E^{C}$ denote the complement of an event OPTION_E Let $E_1,E_2$ and $E_3$ be any pairwise independent events with $P\\left( E_1 \\right)0$ and $P\\left( E_1\\cap overset{}{E}_2\\cap E_3 \\right)=0$ . Then $P\\left( E_{2}^{C}\\cap E_{3}^{C}/E_1 \\right)$ is equal to:[Sep. 02, 2020 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1666,11 +1666,11 @@
       "index": 51,
       "qnum": 50,
       "status": "success",
-      "stemSimilarity": 0.9967532467532467,
+      "stemSimilarity": 0.9233128834355828,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "In a box, there are 20 cards, out of which 10 arelabelled as  $A$ and the remaining 10 are labelled as OPTION_B Cards are drawn at random, one after the other and with replacement, till a second A-card is obtained. The probability that the second A-card appears before the third B-card is :[Jan. 9, 2020 (I)]",
+        "stem": "In a box, there are 20 cards, out of which 10 arelabelled as  $A$ and the remaining 10 are labelled as OPTION_B Cards are drawn at random, one after the other and with replacement, till a second OPTION_Acard is obtained. The probability that the second OPTION_Acard appears before the third OPTION_Bcard is :[Jan. 9, 2020 (I)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -1685,8 +1685,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1718,8 +1718,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1751,8 +1751,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1784,8 +1784,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1817,8 +1817,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1850,8 +1850,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1883,8 +1883,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1916,8 +1916,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1949,8 +1949,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -1963,11 +1963,11 @@
       "index": 60,
       "qnum": 59,
       "status": "success",
-      "stemSimilarity": 0.8888888888888888,
+      "stemSimilarity": 0.8913043478260869,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "Let  $A,B$ and C be three events, which are pair-wiseindependence and  $\\bar{E}$ denotes the complement of an event E . If  $P(A∩B∩C)=0$ and  $P(C)&gt;0$ , then  $P[(\\bar{A}∩\\bar{B})∣C]$ is equal to.[Online April 16, 2018]",
+        "stem": "Let  $A,B$ and C be three events, which are pair-wiseindependence and  $\\bar{E}$ denotes the complement of an event OPTION_E If  $P(A∩B∩C)=0$ and  $P(C)&gt;0$ , then  $P[(\\bar{A}∩\\bar{B})∣C]$ is equal to.[Online April 16, 2018]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -1978,12 +1978,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Let $A,B$ and C be three events, which are pair-wiseindependence and $\\bar{E}$ denotes the complement of an event E . If $P(A\\cap B\\cap C)=0$ and $P(C)0$ , then $P[(\\bar{A}\\cap \\bar{B})|C]$ is equal to.[Online April 16, 2018]",
+        "stem": "Let $A,B$ and C be three events, which are pair-wiseindependence and $\\bar{E}$ denotes the complement of an event OPTION_E If $P(A\\cap B\\cap C)=0$ and $P(C)0$ , then $P[(\\bar{A}\\cap \\bar{B})|C]$ is equal to.[Online April 16, 2018]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2015,8 +2015,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2048,8 +2048,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2081,8 +2081,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2114,8 +2114,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2147,8 +2147,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2182,8 +2182,8 @@
         "warnings": [
           "⚠ Reconstruction uncertain",
           "Question contains unbalanced brackets",
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2215,8 +2215,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2248,8 +2248,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2281,8 +2281,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2295,12 +2295,12 @@
       "index": 70,
       "qnum": 69,
       "status": "success",
-      "stemSimilarity": 0.911042944785276,
+      "stemSimilarity": 0.8711656441717791,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "Let A and E be any two events with positive probabilities:Statement - 1:  $P(E/A)≥P(A/E)P(E)$ Statement - 2:  $P(A/E)≥P(A∩E)$ [Online April 19, 2014](A) Both the statements are true(B) Both the statements are false(C) Statement-1 is true, Statement-2 is false(D) Statement-1 is false, Statement-2 is true",
-        "optionsCount": 0,
+        "stem": "Let A and E be any two events with positive probabilities:Statement - 1:  $P(E/A)≥P(A/E)P(E)$ Statement - 2:  $P(A/E)≥P(A∩E)$ [Online April 19, 2014]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
         "classification": {
@@ -2310,12 +2310,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Let A and E be any two events with positive probabilities:$Statement - 1$: $P(E/A) \\ge P(A/E)P(E)$ $Statement - 2$: $P(A/E) \\ge P(A\\cap E)$ [Online April 19, 2014](A) Both the statements are true(B) Both the statements are false(C) $Statement-1$ is true, $Statement-2$ is false(D) $Statement-1$ is false, $Statement-2$ is true",
-        "optionsCount": 0,
+        "stem": "Let A and E be any two events with positive probabilities:$Statement - 1$: $P(E/A) \\ge P(A/E)P(E)$ $Statement - 2$: $P(A/E) \\ge P(A\\cap E)$ [Online April 19, 2014]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2347,8 +2347,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2380,8 +2380,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2413,8 +2413,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2446,8 +2446,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2481,8 +2481,8 @@
         "warnings": [
           "⚠ Reconstruction uncertain",
           "Mathematical KaTeX delimiters are unbalanced",
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2514,8 +2514,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2547,8 +2547,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2582,8 +2582,8 @@
         "warnings": [
           "⚠ Reconstruction uncertain",
           "Mathematical KaTeX delimiters are unbalanced",
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2615,8 +2615,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2648,8 +2648,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2681,8 +2681,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2714,8 +2714,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2747,8 +2747,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2782,8 +2782,8 @@
         "warnings": [
           "⚠ Reconstruction uncertain",
           "Mathematical KaTeX delimiters are unbalanced",
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2795,12 +2795,12 @@
     {
       "index": 85,
       "qnum": 14,
-      "status": "success",
-      "stemSimilarity": 0.9368932038834952,
+      "status": "review_needed",
+      "stemSimilarity": 0.7345132743362832,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "If the meanof the following probability distribution of a random variable X ;\n[TABLE]\n|  |  |  |  |\n| a | 2 a |  | 2 b | 3 b\nis  $\\frac{46}{9}$ , then the variance of the distribution is[April. 4, 2024(II)]",
+        "stem": "If the meanof the following probability distribution of a random variable X ;\n[TABLE_0]\nis  $\\frac{46}{9}$ , then the variance of the distribution is[April. 4, 2024(II)]",
         "optionsCount": 3,
         "questionType": "mcq",
         "warnings": [],
@@ -2811,12 +2811,12 @@
         }
       },
       "pipelineB": {
-        "stem": "If the meanof the following probability distribution of a random variable X ;\n[TABLE] | | | | | | $a | 2$ a | | 2 $b | 3$ b is $\\frac{46}{9}$ , then the variance of the distribution is[April. 4, 2024(II)]",
+        "stem": "If the meanof the following probability distribution of a random variable X ;\n[$TABLE_START$] | | | | | | $a | 2$ a | | 2 $b | 3$ b\n[$TABLE_END$] is $\\frac{46}{9}$ , then the variance of the distribution is[April. 4, 2024(II)]",
         "optionsCount": 3,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2848,8 +2848,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2881,8 +2881,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2914,8 +2914,8 @@
         "optionsCount": 0,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2947,8 +2947,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -2980,8 +2980,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -2994,11 +2994,11 @@
       "index": 91,
       "qnum": 90,
       "status": "review_needed",
-      "stemSimilarity": 0.8409090909090909,
+      "stemSimilarity": 0.6205128205128205,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "A random variable X has the following probabilitydistribution:[June 24, 2022 (II)]\n[TABLE]\n|  |  |  |  |\n| k | 2 k | 4 k | 6 k |\nThe value of  $P(1&lt;X&lt;4∣X≤2)$ is equal to:",
+        "stem": "A random variable X has the following probabilitydistribution:[June 24, 2022 (II)]\n[TABLE_0]\nThe value of  $P(1&lt;X&lt;4∣X≤2)$ is equal to:",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -3009,12 +3009,12 @@
         }
       },
       "pipelineB": {
-        "stem": "A random variable X has the following probabilitydistribution:[June 24, 2022 (II)]\n[TABLE] | | | | | | $k | 2$ $k | 4$ $k | 6$ $k | The$ value of $P(1X4|X \\le 2)$ is equal to:",
+        "stem": "A random variable X has the following probabilitydistribution:[June 24, 2022 (II)]\n[$TABLE_START$] | | | | | | $k | 2$ $k | 4$ $k | 6$ $k | [TABLE_END]$\nThe value of $P(1X4|X \\le 2)$ is equal to:",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3026,12 +3026,12 @@
     {
       "index": 92,
       "qnum": 91,
-      "status": "success",
-      "stemSimilarity": 0.8910256410256411,
+      "status": "review_needed",
+      "stemSimilarity": 0.6588235294117647,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "A random variable X has the following probabilitydistribution:\n[TABLE]\n|  |  |  |  |\n|  | 2 K | K | 2 K |\nThen,  $P(X&gt;2)$ is equal to:[Jan. 9, 2020 (II)]",
+        "stem": "A random variable X has the following probabilitydistribution:\n[TABLE_0]\nThen,  $P(X&gt;2)$ is equal to:[Jan. 9, 2020 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
@@ -3042,12 +3042,12 @@
         }
       },
       "pipelineB": {
-        "stem": "A random variable X has the following probabilitydistribution:\n[TABLE] | | | | | | | 2 $K | K | 2$ $K | Then$, $P(X2)$ is equal to:[Jan. 9, 2020 (II)]",
+        "stem": "A random variable X has the following probabilitydistribution:\n[$TABLE_START$] | | | | | | | 2 $K | K | 2$ $K | [TABLE_END]$\nThen, $P(X2)$ is equal to:[Jan. 9, 2020 (II)]",
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3079,8 +3079,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3093,12 +3093,12 @@
       "index": 94,
       "qnum": 93,
       "status": "success",
-      "stemSimilarity": 0.9715909090909091,
+      "stemSimilarity": 0.9743589743589743,
       "optionsCountMatch": true,
       "classificationMatch": true,
       "pipelineA": {
-        "stem": "A person throws two fair dice. He wins  $₹15$ forthrowing a doublet (same numbers on the two dice),wins ₹ 12 when the throw results in the sum of 9 ,and loses  $₹6$ for any other outcome on the throw.Then the expected gain/loss (in ₹) of the person is:[April 12, 2019 (II)](A)  $\\frac{1}{2}$ gain(B)  $\\frac{1}{4}$ loss(C)  $\\frac{1}{2}$ loss(D) 2 gain",
-        "optionsCount": 0,
+        "stem": "A person throws two fair dice. He wins  $₹15$ forthrowing a doublet (same numbers on the two dice),wins ₹ 12 when the throw results in the sum of 9 ,and loses  $₹6$ for any other outcome on the throw.Then the expected gain/loss (in ₹) of the person is:[April 12, 2019 (II)]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [],
         "classification": {
@@ -3108,12 +3108,12 @@
         }
       },
       "pipelineB": {
-        "stem": "A person throws two fair dice. He wins $15$ forthrowing a doublet (same numbers on the two dice),wins 12 when the throw results in the sum of 9 ,and loses $6$ for any other outcome on the throw.Then the expected gain/loss (in ) of the person is:[April 12, 2019 (II)](A) $\\frac{1}{2}$ gain(B) $\\frac{1}{4}$ loss(C) $\\frac{1}{2}$ loss(D) 2 gain",
-        "optionsCount": 0,
+        "stem": "A person throws two fair dice. He wins $15$ forthrowing a doublet (same numbers on the two dice),wins 12 when the throw results in the sum of 9 ,and loses $6$ for any other outcome on the throw.Then the expected gain/loss (in ) of the person is:[April 12, 2019 (II)]",
+        "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -3145,8 +3145,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3178,8 +3178,8 @@
         "optionsCount": 4,
         "questionType": "mcq",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -3211,8 +3211,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3244,8 +3244,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3277,8 +3277,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3290,12 +3290,12 @@
     {
       "index": 100,
       "qnum": 99,
-      "status": "success",
-      "stemSimilarity": 0.8805970149253731,
+      "status": "review_needed",
+      "stemSimilarity": 0.7669902912621359,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "Let the mean and the standard deviation of the probability distribution\n[TABLE]\nX |  |  |  |\n|  | K |  |\nbe  $μ$ and  $σ$ , respectively. If  $σ-μ=2$ , then  $σ+μ$ is equal to____. [April 5, 2024 (II)]",
+        "stem": "Let the mean and the standard deviation of the probability distribution\n[TABLE_0]\nbe  $μ$ and  $σ$ , respectively. If  $σ-μ=2$ , then  $σ+μ$ is equal to____. [April 5, 2024 (II)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [],
@@ -3306,12 +3306,12 @@
         }
       },
       "pipelineB": {
-        "stem": "Let the mean and the standard deviation of the probability distribution\n[TABLE] X | | | | | | K | | be $and$ , respectively. If $-=2$ , then $+$ is equal $to____$. [April 5, 2024 (II)]",
+        "stem": "Let the mean and the standard deviation of the probability distribution\n[$TABLE_START$] X | | | | | | K | | [$TABLE_END$] be $and$ , respectively. If $-=2$ , then $+$ is equal $to____$. [April 5, 2024 (II)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3343,8 +3343,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -3376,8 +3376,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -3409,8 +3409,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3422,12 +3422,12 @@
     {
       "index": 104,
       "qnum": 103,
-      "status": "success",
-      "stemSimilarity": 0.9294117647058824,
+      "status": "review_needed",
+      "stemSimilarity": 0.7807486631016043,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "The probability distribution of  $X$ is:\n[TABLE]\n|  |  |  |\n|  |  |  |\nFor the minimum possible value of d , sixty times the meanof X is equal to ____.[June 30, 2022 (I)]",
+        "stem": "The probability distribution of  $X$ is:\n[TABLE_0]\nFor the minimum possible value of d , sixty times the meanof X is equal to ____.[June 30, 2022 (I)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [],
@@ -3438,12 +3438,12 @@
         }
       },
       "pipelineB": {
-        "stem": "The probability distribution of $X$ is:\n[TABLE] | | | | | | | | For the minimum possible value of d , sixty times the meanof X is equal to $____$.[June 30, 2022 (I)]",
+        "stem": "The probability distribution of $X$ is:\n[$TABLE_START$] | | | | | | | | [$TABLE_END$] For the minimum possible value of d , sixty times the meanof X is equal to $____$.[June 30, 2022 (I)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,
@@ -3475,8 +3475,8 @@
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 11,
@@ -3489,11 +3489,11 @@
       "index": 106,
       "qnum": 105,
       "status": "review_needed",
-      "stemSimilarity": 0.8292682926829268,
+      "stemSimilarity": 0.6232558139534884,
       "optionsCountMatch": true,
       "classificationMatch": false,
       "pipelineA": {
-        "stem": "The probability distribution of random variable  $X$ is given by:\n[TABLE]\n|  |  |  |  |\n| K | 2 K | 2 K | 3 K | K\nLet  $p=P(1&lt;X&lt;4∣X&lt;3)$ . If  $5p=λK$ , then  $λ$ equal to____. [Aug. 27, 2021 (II)]",
+        "stem": "The probability distribution of random variable  $X$ is given by:\n[TABLE_0]\nLet  $p=P(1&lt;X&lt;4∣X&lt;3)$ . If  $5p=λK$ , then  $λ$ equal to____. [Aug. 27, 2021 (II)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [],
@@ -3504,12 +3504,12 @@
         }
       },
       "pipelineB": {
-        "stem": "The probability distribution of random variable $X$ is given by:\n[TABLE] | | | | | | $K | 2$ $K | 2$ $K | 3$ $K | K$\nLet $p=P(1X4|X3)$ . If $5p=K$ , then $$ equal $to____$. [Aug. 27, 2021 (II)]",
+        "stem": "The probability distribution of random variable $X$ is given by:\n[$TABLE_START$] | | | | | | $K | 2$ $K | 2$ $K | 3$ $K | K$\n[$TABLE_END$] Let $p=P(1X4|X3)$ . If $5p=K$ , then $$ equal $to____$. [Aug. 27, 2021 (II)]",
         "optionsCount": 0,
         "questionType": "descriptive",
         "warnings": [
-          "Local semantic refinement unavailable — using deterministic parser.",
-          "Local semantic refinement unavailable — using deterministic parser."
+          "Semantic refinement skipped — using deterministic parser.",
+          "Semantic refinement skipped — using deterministic parser."
         ],
         "classification": {
           "class": 10,

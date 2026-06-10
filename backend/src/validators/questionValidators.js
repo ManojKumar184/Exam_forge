@@ -8,7 +8,7 @@ const optionSchema = z.object({
 
 export const createQuestionSchema = z.object({
   question_text: z.string().min(5),
-  question_type: z.enum(['mcq', 'descriptive', 'numerical']),
+  question_type: z.enum(['mcq', 'descriptive', 'numerical', 'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE', 'MCQ_MULTI', 'INTEGER', 'NUMERICAL', 'MATCH_COLUMNS']).optional().default('descriptive'),
   class: z.number().int().min(6).max(12),
   subject_id: z.string().optional().nullable(),
   chapter_id: z.string().optional().nullable(),
@@ -67,7 +67,6 @@ export const createQuestionSchema = z.object({
     subjectId: z.string().nullable().optional(),
     chapterId: z.string().nullable().optional(),
     topicId: z.string().nullable().optional(),
-    subtopicId: z.string().nullable().optional(),
   })).optional(),
   syllabusMappings: z.array(z.object({
     examPatternId: z.string().nullable().optional(),
@@ -75,7 +74,6 @@ export const createQuestionSchema = z.object({
     subjectId: z.string().nullable().optional(),
     chapterId: z.string().nullable().optional(),
     topicId: z.string().nullable().optional(),
-    subtopicId: z.string().nullable().optional(),
   })).optional(),
   bank_ids: z.array(z.string()).optional(),
   bankIds: z.array(z.string()).optional(),
@@ -95,6 +93,7 @@ export const reconstructQuestionSchema = z.object({
 
 export const semanticQuestionSchema = z.object({
   questionType: z.string().optional().default("DESCRIPTIVE"),
+  contextType: z.string().nullable().optional(),
   stem: z.string().optional().default(""),
   options: z.array(
     z.union([
@@ -118,6 +117,7 @@ export const reconstructionResponsePayloadSchema = z.object({
   questionHtml: z.string().nullable().optional(),
   questionLatex: z.string().nullable().optional(),
   questionType: z.string().default('descriptive'),
+  contextType: z.string().nullable().optional(),
   subtype: z.string().default('descriptive'),
   options: z.array(z.object({
     text: z.string().default(''),
@@ -179,7 +179,7 @@ export const listQuestionsSchema = z.object({
   classes: z.union([z.string(), z.array(z.coerce.number())]).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
   difficulties: z.union([z.string(), z.array(z.string())]).optional(),
-  question_type: z.enum(['mcq', 'descriptive', 'numerical']).optional(),
+  question_type: z.string().optional(),
   question_types: z.union([z.string(), z.array(z.string())]).optional(),
   source: z.string().optional(),
   upload_id: z.string().optional(),
@@ -190,7 +190,7 @@ export const listQuestionsSchema = z.object({
   syllabus_subject_id: z.string().optional(),
   syllabus_chapter_id: z.string().optional(),
   syllabus_topic_id: z.string().optional(),
-  syllabus_subtopic_id: z.string().optional(),
+
   bank_id: z.string().optional(),
   bank_ids: z.union([z.string(), z.array(z.string())]).optional(),
 });

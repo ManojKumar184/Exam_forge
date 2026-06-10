@@ -50,9 +50,10 @@ export interface ExamType {
 }
 
 // Question types
-export type QuestionType = 'mcq' | 'descriptive' | 'numerical';
+export type QuestionType = 'mcq' | 'descriptive' | 'numerical' | 'MCQ_SINGLE' | 'MCQ_MULTIPLE' | 'NUMERICAL_INTEGER' | 'MATCH_FOLLOWING' | 'ASSERTION_REASON' | 'DESCRIPTIVE' | 'MCQ_MULTI' | 'INTEGER' | 'NUMERICAL' | 'MATCH_COLUMNS';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type QuestionStatus = 'pending' | 'approved' | 'rejected' | 'needs_review';
+export type ContextType = 'COMPREHENSION' | 'CASE_STUDY' | 'PARAGRAPH_BASED' | 'STATEMENT_SET' | 'MATRIX_MATCH' | 'TRUE_FALSE' | 'NESTED_OPTION_MCQ' | null;
 
 export interface QuestionOption {
   text: string;
@@ -68,6 +69,7 @@ export interface Question {
   exam_type_id: string | null;
   question_text: string;
   question_type: QuestionType;
+  context_type?: ContextType;
   question_latex: string | null;
   question_images: string[];
   options: QuestionOption[];
@@ -79,6 +81,7 @@ export interface Question {
   difficulty: Difficulty;
   marks: number | null;
   class: number;
+  year: string | null;
   explanation: string | null;
   explanation_latex: string | null;
   explanation_images: string[];
@@ -123,7 +126,6 @@ export interface Question {
     subjectId: string | null;
     chapterId: string | null;
     topicId: string | null;
-    subtopicId: string | null;
   }>;
   bank_ids?: string[];
   owner_id?: string | null;
@@ -326,6 +328,7 @@ export interface QuestionFilters {
   class?: number;
   difficulty?: Difficulty;
   question_type?: QuestionType;
+  context_type?: ContextType;
   status?: QuestionStatus;
   search?: string;
 }

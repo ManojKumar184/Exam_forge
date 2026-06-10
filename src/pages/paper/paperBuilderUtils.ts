@@ -7,7 +7,7 @@ export interface Section {
   name: string;
   marksPerQuestion: number;
   negativeMarksPerQuestion: number;
-  questionTypes: ('mcq' | 'descriptive' | 'numerical')[];
+  questionTypes: string[];
   targetCount: number;
   questions: SelectedQuestion[];
 }
@@ -71,7 +71,6 @@ export interface PaperBuilderFilters {
   syllabusSubjectId?: string;
   syllabusChapterId?: string;
   syllabusTopicId?: string;
-  syllabusSubtopicId?: string;
   bankId?: string;
   bankIds?: string[];
 }

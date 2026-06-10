@@ -272,16 +272,26 @@ async function seedData() {
     process.exit(1);
   }
 
+  const isHeadless = process.env.PUPPETEER_HEADLESS !== 'false';
+  const slowMo = process.env.PUPPETEER_SLOWMO ? parseInt(process.env.PUPPETEER_SLOWMO, 10) : (isHeadless ? 0 : 100);
+
+  console.log(`Launching Puppeteer (headless: ${isHeadless}, slowMo: ${slowMo})`);
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: isHeadless ? 'new' : false,
+    slowMo: slowMo,
     defaultViewport: { width: 1280, height: 900 },
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(90000);
+  page.setDefaultTimeout(90000);
 
   // Redirect console logs from browser
   page.on('console', msg => console.log('B_LOG:', msg.text()));
   page.on('pageerror', err => console.error('B_ERR:', err.toString()));
+  page.on('requestfailed', request => {
+    console.log(`B_REQ_FAIL: ${request.url()} - ${request.failure()?.errorText}`);
+  });
 
   const waitForText = async (selector, text, timeout = 30000) => {
     console.log(`⏳ Waiting for "${selector}" to contain text "${text}"`);
@@ -393,7 +403,7 @@ async function seedData() {
     await clickButtonByText('Submit');
     
     // Wait for test to load (clock/timer and question palette)
-    await page.waitForSelector('span.text-lg.font-mono', { timeout: 15000 });
+    await page.waitForSelector('span.font-mono', { timeout: 15000 });
     console.log('✅ SUCCESS: Correct access code unlocked the test successfully');
 
     // ----------------------------------------

@@ -19,12 +19,29 @@ const questionSchema = new mongoose.Schema(
     questionType: {
       type: String,
       enum: [
+        // Canonical types
+        'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER',
+        'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE',
+        // Legacy backward-compatible aliases
         'mcq', 'descriptive', 'numerical',
-        'MCQ_SINGLE', 'MCQ_MULTI', 'INTEGER', 'NUMERICAL', 'ASSERTION_REASON',
-        'MATCH_COLUMNS', 'COMPREHENSION', 'PARAGRAPH_BASED', 'STATEMENT_SET',
-        'MATRIX_MATCH', 'TRUE_FALSE', 'NESTED_OPTION_MCQ', 'DESCRIPTIVE', 'CASE_STUDY'
+        'MCQ_MULTI', 'INTEGER', 'NUMERICAL',
+        'MATCH_COLUMNS', 'SHORT_ANSWER', 'LONG_ANSWER',
+        // Complex patterns (context_type, not canonical)
+        'COMPREHENSION', 'PARAGRAPH_BASED', 'STATEMENT_SET',
+        'MATRIX_MATCH', 'TRUE_FALSE', 'NESTED_OPTION_MCQ',
+        'CASE_STUDY',
       ],
       required: true,
+    },
+    // Complex assessment patterns preserved as context type metadata
+    contextType: {
+      type: String,
+      enum: [
+        null, 'COMPREHENSION', 'CASE_STUDY', 'PARAGRAPH_BASED',
+        'STATEMENT_SET', 'MATRIX_MATCH', 'TRUE_FALSE',
+        'NESTED_OPTION_MCQ', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+      ],
+      default: null,
     },
     questionLatex: { type: String, default: null },
     questionImages: { type: [String], default: [] },
@@ -42,6 +59,7 @@ const questionSchema = new mongoose.Schema(
     },
     marks: { type: Number, default: null },
     class: { type: Number, required: true, min: 6, max: 12 },
+    year: { type: String, default: null },
     explanation: { type: String, default: null },
     explanationLatex: { type: String, default: null },
     explanationImages: { type: [String], default: [] },

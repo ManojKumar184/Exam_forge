@@ -4,7 +4,7 @@ export interface SyllabusNode {
   _id: string;
   name: string;
   code: string;
-  type: 'exam_pattern' | 'class' | 'subject' | 'chapter' | 'topic' | 'subtopic';
+  type: 'exam_pattern' | 'class' | 'subject' | 'chapter' | 'topic';
   parentId: string | null;
   path: string;
   level: number;
@@ -45,7 +45,7 @@ export async function fetchSyllabusNode(id: string) {
 export async function createSyllabusNode(payload: {
   name: string;
   code: string;
-  type: 'exam_pattern' | 'class' | 'subject' | 'chapter' | 'topic' | 'subtopic';
+  type: 'exam_pattern' | 'class' | 'subject' | 'chapter' | 'topic';
   parentId?: string | null;
   isActive?: boolean;
   isCustom?: boolean;

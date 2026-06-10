@@ -92,9 +92,9 @@ function AppRoutes() {
         <Route
           index
           element={
-            <AdminRoute>
+            <AdminOrFacultyRoute>
               <QuestionBankPage />
-            </AdminRoute>
+            </AdminOrFacultyRoute>
           }
         />
         <Route

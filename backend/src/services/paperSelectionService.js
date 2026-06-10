@@ -1,6 +1,7 @@
 import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapQuestion } from '../utils/questionMapper.js';
+import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 
 function parseIdList(value) {
   if (!value) return [];
@@ -64,9 +65,7 @@ export function buildQuestionFilter(config) {
   if (config.syllabus_topic_id || config.syllabusTopicId) {
     filter['syllabusMappings.topicId'] = config.syllabus_topic_id || config.syllabusTopicId;
   }
-  if (config.syllabus_subtopic_id || config.syllabusSubtopicId) {
-    filter['syllabusMappings.subtopicId'] = config.syllabus_subtopic_id || config.syllabusSubtopicId;
-  }
+
 
   const bankIds = parseIdList(config.bank_ids || config.bankIds || config.bank_id || config.bankId);
   if (bankIds.length) {
@@ -82,11 +81,14 @@ export async function countQuestionPool(config) {
 
   const byDifficulty = { easy: 0, medium: 0, hard: 0 };
   const byType = { mcq: 0, descriptive: 0, numerical: 0 };
+  const byCanonicalType = { MCQ_SINGLE: 0, MCQ_MULTIPLE: 0, NUMERICAL_INTEGER: 0, MATCH_FOLLOWING: 0, ASSERTION_REASON: 0, DESCRIPTIVE: 0 };
   const byChapter = {};
 
   for (const q of pool) {
     if (byDifficulty[q.difficulty] !== undefined) byDifficulty[q.difficulty] += 1;
     if (byType[q.questionType] !== undefined) byType[q.questionType] += 1;
+    const canonical = normalizeQuestionType(q.questionType);
+    if (byCanonicalType[canonical] !== undefined) byCanonicalType[canonical] += 1;
     const ch = q.chapterId?.toString() || 'unassigned';
     byChapter[ch] = (byChapter[ch] || 0) + 1;
   }
@@ -95,6 +97,7 @@ export async function countQuestionPool(config) {
     total: pool.length,
     by_difficulty: byDifficulty,
     by_type: byType,
+    by_canonical_type: byCanonicalType,
     by_chapter: byChapter,
     filter_applied: filter,
   };
@@ -196,6 +199,43 @@ export async function selectQuestionsForPaper(config) {
   };
 
   const filter = buildQuestionFilter(config);
+
+  // Resolve exam type rules to restrict questionType
+  let resolvedExamTypes = [];
+  const examIdList = parseIdList(config.exam_type_ids || config.examTypeIds || config.exam_type_id || config.examTypeId);
+  if (examIdList.length) {
+    const { ExamType } = await import('../models/ExamType.js');
+    resolvedExamTypes = await ExamType.find({
+      $or: [
+        { _id: { $in: examIdList } },
+        { code: { $in: examIdList.map(c => c.toUpperCase()) } }
+      ]
+    });
+  }
+
+  const isJeeMain = resolvedExamTypes.some(e => e.code === 'JEE_MAIN');
+  const isNeet = resolvedExamTypes.some(e => e.code === 'NEET');
+
+  if (isJeeMain) {
+    // JEE Main: no descriptive questions
+    filter.questionType = { $nin: ['descriptive', 'DESCRIPTIVE', 'SHORT_ANSWER', 'LONG_ANSWER'] };
+    for (const spec of config.sections || []) {
+      const sName = (spec.name || '').toLowerCase();
+      if (sName.includes('descriptive') || sName.includes('subjective')) {
+        throw new AppError('JEE Main does not allow descriptive sections.', 400, 'INVALID_SECTION_TYPE');
+      }
+    }
+  } else if (isNeet) {
+    // NEET: MCQ only
+    filter.questionType = { $in: ['mcq', 'MCQ_SINGLE', 'MCQ'] };
+    for (const spec of config.sections || []) {
+      const sName = (spec.name || '').toLowerCase();
+      if (sName.includes('descriptive') || sName.includes('subjective') || sName.includes('numerical') || sName.includes('integer')) {
+        throw new AppError('NEET does not allow descriptive or numerical sections.', 400, 'INVALID_SECTION_TYPE');
+      }
+    }
+  }
+
   const pool = await Question.find(filter).lean();
   const poolStats = await countQuestionPool(config);
 

@@ -4,6 +4,13 @@ export interface TestSessionSnapshot {
   timeLeft: number;
   currentIndex: number;
   updatedAt: number;
+  answers?: Record<string, {
+    user_answer?: number;
+    text_answer?: string;
+    numerical_answer?: number | string;
+    is_marked?: boolean;
+    is_visited?: boolean;
+  }>;
 }
 
 function key(testId: string) {

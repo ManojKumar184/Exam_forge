@@ -1,0 +1,13 @@
+{
+  "questionDetectionAccuracy": 0.7450549450549451,
+  "questionBoundaryAccuracy": 0.5357185450208706,
+  "questionCountAccuracy": 0.9498168498168498,
+  "stemAccuracy": 0.5769736842105263,
+  "optionDetectionAccuracy": 0.4141447368421053,
+  "optionOrderingAccuracy": 0.6,
+  "questionTypeAccuracy": 0.4276315789473684,
+  "equationPreservationAccuracy": 0.6789473684210526,
+  "imagePreservationAccuracy": 0.7361842105263158,
+  "tablePreservationAccuracy": 0.7884868421052632,
+  "overallExtractionAccuracy": 0.6452958760945298
+}

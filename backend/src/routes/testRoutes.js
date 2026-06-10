@@ -24,7 +24,6 @@ router.get(
       subject_id: z.string().optional(),
       chapter_id: z.string().optional(),
       topic_id: z.string().optional(),
-      subtopic_id: z.string().optional(),
     })
   ),
   asyncHandler(testController.list)

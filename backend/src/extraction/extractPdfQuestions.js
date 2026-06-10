@@ -6,7 +6,10 @@ import { ocrService } from '../ocr/index.js';
 import { logger } from '../utils/logger.js';
 
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+const pdfParseModule = require('pdf-parse');
+const pdfParse = typeof pdfParseModule === 'function'
+  ? pdfParseModule
+  : pdfParseModule.default || pdfParseModule.PDFParse || pdfParseModule;
 
 const MIN_TEXT_CHARS = 30;
 
@@ -76,7 +79,7 @@ export async function extractPdfQuestions(filePath, context = {}) {
   let data;
 
   try {
-    data = await pdfParse(buffer);
+    data = await parsePdfBuffer(buffer);
   } catch (err) {
     logger.warn('PDF parse failed, using OCR', { error: err.message });
     return extractPdfWithOcrFallback(filePath, context);
@@ -123,5 +126,18 @@ export async function extractPdfQuestions(filePath, context = {}) {
     rawText: text,
     rawTextLength: text.length,
     pageCount: data.numpages,
+  };
+}
+
+async function parsePdfBuffer(buffer) {
+  if (typeof pdfParse === 'function' && !String(pdfParse).startsWith('class')) {
+    return pdfParse(buffer);
+  }
+  const parser = new pdfParse({ data: buffer });
+  const result = await parser.getText();
+  await parser.destroy?.();
+  return {
+    text: result.text || '',
+    numpages: result.total || result.pages?.length || null,
   };
 }

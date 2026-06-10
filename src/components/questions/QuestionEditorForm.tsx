@@ -132,6 +132,7 @@ export function QuestionEditorForm({
   const [explanation, setExplanation] = useState('');
   const [answerText, setAnswerText] = useState('');
   const [classLevel, setClassLevel] = useState(11);
+  const [year, setYear] = useState<string | null>(null);
   const [subjectId, setSubjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
   const [customChapterName, setCustomChapterName] = useState('');
@@ -149,7 +150,6 @@ export function QuestionEditorForm({
   const [selectedSubjectNode, setSelectedSubjectNode] = useState('');
   const [selectedChapterNode, setSelectedChapterNode] = useState('');
   const [selectedTopicNode, setSelectedTopicNode] = useState('');
-  const [selectedSubtopicNode, setSelectedSubtopicNode] = useState('');
   const [selectedBankId, setSelectedBankId] = useState('');
   const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
 
@@ -207,6 +207,7 @@ export function QuestionEditorForm({
           setCustomChapterName(d.customChapterName || '');
           setIsCustomChapter(d.isCustomChapter || false);
           setExamTypeId(d.examTypeId || '');
+          setYear(d.year ?? null);
           setOcrText(d.ocrText || '');
           setAnswerText(d.answerText || '');
         } catch {
@@ -242,6 +243,7 @@ export function QuestionEditorForm({
     setExplanation(d?.explanation || initial.explanation || '');
     setAnswerText(d?.answerText || initial.answer_text || '');
     setClassLevel(d?.classLevel || initial.class || 11);
+    setYear(d?.year ?? initial.year ?? null);
     setSubjectId(d?.subjectId || initial.subject_id || '');
     setChapterId(d?.chapterId || initial.chapter_id || '');
     setCustomChapterName(d?.customChapterName || '');
@@ -272,14 +274,12 @@ export function QuestionEditorForm({
       setSelectedSubjectNode(mapping.subjectId || '');
       setSelectedChapterNode(mapping.chapterId || '');
       setSelectedTopicNode(mapping.topicId || '');
-      setSelectedSubtopicNode(mapping.subtopicId || '');
     } else {
       setSelectedExamPattern('');
       setSelectedClassNode('');
       setSelectedSubjectNode('');
       setSelectedChapterNode('');
       setSelectedTopicNode('');
-      setSelectedSubtopicNode('');
     }
   }, [initial?.id]);
 
@@ -303,6 +303,7 @@ export function QuestionEditorForm({
         explanation,
         answerText,
         classLevel,
+        year,
         difficulty,
         correctOption,
         numericalAnswer,
@@ -314,12 +315,11 @@ export function QuestionEditorForm({
           subjectId: selectedSubjectNode,
           chapterId: selectedChapterNode,
           topicId: selectedTopicNode,
-          subtopicId: selectedSubtopicNode,
         },
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode, selectedSubtopicNode]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -474,14 +474,13 @@ export function QuestionEditorForm({
       ...tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
     ];
     const syllabusMappings = [];
-    if (selectedExamPattern || selectedClassNode || selectedSubjectNode || selectedChapterNode || selectedTopicNode || selectedSubtopicNode) {
+    if (selectedExamPattern || selectedClassNode || selectedSubjectNode || selectedChapterNode || selectedTopicNode) {
       syllabusMappings.push({
         examPatternId: selectedExamPattern || null,
         classId: selectedClassNode || null,
         subjectId: selectedSubjectNode || null,
         chapterId: selectedChapterNode || null,
         topicId: selectedTopicNode || null,
-        subtopicId: selectedSubtopicNode || null,
       });
     }
 
@@ -491,6 +490,7 @@ export function QuestionEditorForm({
       question_images: questionImages,
       question_type: sub.questionType,
       class: classLevel,
+      year: year || null,
       subject_id: subjectId,
       chapter_id: isCustomChapter ? null : (chapterId || null),
       chapter_name: isCustomChapter ? customChapterName || null : null,
@@ -532,6 +532,7 @@ export function QuestionEditorForm({
     difficulty,
     marks: isFaculty ? (marks ?? 4) : null,
     class: classLevel,
+    year: year || null,
     explanation: explanation || null,
     explanation_latex: null,
     explanation_images: [],
@@ -552,7 +553,6 @@ export function QuestionEditorForm({
         subjectId: selectedSubjectNode || null,
         chapterId: selectedChapterNode || null,
         topicId: selectedTopicNode || null,
-        subtopicId: selectedSubtopicNode || null,
       }
     ],
     created_at: new Date().toISOString(),
@@ -786,7 +786,6 @@ export function QuestionEditorForm({
               setSelectedSubjectNode('');
               setSelectedChapterNode('');
               setSelectedTopicNode('');
-              setSelectedSubtopicNode('');
               setAutosaveStatus('saving');
             }}
             options={[{ value: '', label: 'Select Exam Pattern…' }, ...syllabusTree.map(n => ({ value: n._id, label: n.name }))]}
@@ -800,7 +799,6 @@ export function QuestionEditorForm({
               setSelectedSubjectNode('');
               setSelectedChapterNode('');
               setSelectedTopicNode('');
-              setSelectedSubtopicNode('');
               setAutosaveStatus('saving');
             }}
             options={[
@@ -817,7 +815,6 @@ export function QuestionEditorForm({
               setSelectedSubjectNode(e.target.value);
               setSelectedChapterNode('');
               setSelectedTopicNode('');
-              setSelectedSubtopicNode('');
               setAutosaveStatus('saving');
             }}
             options={[
@@ -834,7 +831,6 @@ export function QuestionEditorForm({
             onChange={(e) => {
               setSelectedChapterNode(e.target.value);
               setSelectedTopicNode('');
-              setSelectedSubtopicNode('');
               setAutosaveStatus('saving');
             }}
             options={[
@@ -851,7 +847,6 @@ export function QuestionEditorForm({
             value={selectedTopicNode}
             onChange={(e) => {
               setSelectedTopicNode(e.target.value);
-              setSelectedSubtopicNode('');
               setAutosaveStatus('saving');
             }}
             options={[
@@ -862,24 +857,6 @@ export function QuestionEditorForm({
                 .find(n => n._id === selectedChapterNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
             ]}
             disabled={!selectedChapterNode}
-            className="py-1 text-xs"
-          />
-          <Select
-            label="Syllabus Subtopic"
-            value={selectedSubtopicNode}
-            onChange={(e) => {
-              setSelectedSubtopicNode(e.target.value);
-              setAutosaveStatus('saving');
-            }}
-            options={[
-              { value: '', label: 'Select Subtopic…' },
-              ...(((((syllabusTree.find(n => n._id === selectedExamPattern)?.children || [])
-                .find(n => n._id === selectedClassNode)?.children || [])
-                .find(n => n._id === selectedSubjectNode)?.children || [])
-                .find(n => n._id === selectedChapterNode)?.children || [])
-                .find(n => n._id === selectedTopicNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
-            ]}
-            disabled={!selectedTopicNode}
             className="py-1 text-xs"
           />
         </Card>
@@ -988,6 +965,18 @@ export function QuestionEditorForm({
               { value: 'medium', label: 'Medium' },
               { value: 'hard', label: 'Hard' },
             ]}
+            className="py-1 text-xs"
+          />
+          <Input
+            label="Year (optional, e.g. [2024] or [Jan 2024])"
+            type="text"
+            value={year === null ? '' : year}
+            onChange={(e) => {
+              const val = e.target.value;
+              setYear(val === '' ? null : val);
+              setAutosaveStatus('saving');
+            }}
+            placeholder="[2024] or [Jan 2024]"
             className="py-1 text-xs"
           />
           {isFaculty && (

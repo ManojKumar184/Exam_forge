@@ -1,0 +1,149 @@
+{
+  "fixtures": [
+    {
+      "id": "jee-main-mcq-1",
+      "category": "JEE Main",
+      "inputText": "Q1. If f(x) = x^2 - 4x + 4, then the minimum value of f(x) is\n(A) 0\n(B) 2\n(C) 4\n(D) -4\nAnswer: A\nSolution: Complete the square to get (x - 2)^2.",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "answer": "A",
+        "hasExplanation": true,
+        "stemContains": "minimum value"
+      }
+    },
+    {
+      "id": "jee-advanced-msq-1",
+      "category": "JEE Advanced",
+      "inputText": "Q2. One or more than one option may be correct. For an ideal gas, which statements are correct?\n(A) Internal energy depends only on temperature\n(B) Enthalpy depends only on temperature\n(C) Work done is path independent\n(D) Heat supplied is path independent\nKey: A, B\nDetailed Solution: For an ideal gas, U and H are functions of temperature.",
+      "expected": {
+        "questionType": "mcq_multi",
+        "optionCount": 4,
+        "answer": "A,B",
+        "hasExplanation": true
+      }
+    },
+    {
+      "id": "neet-biology-image-1",
+      "category": "NEET",
+      "inputText": "Q3. Identify the labelled part in the diagram below.\n[FIGURE_1]\n(A) Stigma\n(B) Anther\n(C) Ovary\n(D) Filament\nAns: B",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "answer": "B",
+        "hasDiagram": true
+      }
+    },
+    {
+      "id": "cbse-subjective-1",
+      "category": "CBSE",
+      "inputText": "Question 4. Explain why democracy improves the quality of decision making.\nAnswer: Democracy is based on consultation and discussion, which reduces the chance of rash decisions.",
+      "expected": {
+        "questionType": "descriptive",
+        "optionCount": 0,
+        "answer": "present",
+        "stemContains": "democracy"
+      }
+    },
+    {
+      "id": "syn-mcq-1",
+      "category": "MCQ",
+      "inputText": "Question 1. What is the value of the speed of light in vacuum?\n(A) 3 x 10^8 m/s\n(B) 3 x 10^6 m/s\n(C) 3 x 10^10 m/s\n(D) 3 x 10^5 m/s",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "stemContains": "speed of light"
+      }
+    },
+    {
+      "id": "syn-msq-1",
+      "category": "MSQ",
+      "inputText": "Q2. Which of the following are prime numbers? (Select all that apply)\n(A) 2\n(B) 3\n(C) 4\n(D) 5",
+      "expected": {
+        "questionType": "mcq_multi",
+        "optionCount": 4,
+        "stemContains": "prime numbers"
+      }
+    },
+    {
+      "id": "syn-numerical-1",
+      "category": "Numerical",
+      "inputText": "Q3. Calculate the resistance of a wire of length 2m and cross-sectional area 10^-6 m^2 if the resistivity is 1.7 x 10^-8 Ohm-m.",
+      "expected": {
+        "questionType": "numerical",
+        "optionCount": 0,
+        "stemContains": "resistivity"
+      }
+    },
+    {
+      "id": "syn-descriptive-1",
+      "category": "Descriptive",
+      "inputText": "Q4. Explain the mechanism of photosynthesis in plants in detail.",
+      "expected": {
+        "questionType": "descriptive",
+        "optionCount": 0,
+        "stemContains": "photosynthesis"
+      }
+    },
+    {
+      "id": "syn-assertion-1",
+      "category": "Assertion Reason",
+      "inputText": "Question 5.\nAssertion (A): Diamond is a good conductor of electricity.\nReason (R): Diamond has a giant covalent structure with free electrons.\n(A) Both A and R are true and R is correct explanation of A\n(B) Both A and R are true but R is not correct explanation of A\n(C) A is true but R is false\n(D) A is false and R is false",
+      "expected": {
+        "questionType": "assertion_reason",
+        "optionCount": 4,
+        "stemContains": "Assertion"
+      }
+    },
+    {
+      "id": "syn-match-1",
+      "category": "Match Following",
+      "inputText": "Q6. Match the following units with their physical quantities:\nColumn I\n(A) Force\n(B) Work\n(C) Power\nColumn II\n(P) Joule\n(Q) Watt\n(R) Newton\n(A) A-R, B-P, C-Q\n(B) A-P, B-R, C-Q\n(C) A-Q, B-P, C-R\n(D) A-R, B-Q, C-P",
+      "expected": {
+        "questionType": "match_columns",
+        "optionCount": 4,
+        "stemContains": "Column"
+      }
+    },
+    {
+      "id": "syn-comprehension-1",
+      "category": "Comprehension",
+      "inputText": "Read the following passage and answer the question:\nPassage: Light exhibits both wave-like and particle-like properties. The photoelectric effect demonstrates particle nature, whereas diffraction demonstrates wave nature.\nQ7. Which phenomenon demonstrates the wave nature of light?\n(A) Photoelectric effect\n(B) Diffraction\n(C) Blackbody radiation\n(D) Compton scattering",
+      "expected": {
+        "questionType": "comprehension",
+        "optionCount": 4,
+        "stemContains": "passage"
+      }
+    },
+    {
+      "id": "syn-table-1",
+      "category": "Tables",
+      "inputText": "Q8. In the following table:\n[TABLE_START]\nHeader 1 | Header 2\nValue 1 | Value 2\n[TABLE_END]\nWhat is the value in row 2 column 2?\n(A) Value 1\n(B) Value 2\n(C) Header 1\n(D) Header 2",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "hasTable": true
+      }
+    },
+    {
+      "id": "syn-image-1",
+      "category": "Images",
+      "inputText": "Q9. Identify the component in the diagram below:\n[FIGURE_1]\n(A) Resistor\n(B) Capacitor\n(C) Inductor\n(D) Diode",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "hasDiagram": true
+      }
+    },
+    {
+      "id": "syn-equations-1",
+      "category": "Equations",
+      "inputText": "Q10. What is the value of the integral $\\int_{0}^{\\pi} \\sin(x) dx$?\n(A) 0\n(B) 1\n(C) 2\n(D) -1",
+      "expected": {
+        "questionType": "mcq",
+        "optionCount": 4,
+        "hasEquation": true
+      }
+    }
+  ]
+}

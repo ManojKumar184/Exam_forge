@@ -1,0 +1,35 @@
+{
+  "avgFidelity": 100,
+  "results": [
+    {
+      "category": "Plain Text Table",
+      "file": "plain_text_table.docx",
+      "fidelity": 100,
+      "reasons": []
+    },
+    {
+      "category": "Equation Table",
+      "file": "equation_table.docx",
+      "fidelity": 100,
+      "reasons": []
+    },
+    {
+      "category": "Image Table",
+      "file": "image_table.docx",
+      "fidelity": 100,
+      "reasons": []
+    },
+    {
+      "category": "Match-the-following Table",
+      "file": "match_following_table.docx",
+      "fidelity": 100,
+      "reasons": []
+    },
+    {
+      "category": "Merged Cell Table",
+      "file": "merged_cells_table.docx",
+      "fidelity": 100,
+      "reasons": []
+    }
+  ]
+}

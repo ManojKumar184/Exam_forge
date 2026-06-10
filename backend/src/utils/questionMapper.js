@@ -14,6 +14,7 @@ export function mapQuestion(doc) {
     exam_type_id: d.examTypeId ? idStr(d.examTypeId._id || d.examTypeId) : null,
     question_text: d.questionText,
     question_type: d.questionType,
+    context_type: d.contextType || null,
     question_latex: d.questionLatex,
     question_images: d.questionImages || [],
     options: d.options || [],
@@ -25,6 +26,7 @@ export function mapQuestion(doc) {
     difficulty: d.difficulty,
     marks: d.marks,
     class: d.class,
+    year: d.year ?? null,
     explanation: d.explanation,
     explanation_latex: d.explanationLatex,
     explanation_images: d.explanationImages || [],
@@ -73,14 +75,13 @@ export function mapQuestion(doc) {
     metadata_confidence: d.metadataConfidence ?? 0,
     audit_history: d.auditHistory || [],
     
-    syllabus_mappings: (d.syllabusMappings || []).map((m) => ({
+    syllabus_mappings: Array.isArray(d.syllabusMappings) ? d.syllabusMappings.map((m) => ({
       examPatternId: m.examPatternId ? idStr(m.examPatternId._id || m.examPatternId) : null,
       classId: m.classId ? idStr(m.classId._id || m.classId) : null,
       subjectId: m.subjectId ? idStr(m.subjectId._id || m.subjectId) : null,
       chapterId: m.chapterId ? idStr(m.chapterId._id || m.chapterId) : null,
       topicId: m.topicId ? idStr(m.topicId._id || m.topicId) : null,
-      subtopicId: m.subtopicId ? idStr(m.subtopicId._id || m.subtopicId) : null,
-    })),
+    })) : [],
 
     subject: d.subjectId?.name
       ? {
@@ -164,6 +165,7 @@ export function mapUploadDetail(doc) {
       mapped.duplicate_confidence = q.duplicateConfidence ?? null;
       mapped.duplicate_method = q.duplicateMethod ?? null;
       mapped.possible_matches = q.possibleMatches || [];
+      mapped.validation_result = q.validationResult || null;
     }
     return mapped;
   }).filter(Boolean);
@@ -178,6 +180,7 @@ export function bodyToQuestionFields(body) {
     exam_type_id: 'examTypeId',
     question_text: 'questionText',
     question_type: 'questionType',
+    context_type: 'contextType',
     question_latex: 'questionLatex',
     question_images: 'questionImages',
     options: 'options',
@@ -190,6 +193,7 @@ export function bodyToQuestionFields(body) {
     difficulty: 'difficulty',
     marks: 'marks',
     class: 'class',
+    year: 'year',
     explanation: 'explanation',
     explanation_latex: 'explanationLatex',
     status: 'status',

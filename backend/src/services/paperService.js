@@ -42,11 +42,7 @@ async function buildPaperFilter(query, user) {
     filterByQuestions = true;
   }
 
-  if (query.subtopic_id) {
-    const subtopicIds = Array.isArray(query.subtopic_id) ? query.subtopic_id : String(query.subtopic_id).split(',').map(s => s.trim()).filter(Boolean);
-    questionFilter['syllabusMappings.subtopicId'] = { $in: subtopicIds };
-    filterByQuestions = true;
-  }
+
 
   if (query.subject_id) {
     const subjectIds = Array.isArray(query.subject_id) ? query.subject_id : String(query.subject_id).split(',').map(s => s.trim()).filter(Boolean);
@@ -134,6 +130,56 @@ function mapBodyToPaperFields(body) {
   };
 }
 
+async function validatePaperAgainstTemplate(fields) {
+  if (fields.examTypeId) {
+    const { ExamType } = await import('../models/ExamType.js');
+    const examType = await ExamType.findById(fields.examTypeId);
+    if (examType) {
+      const examCode = (examType.code || '').toUpperCase();
+      const questionIds = (fields.questions || []).map(q => q.questionId || q.question_id).filter(Boolean);
+      
+      if (examCode === 'JEE_MAIN') {
+        for (const s of fields.sections || []) {
+          const sName = (s.name || '').toLowerCase();
+          if (sName.includes('descriptive') || sName.includes('subjective')) {
+            throw new AppError('JEE Main does not allow descriptive sections.', 400, 'INVALID_SECTION_TYPE');
+          }
+        }
+        if (questionIds.length) {
+          const descriptiveQ = await Question.findOne({
+            _id: { $in: questionIds },
+            $or: [
+              { questionType: { $in: ['descriptive', 'DESCRIPTIVE', 'SHORT_ANSWER', 'LONG_ANSWER'] } },
+              { questionType: { $regex: /DESCRIPTIVE/i } }
+            ]
+          });
+          if (descriptiveQ) {
+            throw new AppError('JEE Main does not allow descriptive questions.', 400, 'INVALID_QUESTION_TYPE');
+          }
+        }
+      } else if (examCode === 'NEET') {
+        for (const s of fields.sections || []) {
+          const sName = (s.name || '').toLowerCase();
+          if (sName.includes('descriptive') || sName.includes('subjective') || sName.includes('numerical') || sName.includes('integer')) {
+            throw new AppError('NEET does not allow descriptive or numerical sections.', 400, 'INVALID_SECTION_TYPE');
+          }
+        }
+        if (questionIds.length) {
+          const nonMcqQ = await Question.findOne({
+            _id: { $in: questionIds },
+            questionType: { $nin: ['mcq', 'MCQ_SINGLE', 'MCQ'] }
+          });
+          if (nonMcqQ) {
+            throw new AppError('NEET paper only allows single choice MCQ questions.', 400, 'INVALID_QUESTION_TYPE');
+          }
+        }
+      } else if (examCode === 'JEE_ADVANCED' || examCode === 'JEE_MAIN_ADVANCED') {
+        // No additional restrictions
+      }
+    }
+  }
+}
+
 export async function createPaper(body, user) {
   const fields = mapBodyToPaperFields(body);
   const questions = body.questions || [];
@@ -154,6 +200,9 @@ export async function createPaper(body, user) {
     customNegativeMarks: q.custom_negative_marks ?? q.customNegativeMarks ?? null,
   }));
   fields.createdBy = user._id;
+
+  await validatePaperAgainstTemplate(fields);
+
   const doc = await Paper.create(fields);
   await doc.populate(['subjectId', 'examTypeId', 'questions.questionId']);
   return mapPaper(doc);
@@ -181,6 +230,9 @@ export async function updatePaper(id, body, user) {
   if (body.status === 'published' && !paper.publishedAt) {
     paper.publishedAt = new Date();
   }
+
+  await validatePaperAgainstTemplate(paper);
+
   await paper.save();
   await paper.populate(['subjectId', 'examTypeId', 'questions.questionId']);
   return mapPaper(paper);

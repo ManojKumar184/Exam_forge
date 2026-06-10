@@ -3,14 +3,33 @@
  * Protects equation regions before parsing options.
  */
 
-const INLINE_MCQ_MARKER = /(?<![A-Za-z0-9])(?:(\(\s*([a-fA-F])\s*\))|(\b([a-fA-F])\s*[\).]))/gi;
+export const INLINE_MCQ_MARKER = /(?:(\(\s*([a-fA-F])\s*\))|(\b([a-fA-F])\s*[\).]))/gi;
 
-const OPTION_LINE_START =
+export const OPTION_LINE_START =
   /^\s*(?:\(?\s*([a-fA-F])\s*\)?\s*[\).:\-–—]\s*|([a-fA-F])\s*[\).:\-–—]\s+)(.+)$/;
 
 const LABEL_ORDER = ['a', 'b', 'c', 'd', 'e', 'f'];
 
-function protectMathRegions(text) {
+export function isValidOptionMarker(line, matchIndex, labelChar) {
+  const pre = line.slice(0, matchIndex);
+  // Check if preceded by a single letter representing function/probability, or a known function name
+  // Only reject when the function name is standalone (no preceding content).
+  // If there is content before it (e.g. "5 F(C)" → F is option text after "5 "),
+  // the letter is part of option text, not a function call like f(x).
+  const funcMatch = pre.match(/\b([Ppfghdxyzt]|[a-zA-Z\d]_|sin|cos|tan|log|ln|lim|max|min|Pr)\s*$/i);
+  if (funcMatch) {
+    const matchedText = funcMatch[0];
+    const textBeforeMatch = pre.slice(0, pre.length - matchedText.length).trim();
+    if (textBeforeMatch.length === 0) return false;
+  }
+
+  // Also check if it's a latex token or inside a latex block (e.g. \vec{A} or \overline{A})
+  if (/\\[a-zA-Z]*$/i.test(pre)) return false;
+
+  return true;
+}
+
+export function protectMathRegions(text) {
   const placeholders = new Map();
   let count = 0;
   let protectedText = text;
@@ -32,7 +51,7 @@ function protectMathRegions(text) {
   return { text: protectedText, placeholders };
 }
 
-function restoreMathRegions(text, placeholders) {
+export function restoreMathRegions(text, placeholders) {
   let restoredText = text;
   for (const [key, original] of placeholders.entries()) {
     restoredText = restoredText.split(key).join(original);
@@ -95,7 +114,9 @@ export function extractMcqOptionsInline(text) {
   const re = new RegExp(INLINE_MCQ_MARKER.source, 'gi');
   while ((m = re.exec(protectedText)) !== null) {
     const label = (m[2] || m[4] || '').toLowerCase();
-    rawMarkers.push({ index: m.index, label, len: m[0].length });
+    if (isValidOptionMarker(protectedText, m.index, label)) {
+      rawMarkers.push({ index: m.index, label, len: m[0].length });
+    }
   }
 
   const markers = getValidMcqMarkers(rawMarkers);
@@ -148,6 +169,7 @@ export function extractMcqOptionsInline(text) {
     }));
     const stem = restoreMathRegions(stemLines.join('\n').trim(), placeholders);
     return {
+      text: stem, // Keep legacy field just in case
       stem,
       options: restoredOptions,
     };
@@ -164,7 +186,9 @@ export function countMcqOptionMarkers(text) {
   let m;
   while ((m = re.exec(protectedText)) !== null) {
     const label = (m[2] || m[4] || '').toLowerCase();
-    labels.add(label);
+    if (isValidOptionMarker(protectedText, m.index, label)) {
+      labels.add(label);
+    }
   }
   return labels.size;
 }
@@ -172,3 +196,4 @@ export function countMcqOptionMarkers(text) {
 export function hasMcqOptionPattern(text) {
   return countMcqOptionMarkers(text) >= 2;
 }
+

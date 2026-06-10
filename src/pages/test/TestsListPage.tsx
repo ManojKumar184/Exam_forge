@@ -34,7 +34,7 @@ export function TestsListPage() {
     syllabus_subject_id: '',
     syllabus_chapter_id: '',
     syllabus_topic_id: '',
-    syllabus_subtopic_id: '',
+
   });
 
   // Edit test state variables
@@ -75,7 +75,7 @@ export function TestsListPage() {
     if (syllabusFilters.syllabus_subject_id) apiFilters.subject_id = syllabusFilters.syllabus_subject_id;
     if (syllabusFilters.syllabus_chapter_id) apiFilters.chapter_id = syllabusFilters.syllabus_chapter_id;
     if (syllabusFilters.syllabus_topic_id) apiFilters.topic_id = syllabusFilters.syllabus_topic_id;
-    if (syllabusFilters.syllabus_subtopic_id) apiFilters.subtopic_id = syllabusFilters.syllabus_subtopic_id;
+
 
     fetchOnlineTests(apiFilters);
     if (isStudent) {
@@ -271,7 +271,6 @@ export function TestsListPage() {
                   syllabus_subject_id: '',
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -293,7 +292,6 @@ export function TestsListPage() {
                   syllabus_subject_id: '',
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -315,7 +313,6 @@ export function TestsListPage() {
                   syllabus_subject_id: e.target.value,
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -337,7 +334,6 @@ export function TestsListPage() {
                   ...prev,
                   syllabus_chapter_id: e.target.value,
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -359,7 +355,6 @@ export function TestsListPage() {
                 setSyllabusFilters(prev => ({
                   ...prev,
                   syllabus_topic_id: e.target.value,
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -381,7 +376,6 @@ export function TestsListPage() {
               onChange={(e) => {
                 setSyllabusFilters(prev => ({
                   ...prev,
-                  syllabus_subtopic_id: e.target.value
                 }));
               }}
             />

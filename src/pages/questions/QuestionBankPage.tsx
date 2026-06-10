@@ -65,7 +65,7 @@ export function QuestionBankPage() {
     syllabus_subject_id: '',
     syllabus_chapter_id: '',
     syllabus_topic_id: '',
-    syllabus_subtopic_id: '',
+
     bank_id: '',
   });
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
@@ -306,7 +306,6 @@ export function QuestionBankPage() {
                   syllabus_subject_id: '',
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -328,7 +327,6 @@ export function QuestionBankPage() {
                   syllabus_subject_id: '',
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -350,7 +348,6 @@ export function QuestionBankPage() {
                   syllabus_subject_id: e.target.value,
                   syllabus_chapter_id: '',
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -372,7 +369,6 @@ export function QuestionBankPage() {
                   ...prev,
                   syllabus_chapter_id: e.target.value,
                   syllabus_topic_id: '',
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -394,7 +390,6 @@ export function QuestionBankPage() {
                 setFilters(prev => ({
                   ...prev,
                   syllabus_topic_id: e.target.value,
-                  syllabus_subtopic_id: ''
                 }));
               }}
             />
@@ -416,7 +411,6 @@ export function QuestionBankPage() {
               onChange={(e) => {
                 setFilters(prev => ({
                   ...prev,
-                  syllabus_subtopic_id: e.target.value
                 }));
               }}
             />

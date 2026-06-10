@@ -1,6 +1,5 @@
 import { env } from '../config/env.js';
 import { recognizeImage } from '../ocr/tesseractOcr.js';
-import { geminiReconstructCleanup } from '../ai/geminiReconstructCleanup.js';
 import { mergePasteSources, cleanPlainText } from '../extraction/wordHtmlCleanup.js';
 import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
 import { splitTextIntoBlocks } from '../extraction/normalizeQuestions.js';

@@ -3,6 +3,7 @@ import { Paper } from '../models/Paper.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { Leaderboard } from '../models/Leaderboard.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
+import { getQuestionCategory as getNormalizedCategory } from '../utils/questionTypeNormalizer.js';
 import { AppError } from '../utils/AppError.js';
 import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry } from '../utils/examMapper.js';
 import {
@@ -48,11 +49,7 @@ async function buildTestFilter(query, user) {
       filterByQuestions = true;
     }
 
-    if (query.subtopic_id) {
-      const subtopicIds = Array.isArray(query.subtopic_id) ? query.subtopic_id : String(query.subtopic_id).split(',').map(s => s.trim()).filter(Boolean);
-      questionFilter['syllabusMappings.subtopicId'] = { $in: subtopicIds };
-      filterByQuestions = true;
-    }
+
 
     if (query.subject_id) {
       const subjectIds = Array.isArray(query.subject_id) ? query.subject_id : String(query.subject_id).split(',').map(s => s.trim()).filter(Boolean);
@@ -270,19 +267,7 @@ export async function autosaveAttempt(testId, user, payload) {
 }
 
 function getQuestionCategory(type) {
-  if (!type) return 'descriptive';
-  const upper = type.toUpperCase();
-  if (
-    ['MCQ', 'MCQ_SINGLE', 'MCQ_MULTI', 'TRUE_FALSE', 'ASSERTION_REASON', 'NESTED_OPTION_MCQ'].includes(upper)
-  ) {
-    return 'mcq';
-  }
-  if (
-    ['NUMERICAL', 'INTEGER'].includes(upper)
-  ) {
-    return 'numerical';
-  }
-  return 'descriptive';
+  return getNormalizedCategory(type);
 }
 
 function scoreAnswer(answer, question, marks, negativeMarks = 0) {

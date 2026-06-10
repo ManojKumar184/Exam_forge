@@ -88,9 +88,7 @@ function buildListFilter(query, user) {
   if (query.syllabus_topic_id) {
     conds['syllabusMappings.topicId'] = query.syllabus_topic_id;
   }
-  if (query.syllabus_subtopic_id) {
-    conds['syllabusMappings.subtopicId'] = query.syllabus_subtopic_id;
-  }
+
 
   // Handle scopes
   const scope = query.scope;

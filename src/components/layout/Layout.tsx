@@ -27,12 +27,10 @@ interface SidebarItem {
 const sidebarItems: SidebarItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, roles: ['super_admin', 'faculty', 'student'] },
   { name: 'My Workspace', path: '/workspace', icon: <Layers className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
-  { name: 'Question Bank', path: '/questions', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin'] },
+  { name: 'Question Banks', path: '/question-banks', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Moderation Queue', path: '/questions/moderation', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin'] },
-  { name: 'Create Question', path: '/questions/new', icon: <FileQuestion className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Import Center', path: '/import-center', icon: <Upload className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Syllabus Manager', path: '/syllabus', icon: <Layers className="w-5 h-5" />, roles: ['super_admin'] },
-  { name: 'Question Banks', path: '/question-banks', icon: <Layers className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Generate Paper', path: '/papers/new', icon: <FileText className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'My Papers', path: '/papers', icon: <FileText className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },
   { name: 'Exam Templates', path: '/templates', icon: <Layers className="w-5 h-5" />, roles: ['super_admin', 'faculty'] },

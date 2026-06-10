@@ -6,7 +6,7 @@ import { env } from '../config/env.js';
 let isRunning = false;
 
 export async function startEnrichmentWorker() {
-  if (env.ai.provider !== 'huggingface' && env.ai.provider !== 'openai' && env.ai.provider !== 'gemini') {
+  if (env.ai.provider !== 'huggingface') {
     logger.info('[enrichment-worker] No supported LLM provider is configured for enrichment worker.');
     return;
   }

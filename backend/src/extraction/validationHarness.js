@@ -57,6 +57,345 @@ function editDistance(s1, s2) {
   return costs[s2.length];
 }
 
+async function runCategorySuite() {
+  console.log('==================================================');
+  console.log('   EXAMFORGE AI - 5-CATEGORY TABLE VALIDATION SUITE');
+  console.log('==================================================');
+
+  // Connect to DB
+  try {
+    await connectDatabase();
+  } catch (err) {
+    console.warn('[db] Database connection failed, proceeding with empty catalog fallback.', err.message);
+  }
+
+  const fixtures = [
+    {
+      name: 'Plain Text Table',
+      file: 'plain_text_table.docx',
+      check: (questions) => {
+        let score = 0;
+        let reasons = [];
+        if (questions.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No questions extracted");
+          return { score, reasons };
+        }
+        const q = questions[0];
+        const tables = q.renderingMetadata?.tables || q.rendering_metadata?.tables || [];
+        if (tables.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No table detected");
+          return { score, reasons };
+        }
+        const tbl = tables[0];
+        const rows = tbl.rows || [];
+        if (rows.length === 4) {
+          score += 20;
+        } else {
+          reasons.push(`Expected 4 rows, got ${rows.length}`);
+        }
+
+        // Cell contents check
+        let cellMatches = 0;
+        const expected = [
+          { r: 0, c: 0, text: 'Group' },
+          { r: 0, c: 1, text: 'Observation A' },
+          { r: 0, c: 2, text: 'Observation B' },
+          { r: 1, c: 0, text: 'Group 1' },
+          { r: 1, c: 1, text: '10' },
+          { r: 2, c: 0, text: 'Group 2' },
+          { r: 2, c: 2, text: '22' }
+        ];
+        for (const exp of expected) {
+          const row = rows[exp.r];
+          if (row) {
+            const cell = row[exp.c];
+            const text = typeof cell === 'object' ? cell.text : cell;
+            if (text && text.includes(exp.text)) {
+              cellMatches++;
+            }
+          }
+        }
+        const cellScore = Math.min(40, cellMatches * 6);
+        score += cellScore;
+        if (cellMatches < expected.length) {
+          reasons.push(`Matched ${cellMatches}/${expected.length} test cells`);
+        }
+        return { score, reasons };
+      }
+    },
+    {
+      name: 'Equation Table',
+      file: 'equation_table.docx',
+      check: (questions) => {
+        let score = 0;
+        let reasons = [];
+        if (questions.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No questions extracted");
+          return { score, reasons };
+        }
+        const q = questions[0];
+        const tables = q.renderingMetadata?.tables || q.rendering_metadata?.tables || [];
+        if (tables.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No table detected");
+          return { score, reasons };
+        }
+        const tbl = tables[0];
+        const rows = tbl.rows || [];
+        
+        let hasIntegral = false;
+        let hasLimit = false;
+
+        for (const row of rows) {
+          for (const cell of row) {
+            const text = typeof cell === 'object' ? cell.text : cell;
+            if (text) {
+              if (text.includes('\\int') || text.includes('int_0') || text.includes('\\, d')) {
+                hasIntegral = true;
+              }
+              if (text.includes('lim') || text.includes('\\lim')) {
+                hasLimit = true;
+              }
+            }
+          }
+        }
+
+        if (hasIntegral) {
+          score += 30;
+        } else {
+          reasons.push("Integral formula not found or unparsed");
+        }
+        if (hasLimit) {
+          score += 30;
+        } else {
+          reasons.push("Limit formula not found or unparsed");
+        }
+        return { score, reasons };
+      }
+    },
+    {
+      name: 'Image Table',
+      file: 'image_table.docx',
+      check: (questions) => {
+        let score = 0;
+        let reasons = [];
+        if (questions.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No questions extracted");
+          return { score, reasons };
+        }
+        const q = questions[0];
+        const tables = q.renderingMetadata?.tables || q.rendering_metadata?.tables || [];
+        if (tables.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No table detected");
+          return { score, reasons };
+        }
+        const tbl = tables[0];
+        const rows = tbl.rows || [];
+        
+        let hasImage = false;
+        for (const row of rows) {
+          for (const cell of row) {
+            const text = typeof cell === 'object' ? cell.text : cell;
+            if (text && text.includes('![image]')) {
+              hasImage = true;
+            }
+          }
+        }
+
+        if (hasImage) {
+          score += 60;
+        } else {
+          reasons.push("Image marker ![image] not found inside table cells");
+        }
+        return { score, reasons };
+      }
+    },
+    {
+      name: 'Match-the-following Table',
+      file: 'match_following_table.docx',
+      check: (questions) => {
+        let score = 0;
+        let reasons = [];
+        if (questions.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No questions extracted");
+          return { score, reasons };
+        }
+        const q = questions[0];
+        const tables = q.renderingMetadata?.tables || q.rendering_metadata?.tables || [];
+        if (tables.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No table detected");
+          return { score, reasons };
+        }
+        const tbl = tables[0];
+        const rows = tbl.rows || [];
+        
+        let hasColA = false;
+        let hasColB = false;
+
+        for (const row of rows) {
+          for (const cell of row) {
+            const text = typeof cell === 'object' ? cell.text : cell;
+            if (text) {
+              if (text.includes('Sodium') || text.includes('Argon') || text.includes('Chlorine')) {
+                hasColA = true;
+              }
+              if (text.includes('Noble Gas') || text.includes('Halogen') || text.includes('Alkali Metal')) {
+                hasColB = true;
+              }
+            }
+          }
+        }
+
+        if (hasColA) {
+          score += 30;
+        } else {
+          reasons.push("Column A chemical items not found");
+        }
+        if (hasColB) {
+          score += 30;
+        } else {
+          reasons.push("Column B classification items not found");
+        }
+        return { score, reasons };
+      }
+    },
+    {
+      name: 'Merged Cell Table',
+      file: 'merged_cells_table.docx',
+      check: (questions) => {
+        let score = 0;
+        let reasons = [];
+        if (questions.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No questions extracted");
+          return { score, reasons };
+        }
+        const q = questions[0];
+        const tables = q.renderingMetadata?.tables || q.rendering_metadata?.tables || [];
+        if (tables.length > 0) {
+          score += 20;
+        } else {
+          reasons.push("No table detected");
+          return { score, reasons };
+        }
+        const tbl = tables[0];
+        const rows = tbl.rows || [];
+        
+        let hasColspan = false;
+        let hasRowspan = false;
+
+        for (const row of rows) {
+          for (const cell of row) {
+            if (typeof cell === 'object' && cell !== null) {
+              if (cell.colspan === 3) hasColspan = true;
+              if (cell.rowspan === 2) hasRowspan = true;
+            }
+          }
+        }
+
+        if (hasColspan) {
+          score += 30;
+        } else {
+          reasons.push("Horizontal merge (colspan: 3) not preserved");
+        }
+        if (hasRowspan) {
+          score += 30;
+        } else {
+          reasons.push("Vertical merge (rowspan: 2) not preserved");
+        }
+        return { score, reasons };
+      }
+    }
+  ];
+
+  const results = [];
+  const fixturesDir = path.join(__dirname, 'fixtures');
+  
+  for (const f of fixtures) {
+    const filePath = path.join(fixturesDir, f.file);
+    console.log(`Running ingestion on category: ${f.name} (${f.file})...`);
+    
+    let questions = [];
+    try {
+      const result = await extractDocxQuestions(filePath, {
+        imageDir: path.join(projectRoot, 'backend/uploads/images'),
+      });
+      questions = result.questions || [];
+    } catch (err) {
+      console.error(`Failed to ingest ${f.file}:`, err.message);
+    }
+    
+    const evalResult = f.check(questions);
+    results.push({
+      category: f.name,
+      file: f.file,
+      fidelity: evalResult.score,
+      reasons: evalResult.reasons,
+    });
+  }
+
+  // Generate markdown report
+  const avgFidelity = results.reduce((sum, r) => sum + r.fidelity, 0) / results.length;
+  let md = `# Table Ingestion Category Validation Suite Report
+
+This report evaluates and records the table extraction fidelity across five distinct table categories.
+
+## Overall Performance
+
+* **Average Table Extraction Fidelity**: **${avgFidelity.toFixed(2)}%**
+* **Timestamp**: ${new Date().toLocaleString()}
+
+| Category | Fixture File | Ingestion Fidelity | Notes |
+| --- | --- | --- | --- |
+${results.map(r => `| **${r.category}** | \`${r.file}\` | **${r.fidelity}%** | ${r.reasons.length > 0 ? '❌ ' + r.reasons.join(', ') : '✅ Perfect Extraction'} |`).join('\n')}
+
+## Category Details and Verification Status
+
+1. **Plain Text Table**: Validates structure mapping, cell text values, and dimension limits.
+2. **Equation Table**: Validates nested OMML translation to LaTeX within cells, shielding math elements.
+3. **Image Table**: Validates media extraction and inline cell reference substitution.
+4. **Match-the-following Table**: Validates multi-column alignment mapping and lists reconstruction.
+5. **Merged Cell Table**: Validates HTML-equivalent \`colspan\` and \`rowspan\` detection and translation.
+`;
+
+  const reportPath = path.join(fixturesDir, 'TABLE_VALIDATION_REPORT.md');
+  const jsonReportPath = path.join(fixturesDir, 'table_validation_results.json');
+  
+  await fs.writeFile(reportPath, md);
+  await fs.writeFile(jsonReportPath, JSON.stringify({ avgFidelity, results }, null, 2));
+
+  console.log('\n==================================================');
+  console.log('         TABLE VALIDATION SUITE RESULTS           ');
+  console.log('==================================================');
+  for (const r of results) {
+    console.log(`- ${r.category.padEnd(28)}: [${r.fidelity === 100 ? 'SUCCESS' : 'WARNING'}] Fidelity: ${r.fidelity}% ${r.reasons.length ? '(' + r.reasons.join(', ') + ')' : ''}`);
+  }
+  console.log('--------------------------------------------------');
+  console.log(`Average Fidelity: ${avgFidelity.toFixed(2)}%`);
+  console.log('==================================================');
+  console.log(`Saved validation report to: ${reportPath}`);
+
+  try {
+    await disconnectDatabase();
+  } catch {}
+}
+
 async function run() {
   console.log('==================================================');
   console.log('   EXAMFORGE AI - EVALUATION & VALIDATION HARNESS  ');
@@ -275,4 +614,14 @@ Report generated automatically at **${new Date().toLocaleString()}**.
 
 // Check for mongoose import (if not explicitly imported but referenced via mongo db checks)
 import mongoose from 'mongoose';
-run().catch(console.error);
+
+async function main() {
+  const arg = process.argv[2];
+  if (!arg || arg === '--suite' || arg === 'suite') {
+    await runCategorySuite();
+  } else {
+    await run();
+  }
+}
+
+main().catch(console.error);

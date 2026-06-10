@@ -63,18 +63,44 @@ export class HuggingFaceProvider extends BaseAIProvider {
   async classify(question, catalog, docMeta = {}) {
     if (!this.isConfigured()) return null;
 
+    // Build syllabus-constrained prompt context if syllabus catalog is available
+    let syllabusContext = '';
+    if (catalog?.syllabus) {
+      try {
+        const { buildSyllabusPromptContext } = await import('../syllabusCatalog.js');
+        syllabusContext = buildSyllabusPromptContext(catalog.syllabus);
+      } catch (err) {
+        logger.warn('[huggingface] Failed to build syllabus prompt context', { error: err.message });
+      }
+    }
+
     const subjectsList = (catalog?.subjects || []).map((s) => s.name).join(', ') || 'Physics, Chemistry, Mathematics, Biology';
 
-    const systemInstruction = `You are a professional educational document parser and question classifier.
-You MUST analyze the input question and classify it according to standard Indian educational curricula (JEE, NEET, CBSE).
-You MUST return a raw JSON object matching this schema exactly:
+    const sysInstructionParts = [
+      'You are a professional educational document parser and question classifier.',
+      'You MUST analyze the input question and classify it according to standard Indian educational curricula (JEE, NEET, CBSE).',
+    ];
+
+    if (syllabusContext) {
+      sysInstructionParts.push('\nThe following is the EXACT list of available subjects, chapters, topics, exam patterns, and classes from the syllabus tree. You MUST select ONLY from these existing options. Do NOT generate any new or made-up subject, chapter, or topic names.');
+      sysInstructionParts.push(syllabusContext);
+      sysInstructionParts.push('\nCRITICAL: subjectHint MUST be one of the subject names from the list above - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: topicHint MUST be one of the chapter or topic names from the list above under the chosen subject - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: examTypeHint MUST be one of the exam pattern names from the list above - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: difficulty MUST be exactly one of: "easy", "medium", "hard" - nothing else.');
+    } else {
+      sysInstructionParts.push(`Available subjects: ${subjectsList}`);
+    }
+
+    const systemInstruction = sysInstructionParts.join('\n') + `
+You MUST return a raw JSON object matching this schema exactly. DO NOT add any extra fields:
 {
   "class": number, // an integer from 6 to 12
-  "difficulty": string, // "easy", "medium", or "hard"
+  "difficulty": string, // ONLY "easy", "medium", or "hard"
   "questionType": string, // "mcq", "numerical", or "descriptive"
-  "subjectHint": string, // One of the allowed subjects: ${subjectsList}
-  "topicHint": string, // Specific chapter or topic name (e.g. "Probability", "Electrostatics")
-  "examTypeHint": string, // "JEE", "NEET", "CBSE", or "School Exam"
+  "subjectHint": string, // One of the allowed subjects from the list - NOTHING ELSE
+  "topicHint": string, // Specific chapter or topic name from the available list - NOTHING ELSE
+  "examTypeHint": string, // Exam pattern name from the available list - NOTHING ELSE
   "confidence": number // float between 0.0 and 1.0
 }
 DO NOT wrap the response in markdown blocks or include any extra commentary. Output ONLY valid JSON.`;
@@ -116,19 +142,45 @@ ${JSON.stringify(docMeta)}`;
   async classifyBatch(questions, catalog, docMeta = {}) {
     if (!this.isConfigured()) return null;
 
+    // Build syllabus-constrained prompt context if syllabus catalog is available
+    let syllabusContext = '';
+    if (catalog?.syllabus) {
+      try {
+        const { buildSyllabusPromptContext } = await import('../syllabusCatalog.js');
+        syllabusContext = buildSyllabusPromptContext(catalog.syllabus);
+      } catch (err) {
+        logger.warn('[huggingface] Failed to build syllabus prompt context for batch', { error: err.message });
+      }
+    }
+
     const subjectsList = (catalog?.subjects || []).map((s) => s.name).join(', ') || 'Physics, Chemistry, Mathematics, Biology';
 
-    const systemInstruction = `You are a professional educational document parser and question classifier.
-Analyze the input list of questions and classify each according to standard Indian educational curricula (JEE, NEET, CBSE).
-You MUST return a JSON array of objects, where each object corresponds to a question in the input list, matching this schema exactly:
+    const sysInstructionParts = [
+      'You are a professional educational document parser and question classifier.',
+      'Analyze the input list of questions and classify each according to standard Indian educational curricula (JEE, NEET, CBSE).',
+    ];
+
+    if (syllabusContext) {
+      sysInstructionParts.push('\nThe following is the EXACT list of available subjects, chapters, topics, exam patterns, and classes from the syllabus tree. You MUST select ONLY from these existing options. Do NOT generate any new or made-up subject, chapter, or topic names.');
+      sysInstructionParts.push(syllabusContext);
+      sysInstructionParts.push('\nCRITICAL: subjectHint MUST be one of the subject names from the list above - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: topicHint MUST be one of the chapter or topic names from the list above under the chosen subject - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: examTypeHint MUST be one of the exam pattern names from the list above - nothing else.');
+      sysInstructionParts.push('\nCRITICAL: difficulty MUST be exactly one of: "easy", "medium", "hard" - nothing else.');
+    } else {
+      sysInstructionParts.push(`Available subjects: ${subjectsList}`);
+    }
+
+    const systemInstruction = sysInstructionParts.join('\n') + `
+You MUST return a JSON array of objects, where each object corresponds to a question in the input list, matching this schema exactly. DO NOT add any extra fields:
 [
   {
     "class": number, // an integer from 6 to 12
-    "difficulty": string, // "easy", "medium", or "hard"
+    "difficulty": string, // ONLY "easy", "medium", or "hard"
     "questionType": string, // "mcq", "numerical", or "descriptive"
-    "subjectHint": string, // One of the allowed subjects: ${subjectsList}
-    "topicHint": string, // Specific chapter or topic name
-    "examTypeHint": string, // "JEE", "NEET", "CBSE", or "School Exam"
+    "subjectHint": string, // One of the allowed subjects from the list - NOTHING ELSE
+    "topicHint": string, // Specific chapter or topic name from the available list - NOTHING ELSE
+    "examTypeHint": string, // Exam pattern name from the available list - NOTHING ELSE
     "confidence": number // float between 0.0 and 1.0
   },
   ...

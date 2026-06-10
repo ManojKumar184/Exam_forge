@@ -27,7 +27,6 @@ export async function migrateSyllabus() {
       subjectId: null,
       chapterId: null,
       topicId: null,
-      subtopicId: null,
     };
 
     // 1. Try to find Exam Pattern

@@ -6,7 +6,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { Card, Button, Alert, Badge, Select, PageHeader } from '../../components/ui';
 import {
   uploadQuestionFileApi,
-  uploadManualApi,
   getUploadStatusApi,
   fetchUploadsApi,
   updateStagedQuestionApi,
@@ -16,8 +15,10 @@ import {
   duplicateUploadSessionApi,
   getStagedQuestionDuplicatesApi,
 } from '../../api/uploads';
+import { createQuestionApi } from '../../api/questions';
 import { getApiErrorMessage } from '../../api/client';
 import { QuestionContentPreview } from '../../components/content/RichContent';
+import { QuestionEditorForm } from '../../components/questions/QuestionEditorForm';
 import {
   Upload,
   FileText,
@@ -38,6 +39,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  PenSquare,
+  Eye,
 } from 'lucide-react';
 
 interface UploadedFile {
@@ -52,10 +55,10 @@ interface UploadedFile {
 
 export function ImportCenterPage() {
   const { profile } = useAuth();
-  const { subjects, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
+  const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes, fetchChapters } = useDataStore();
 
   // Navigation & Tabs state
-  const [activeTab, setActiveTab] = useState<'ingest' | 'staging' | 'history'>('ingest');
+  const [activeTab, setActiveTab] = useState<'ingest' | 'staging' | 'history' | 'create'>('ingest');
   
   // Selected upload for staging view
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
@@ -71,10 +74,7 @@ export function ImportCenterPage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Manual Ingest state
-  const [manualText, setManualText] = useState('');
-  const [manualHtml, setManualHtml] = useState('');
-  const [isProcessingManual, setIsProcessingManual] = useState(false);
+
 
   // History Tab state
   const [historyList, setHistoryList] = useState<any[]>([]);
@@ -97,6 +97,9 @@ export function ImportCenterPage() {
   // Dynamic Duplicates check state
   const [checkingDuplicateIndex, setCheckingDuplicateIndex] = useState<number | null>(null);
   const [duplicateAnalysisMap, setDuplicateAnalysisMap] = useState<Record<number, any>>({});
+
+  // Question preview modal state
+  const [previewQuestion, setPreviewQuestion] = useState<any | null>(null);
 
   useEffect(() => {
     fetchSubjects();
@@ -257,40 +260,6 @@ export function ImportCenterPage() {
     setIsUploading(false);
   };
 
-  // Manual Import paste capture
-  const handleManualPaste = (e: React.ClipboardEvent) => {
-    const html = e.clipboardData.getData('text/html');
-    const plain = e.clipboardData.getData('text/plain');
-    if (html) setManualHtml(html);
-    if (plain) setManualText(plain);
-  };
-
-  const processManualImport = async () => {
-    if (!manualText.trim()) {
-      toast.error('Please paste some text content to import');
-      return;
-    }
-    setIsProcessingManual(true);
-    try {
-      const result = await uploadManualApi({
-        html: manualHtml || undefined,
-        plain: manualText,
-        class: parseInt(uploadClass, 10),
-        subject_id: uploadSubjectId || undefined,
-        exam_type_id: uploadExamTypeId || undefined,
-      });
-
-      // Start polling status
-      pollActiveUpload(result.upload.id);
-      setManualText('');
-      setManualHtml('');
-    } catch (err) {
-      toast.error(getApiErrorMessage(err));
-    } finally {
-      setIsProcessingManual(false);
-    }
-  };
-
   // Staging operations
   const checkStagingQuestionDuplicates = async (index: number) => {
     if (!selectedUploadId) return;
@@ -395,9 +364,15 @@ export function ImportCenterPage() {
       question_type: q.question_type || 'descriptive',
       difficulty: q.difficulty || 'medium',
       class: q.class || 11,
+      year: q.year || null,
+      marks: q.marks || null,
+      subject_id: q.subject_id || '',
+      chapter_id: q.chapter_id || '',
+      exam_type_id: q.exam_type_id || '',
       correct_option: q.correct_option !== undefined ? q.correct_option : null,
       numerical_answer: q.numerical_answer !== undefined ? q.numerical_answer : null,
       explanation: q.explanation || '',
+      answer_text: q.answer_text || '',
       tags: (q.tags || []).join(', '),
       options: (q.options || []).map((o: any) => ({
         text: typeof o === 'string' ? o : o.text || '',
@@ -412,6 +387,8 @@ export function ImportCenterPage() {
     try {
       const payload = {
         ...editForm,
+        year: editForm.year || null,
+        marks: editForm.marks ? Number(editForm.marks) : null,
         tags: editForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
         // Filter out empty options if descriptive/integer, else send options
         options: editForm.question_type === 'mcq' ? editForm.options : [],
@@ -455,6 +432,7 @@ export function ImportCenterPage() {
       if (stagingFilter === 'rejected') return q.is_rejected;
       if (stagingFilter === 'pending') return !q.is_approved && !q.is_rejected;
       if (stagingFilter === 'warnings') return q.extraction_warnings && q.extraction_warnings.length > 0;
+      if (stagingFilter === 'validation') return q.validation_result?.issues?.length > 0;
       return true; // all
     });
   }, [uploadDetail, stagingFilter]);
@@ -468,12 +446,13 @@ export function ImportCenterPage() {
 
   // Staging Quality Metrics calculations
   const metrics = useMemo(() => {
-    if (!uploadDetail?.staged_questions) return { avgConfidence: 0, warningCount: 0, approved: 0, rejected: 0, pending: 0 };
+    if (!uploadDetail?.staged_questions) return { avgConfidence: 0, warningCount: 0, validationIssueCount: 0, approved: 0, rejected: 0, pending: 0 };
     const qList = uploadDetail.staged_questions;
     const approved = qList.filter((q: any) => q.is_approved).length;
     const rejected = qList.filter((q: any) => q.is_rejected).length;
     const pending = qList.filter((q: any) => !q.is_approved && !q.is_rejected).length;
     const warningCount = qList.filter((q: any) => q.extraction_warnings?.length > 0).length;
+    const validationIssueCount = qList.filter((q: any) => q.validation_result?.issues?.length > 0).length;
 
     let confSum = 0;
     qList.forEach((q: any) => {
@@ -481,7 +460,7 @@ export function ImportCenterPage() {
     });
     const avgConfidence = qList.length > 0 ? Math.round(confSum / qList.length) : 0;
 
-    return { avgConfidence, warningCount, approved, rejected, pending };
+    return { avgConfidence, warningCount, validationIssueCount, approved, rejected, pending };
   }, [uploadDetail]);
 
   const getFileTypeIcon = (type: string) => {
@@ -531,6 +510,17 @@ export function ImportCenterPage() {
               {metrics.pending}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => { setActiveTab('create'); }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === 'create'
+              ? 'bg-emerald-600 text-white shadow-button scale-100'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+          }`}
+        >
+          <PenSquare className="w-4 h-4" />
+          Create
         </button>
         <button
           onClick={() => {
@@ -587,39 +577,6 @@ export function ImportCenterPage() {
                       <p className="text-xs text-slate-400">PDF, DOCX, or scanned exam question paper images.</p>
                     </>
                   )}
-                </div>
-              </Card>
-
-              {/* Manual Clipboard Paste Import */}
-              <Card className="p-6 space-y-4 shadow-card border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between border-b dark:border-slate-750 pb-2">
-                  <h2 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <Clipboard className="w-5 h-5 text-indigo-500" />
-                    Manual Import (Paste content)
-                  </h2>
-                  <Badge variant="info">Reconstruction Pipeline</Badge>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Paste unstructured exam text/HTML below</label>
-                  <textarea
-                    value={manualText}
-                    onPaste={handleManualPaste}
-                    onChange={(e) => setManualText(e.target.value)}
-                    placeholder="Paste textbook content, exam paper extracts, OCR texts, or website contents here. Rich HTML structures from Word are automatically isolated."
-                    className="w-full h-44 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 text-sm font-mono leading-relaxed"
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={processManualImport}
-                    isLoading={isProcessingManual}
-                    disabled={isProcessingManual || !manualText.trim()}
-                    leftIcon={<Sparkles className="w-4 h-4" />}
-                  >
-                    Extract & Stage
-                  </Button>
                 </div>
               </Card>
 
@@ -784,6 +741,10 @@ export function ImportCenterPage() {
                     <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Warning Flags</div>
                     <div className="text-xl font-bold text-amber-500 mt-0.5">{metrics.warningCount}</div>
                   </div>
+                  <div className="bg-rose-50 dark:bg-rose-950/20 p-3 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                    <div className="text-rose-600 dark:text-rose-400 text-[10px] font-bold uppercase tracking-wider">Validation Issues</div>
+                    <div className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{metrics.validationIssueCount}</div>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-3 pt-3 border-t dark:border-slate-750">
@@ -811,7 +772,7 @@ export function ImportCenterPage() {
                 {/* Filters and Actions Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 dark:bg-slate-800/60 p-3 rounded-xl shadow-sm border dark:border-slate-750">
                   <div className="flex items-center gap-1">
-                    {(['all', 'pending', 'approved', 'rejected', 'warnings'] as const).map((filter) => (
+                    {(['all', 'pending', 'approved', 'rejected', 'warnings', 'validation'] as const).map((filter) => (
                       <button
                         key={filter}
                         onClick={() => {
@@ -902,6 +863,29 @@ export function ImportCenterPage() {
                                 </div>
                               </div>
 
+                              {/* Review Required Banner */}
+                              {(q.parser_confidence < 0.7 || q.status === 'needs_review') && (
+                                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 rounded border border-rose-200 dark:border-rose-800/30">
+                                  <div className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5 animate-pulse">
+                                    <AlertCircle className="w-4 h-4 shrink-0" />
+                                    Review Required (Low confidence extraction or format warnings)
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Structural Validation Results */}
+                              {q.validation_result && !q.validation_result.valid && (
+                                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 rounded border border-rose-200/50 dark:border-rose-800/30 space-y-1">
+                                  <div className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    Structural Validation ({q.validation_result.issues.length} issue{q.validation_result.issues.length !== 1 ? 's' : ''}):
+                                  </div>
+                                  {q.validation_result.issues.map((issue: string, i: number) => (
+                                    <p key={i} className="text-[11px] text-rose-700 dark:text-rose-300">· {issue}</p>
+                                  ))}
+                                </div>
+                              )}
+
                               {/* Ingestion Warning List */}
                               {q.extraction_warnings && q.extraction_warnings.length > 0 && (
                                 <div className="p-2.5 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200/50 dark:border-amber-800/30 space-y-1">
@@ -922,6 +906,17 @@ export function ImportCenterPage() {
                                 showCorrect
                                 showExplanation
                               />
+
+                              {/* View/Preview button */}
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  onClick={() => setPreviewQuestion(q)}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-950/20 px-2.5 py-1 rounded-lg border border-indigo-200/50 dark:border-indigo-800/30 transition-all hover:shadow-sm"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Preview
+                                </button>
+                              </div>
 
                               {/* Duplicate Protection Display */}
                               {q.duplicate_confidence !== null && (
@@ -1030,6 +1025,26 @@ export function ImportCenterPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* CREATE TAB — Manual Question Authoring */}
+        {activeTab === 'create' && (
+          <div className="space-y-4">
+            <QuestionEditorForm
+              initial={undefined}
+              subjects={subjects}
+              chapters={chapters}
+              examTypes={examTypes}
+              submitLabel="Create Question"
+              onCancel={() => setActiveTab('ingest')}
+              onSubmit={async (payload) => {
+                const res = await createQuestionApi(payload as any);
+                if (!res) throw new Error('Create failed');
+                toast.success('Question created successfully!');
+                setActiveTab('ingest');
+              }}
+            />
           </div>
         )}
 
@@ -1155,10 +1170,67 @@ export function ImportCenterPage() {
         )}
       </div>
 
+      {/* QUESTION PREVIEW MODAL */}
+      {previewQuestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto relative bg-white dark:bg-slate-800 border dark:border-slate-750 shadow-2xl rounded-xl">
+            <button
+              onClick={() => setPreviewQuestion(null)}
+              className="sticky top-0 float-right z-10 p-1.5 bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="p-6 space-y-4">
+              <div className="flex flex-wrap items-center gap-2 pb-3 border-b dark:border-slate-750">
+                <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">
+                  #{previewQuestion.originalIndex + 1}
+                </span>
+                <Badge variant="default" size="sm">Class {previewQuestion.class}</Badge>
+                {previewQuestion.question_type && <Badge variant="info" size="sm">{previewQuestion.question_type.toUpperCase()}</Badge>}
+                {previewQuestion.difficulty && (
+                  <Badge variant={previewQuestion.difficulty === 'easy' ? 'success' : previewQuestion.difficulty === 'medium' ? 'info' : 'error'} size="sm">
+                    {previewQuestion.difficulty.toUpperCase()}
+                  </Badge>
+                )}
+                {previewQuestion.is_approved && <Badge variant="success" size="sm">Saved</Badge>}
+              </div>
+              <QuestionContentPreview
+                question={previewQuestion}
+                showOptions
+                showCorrect
+                showExplanation
+              />
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t dark:border-slate-750 text-sm">
+                <div>
+                  <p className="text-slate-500 text-xs">Subject</p>
+                  <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.subject_name || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs">Difficulty</p>
+                  <p className="font-medium text-slate-900 dark:text-white capitalize">{previewQuestion.difficulty || 'N/A'}</p>
+                </div>
+                {previewQuestion.marks && (
+                  <div>
+                    <p className="text-slate-500 text-xs">Marks</p>
+                    <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.marks}</p>
+                  </div>
+                )}
+                {previewQuestion.estimated_time && (
+                  <div>
+                    <p className="text-slate-500 text-xs">Est. Time</p>
+                    <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.estimated_time}s</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* QUESTION INLINE EDIT MODAL */}
       {editingIndex !== null && editForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-4 bg-white dark:bg-slate-800 border dark:border-slate-750 shadow-2xl relative">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-4 bg-white dark:bg-slate-800 border dark:border-slate-750 shadow-2xl relative">
             <button
               onClick={() => { setEditingIndex(null); setEditForm(null); }}
               className="absolute right-4 top-4 p-1 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200"
@@ -1171,7 +1243,8 @@ export function ImportCenterPage() {
               Edit Staging Question Details
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Row 1: Type, Difficulty, Class */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Select
                 label="Question Type"
                 value={editForm.question_type}
@@ -1192,6 +1265,72 @@ export function ImportCenterPage() {
                   { value: 'hard', label: 'Hard' },
                 ]}
               />
+              <Select
+                label="Class"
+                value={String(editForm.class)}
+                onChange={(e) => setEditForm({ ...editForm, class: Number(e.target.value) })}
+                options={[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: String(c), label: `Class ${c}` }))}
+              />
+            </div>
+
+            {/* Row 2: Subject, Chapter, Exam Type */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Select
+                label="Subject"
+                value={editForm.subject_id}
+                onChange={(e) => {
+                  setEditForm({ ...editForm, subject_id: e.target.value, chapter_id: '' });
+                  if (e.target.value) fetchChapters(e.target.value);
+                }}
+                options={[
+                  { value: '', label: 'Auto-detected' },
+                  ...subjects.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
+              <Select
+                label="Chapter"
+                value={editForm.chapter_id}
+                onChange={(e) => setEditForm({ ...editForm, chapter_id: e.target.value })}
+                options={[
+                  { value: '', label: 'Not specified' },
+                  ...chapters
+                    .filter((c: any) => c.subject_id === editForm.subject_id)
+                    .map((c: any) => ({ value: c.id, label: c.chapter_number ? `${c.chapter_number}. ${c.name}` : c.name })),
+                ]}
+                disabled={!editForm.subject_id}
+              />
+              <Select
+                label="Exam Type"
+                value={editForm.exam_type_id}
+                onChange={(e) => setEditForm({ ...editForm, exam_type_id: e.target.value })}
+                options={[
+                  { value: '', label: 'Auto-detected' },
+                  ...examTypes.map((e) => ({ value: e.id, label: e.name })),
+                ]}
+              />
+            </div>
+
+            {/* Row 3: Marks, Year */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400">Marks (optional)</label>
+                <input
+                  type="number"
+                  value={editForm.marks !== null ? editForm.marks : ''}
+                  onChange={(e) => setEditForm({ ...editForm, marks: e.target.value !== '' ? parseFloat(e.target.value) : null })}
+                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-400">Year (optional, e.g. [2024])</label>
+                <input
+                  type="text"
+                  value={editForm.year !== null ? editForm.year : ''}
+                  onChange={(e) => setEditForm({ ...editForm, year: e.target.value !== '' ? e.target.value : null })}
+                  placeholder="[2024] or [Jan 2024]"
+                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
+                />
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -1220,14 +1359,17 @@ export function ImportCenterPage() {
                 <label className="text-xs font-bold text-slate-400">MCQ Options list</label>
                 <div className="grid grid-cols-1 gap-2">
                   {editForm.options.map((opt: any, optIdx: number) => (
-                    <div key={optIdx} className="flex items-center gap-2">
-                      <span className="font-semibold text-xs text-slate-500 w-5">{String.fromCharCode(65 + optIdx)}.</span>
-                      <input
-                        type="text"
-                        value={opt.text}
-                        onChange={(e) => handleOptionChange(optIdx, e.target.value)}
-                        className="flex-1 p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                      />
+                    <div key={optIdx} className="flex flex-col gap-1 p-2 border dark:border-slate-750 rounded-lg bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-slate-500 w-5 shrink-0">{String.fromCharCode(65 + optIdx)}.</span>
+                        <input
+                          type="text"
+                          value={opt.text}
+                          onChange={(e) => handleOptionChange(optIdx, e.target.value)}
+                          className="flex-1 p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
+                          placeholder="Option text"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1253,6 +1395,19 @@ export function ImportCenterPage() {
                   step="any"
                   value={editForm.numerical_answer !== null ? editForm.numerical_answer : ''}
                   onChange={(e) => setEditForm({ ...editForm, numerical_answer: e.target.value !== '' ? parseFloat(e.target.value) : null })}
+                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
+                />
+              </div>
+            )}
+
+            {/* Answer text for descriptive */}
+            {editForm.question_type === 'descriptive' && (
+              <div className="space-y-1 border-t dark:border-slate-750 pt-3">
+                <label className="text-xs font-bold text-slate-400">Answer Text (for descriptive)</label>
+                <textarea
+                  value={editForm.answer_text}
+                  onChange={(e) => setEditForm({ ...editForm, answer_text: e.target.value })}
+                  rows={2}
                   className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
                 />
               </div>

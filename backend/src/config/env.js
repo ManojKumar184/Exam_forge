@@ -32,13 +32,9 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR || path.join(backendRoot, 'uploads'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 25,
   ai: {
-    provider: process.env.AI_PROVIDER || 'none',
-    openaiApiKey: process.env.OPENAI_API_KEY || '',
-    openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    geminiApiKey: process.env.GEMINI_API_KEY || '',
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || '',
-    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
+    provider: process.env.AI_PROVIDER || 'huggingface',
+    hfToken: process.env.HF_API_TOKEN || '',
+    hfModel: process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct',
     requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 25000,
   },
   ocr: {

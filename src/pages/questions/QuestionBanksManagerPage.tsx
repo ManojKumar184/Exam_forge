@@ -10,6 +10,7 @@ import {
   type QuestionBank,
 } from '../../api/questionBanks';
 import { Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, PageHeader } from '../../components/ui';
+import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Layers, Calendar, Building, Eye, Star, ArrowUp, ArrowDown, Pin, User } from 'lucide-react';
 
 export function QuestionBanksManagerPage() {
@@ -336,6 +337,15 @@ export function QuestionBanksManagerPage() {
                   </div>
 
                   <div className="flex gap-2">
+                    <Link to={`/questions?bank_id=${bank._id}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Eye className="w-3.5 h-3.5" />}
+                      >
+                        View Questions
+                      </Button>
+                    </Link>
                     {canManage ? (
                       <>
                         <Button
