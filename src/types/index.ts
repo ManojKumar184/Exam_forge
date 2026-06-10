@@ -73,7 +73,6 @@ export interface Question {
   question_latex: string | null;
   question_images: string[];
   options: QuestionOption[];
-  option_images: Record<string, string>;
   correct_option: number | null;
   numerical_answer: number | null;
   numerical_tolerance: number;

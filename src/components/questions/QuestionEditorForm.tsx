@@ -385,7 +385,6 @@ export function QuestionEditorForm({
           const src = [
             result.sources.parser && 'parser',
             result.sources.ocr && 'OCR',
-            result.sources.gemini && 'Gemini',
           ]
             .filter(Boolean)
             .join(' + ');
@@ -524,7 +523,6 @@ export function QuestionEditorForm({
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
     question_images: questionImages,
     options: isMcq ? options.filter((o) => o.text?.trim()) : [],
-    option_images: {},
     correct_option: correctOption,
     numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
     numerical_tolerance: 0,

@@ -84,11 +84,11 @@ Student Attempt → Results → Analytics
 | ID | Task | Status | Priority | Effort | Risk | Files |
 |---|---|---|---|---|---|---|
 | S1 | Remove UploadQuestionsPage.tsx | COMPLETED | P0 | Low | None | src/pages/questions/UploadQuestionsPage.tsx |
-| S2 | Remove dead Question model fields | NOT_STARTED | P0 | Low | None | backend/src/models/Question.js |
-| S3 | Remove subtopicId from syllabus mappings | NOT_STARTED | P0 | Low | None | backend/src/models/Question.js |
-| S4 | Fix duplicate /catalog/chapters API | NOT_STARTED | P0 | Low | None | Route + controller files |
-| S5 | Remove residual Gemini/Ollama references | NOT_STARTED | P0 | Low | None | backend/src/services/questionReconstructService.js, validators |
-| S6 | Remove dead extraction scripts | COMPLETED | P0 | Low | None | 11 scripts in backend/src/extraction/ |
+| S2 | Remove dead Question model fields | COMPLETED | P0 | Low | None | backend/src/models/Question.js |
+| S3 | Remove subtopicId from syllabus mappings | COMPLETED | P0 | Low | None | backend/src/models/Question.js |
+| S4 | Fix duplicate /catalog/chapters API | COMPLETED | P0 | Low | None | Route + controller files |
+| S5 | Remove residual Gemini/Ollama references | COMPLETED | P0 | Low | None | backend/src/services/questionReconstructService.js, validators |
+| S6 | Remove dead extraction scripts | COMPLETED | P0 | Low | None | 10 scripts in backend/src/extraction/ |
 | S7 | Remove semanticDuplicates.js | COMPLETED | P0 | Low | None | backend/src/extraction/semanticDuplicates.js |
 
 ---

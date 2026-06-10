@@ -46,7 +46,6 @@ const questionSchema = new mongoose.Schema(
     questionLatex: { type: String, default: null },
     questionImages: { type: [String], default: [] },
     options: { type: [questionOptionSchema], default: [] },
-    optionImages: { type: mongoose.Schema.Types.Mixed, default: {} },
     correctOption: { type: Number, default: null },
     numericalAnswer: { type: Number, default: null },
     numericalTolerance: { type: Number, default: 0 },
@@ -127,7 +126,6 @@ const questionSchema = new mongoose.Schema(
         subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
         chapterId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
         topicId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
-        subtopicId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
       }],
       default: [],
     },
@@ -162,7 +160,6 @@ questionSchema.index({ "syllabusMappings.classId": 1 });
 questionSchema.index({ "syllabusMappings.subjectId": 1 });
 questionSchema.index({ "syllabusMappings.chapterId": 1 });
 questionSchema.index({ "syllabusMappings.topicId": 1 });
-questionSchema.index({ "syllabusMappings.subtopicId": 1 });
 questionSchema.index({ bankIds: 1 });
 questionSchema.index({ ownerId: 1 });
 questionSchema.index({ isPrivate: 1 });

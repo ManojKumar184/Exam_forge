@@ -31,7 +31,6 @@ export const createQuestionSchema = z.object({
 
   // Missing fields addition to prevent stripping during patch/create
   question_images: z.array(z.string()).optional(),
-  option_images: z.any().optional(),
   numerical_answer: z.number().optional().nullable(),
   numerical_tolerance: z.number().optional(),
   answer_text: z.string().optional().nullable(),
@@ -87,7 +86,6 @@ export const reconstructQuestionSchema = z.object({
   rawHtml: z.string().max(10_000_000).optional(),
   ocrText: z.string().max(5_000_000).optional(),
   images: z.array(z.string().max(10_000_000)).max(20).optional(),
-  useGemini: z.boolean().optional(),
   blocks: z.array(z.any()).optional(),
 });
 
@@ -133,7 +131,6 @@ export const reconstructionResponsePayloadSchema = z.object({
   sources: z.object({
     parser: z.boolean().default(true),
     ocr: z.boolean().default(false),
-    gemini: z.boolean().default(false),
     ollama: z.boolean().optional(),
   }),
   hasEquation: z.boolean().default(false),

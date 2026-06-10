@@ -170,3 +170,48 @@ All 10 files were debug/test scripts with zero imports across the entire codebas
 
 **Rollback:** git restore backend/src/extraction/*.js
 
+
+## Change Entry 005
+
+**Date:** 2026-06-10
+**Sprint:** Phase 1 / Sprint 2
+**Task:** S5, S3, S2, S4 — Complete Sprint 2
+
+**Files Modified:**
+- `backend/src/validators/questionValidators.js` (removed gemini, useGemini, option_images)
+- `backend/src/models/Question.js` (removed subtopicId, optionImages)
+- `backend/src/utils/questionMapper.js` (removed option_images mappings)
+- `backend/src/routes/catalogRoutes.js` (removed duplicate /catalog/topics)
+- `src/types/index.ts` (removed option_images type)
+- `src/components/questions/QuestionEditorForm.tsx` (removed option_images, gemini source)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (S2-S5: COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+Sprint 2 completes Phase 1 Quick Wins. Four tasks executed:
+
+**S5 — Remove residual Gemini/Ollama references:**
+- Removed `useGemini` from reconstructQuestionSchema (dead field, backend never reads it)
+- Removed `gemini: false` from response sources schema (Gemini provider was already deleted)
+
+**S3 — Remove subtopicId:**
+- Removed `subtopicId` field from syllabusMappings sub-schema (product decision: no subtopic level)
+- Removed corresponding MongoDB index
+
+**S2 — Remove dead optionImages field:**
+- Removed `optionImages` from Question model (schema field never written to)
+- Removed `option_images` from questionMapper, validators, frontend types, and editor form
+- Removed `result.sources.gemini && 'Gemini'` from editor source display
+
+**S4 — Fix duplicate /catalog/chapters API:**
+- Removed duplicate `/catalog/topics` route that pointed to the same listTopics handler
+- Frontend only uses `/chapters` (which correctly returns chapter data from Topic model)
+
+**Testing:**
+- Full TypeScript check: npx tsc --noEmit --pretty — 0 errors
+- Verified no remaining references to removed fields
+
+**Result:** SUCCESS — Phase 1 / Sprint 2 complete.
+
+**Rollback:** git restore on modified files.
+
