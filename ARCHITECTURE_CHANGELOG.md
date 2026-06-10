@@ -353,3 +353,17 @@ Phase 3 consolidates three frontend code-duplication hotspots:
 - All 17 existing pages continue to import `useDataStore` unchanged
 
 **H3 — Unify duplicate detection:** Removed dead code `processAndDeduplicate` and `detectDuplicatesForQuestions` from extraction/index.js. These were only called by the legacy extraction path (removed in M1). Kept `detectDuplicatesInScopes` which is still used by uploadService.js and uploadController.js.
+
+## Change Entry 010
+
+**Date:** 2026-06-10
+**Sprint:** Phase 4 / Close-out
+
+**Summary:** Marked Phase 4 complete. H5 (DB migration) and H6 (replace frontend `any` types) deferred. Created new PRODUCT WORKFLOW IMPROVEMENTS roadmap section with AI Classification Validation as the #1 priority.
+
+**Documents Updated:**
+- `ARCHITECTURE_EXECUTION_PLAN.md` (H5/H6 DEFERRED, phases updated, new section 8-9)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+All 4 refactor phases are complete (20/20 tasks resolved — 16 completed, 4 deferred). Moving from architecture cleanup to product workflow improvements. The highest-impact area is AI Classification Validation, which directly affects question routing accuracy — a core pain point for faculty users.
