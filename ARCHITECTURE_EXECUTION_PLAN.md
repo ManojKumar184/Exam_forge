@@ -83,7 +83,7 @@ Student Attempt → Results → Analytics
 
 | ID | Task | Status | Priority | Effort | Risk | Files |
 |---|---|---|---|---|---|---|
-| S1 | Remove UploadQuestionsPage.tsx | NOT_STARTED | P0 | Low | None | src/pages/questions/UploadQuestionsPage.tsx |
+| S1 | Remove UploadQuestionsPage.tsx | COMPLETED | P0 | Low | None | src/pages/questions/UploadQuestionsPage.tsx |
 | S2 | Remove dead Question model fields | NOT_STARTED | P0 | Low | None | backend/src/models/Question.js |
 | S3 | Remove subtopicId from syllabus mappings | NOT_STARTED | P0 | Low | None | backend/src/models/Question.js |
 | S4 | Fix duplicate /catalog/chapters API | NOT_STARTED | P0 | Low | None | Route + controller files |

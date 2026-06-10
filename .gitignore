@@ -30,3 +30,4 @@ uploads
 .DS_Store
 coverage
 *.log
+nul

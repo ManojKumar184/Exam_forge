@@ -68,3 +68,35 @@ Initial architecture audit was conducted across the entire codebase to identify 
 - The execution plan can be updated as priorities shift
 
 ---
+
+## Change Entry 002
+
+**Date:** 2026-06-10
+**Sprint:** Phase 1 / Sprint 1
+**Task:** S1 — Remove UploadQuestionsPage.tsx (dead page)
+
+**Files Modified:**
+- `src/pages/questions/UploadQuestionsPage.tsx` (deleted)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (S1 status: NOT_STARTED → IN_PROGRESS → COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+`UploadQuestionsPage.tsx` was never imported or used anywhere in the codebase. It was a dead page with no route registration. Its file upload logic was already duplicated in `ImportCenterPage.tsx`, which has its own `uploadFiles` function using the same `uploadQuestionFileApi`. The page also contained a polling diagnostics UI (cache header analysis, polling attempt tracking) that was never rendered because the page was unreachable.
+
+**Implementation:**
+1. Verified zero imports of `UploadQuestionsPage` across all `.tsx`, `.ts`, `.js` files
+2. Verified `ImportCenterPage.tsx` already handles file uploads (duplicate code exists)
+3. Deleted `src/pages/questions/UploadQuestionsPage.tsx`
+4. Verified no other file references the component
+5. Ran full TypeScript typecheck — 0 errors
+6. Updated execution plan status
+
+**Testing:**
+- Full TypeScript compilation check: `npx tsc --noEmit --pretty` — 0 errors
+- Code search for `UploadQuestionsPage` across entire codebase — only match was its own export
+- Verified ImportCenterPage has equivalent upload functionality
+
+**Result:** SUCCESS — File removed, build clean, no functionality lost.
+
+**Rollback:** `git restore src/pages/questions/UploadQuestionsPage.tsx`
+
