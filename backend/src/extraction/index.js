@@ -4,8 +4,6 @@ import { extractPdfQuestions } from './extractPdfQuestions.js';
 import { extractImageQuestions } from './extractImageQuestions.js';
 import { detectDuplicatesForQuestions } from './detectDuplicates.js';
 import { Question } from '../models/Question.js';
-import { AppError } from '../utils/AppError.js';
-import { env } from '../config/env.js';
 import { documentIntelligencePipeline } from './documentIntelligence/ingestionPipeline.js';
 
 export { extractDocxQuestions } from './extractDocxQuestions.js';
@@ -23,31 +21,14 @@ export { detectExplanation, isExplanationLine } from './explanationDetector.js';
 export class ExtractionService {
   async processFile(filePath, fileType, context = {}) {
     const ext = fileType?.toLowerCase();
-
-    if (!context.useLegacyExtraction) {
-      return documentIntelligencePipeline.process(
-        {
-          filePath,
-          fileType: ext,
-          filename: context.filename || context.sourceFile || path.basename(filePath),
-        },
-        context
-      );
-    }
-
-    if (ext === 'docx') {
-      return extractDocxQuestions(filePath, context);
-    }
-    if (ext === 'pdf') {
-      return extractPdfQuestions(filePath, context);
-    }
-    if (ext === 'image') {
-      if (!env.ocr.enabled) {
-        throw new AppError('OCR is disabled on this server', 503, 'OCR_DISABLED');
-      }
-      return extractImageQuestions(filePath, context);
-    }
-    throw new AppError(`Unsupported file type: ${ext}`, 400, 'UNSUPPORTED_FILE');
+    return documentIntelligencePipeline.process(
+      {
+        filePath,
+        fileType: ext,
+        filename: context.filename || context.sourceFile || path.basename(filePath),
+      },
+      context
+    );
   }
 
   async processClipboard({ html = '', plain = '' } = {}, context = {}) {

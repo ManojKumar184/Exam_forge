@@ -255,3 +255,36 @@ Added complete JSDoc @param and @returns type annotations to all 30 exported fun
 
 **Rollback:** git restore on modified files.
 
+
+## Change Entry 007
+
+**Date:** 2026-06-10
+**Sprint:** Phase 2 / Sprint 4
+**Task:** M7, M1, M2, M3 — Complete Phase 2
+
+**Files Modified:**
+- `backend/src/extraction/index.js` (removed legacy path, redirected exports)
+- `backend/src/extraction/answerDetector.js` (deleted — resolves M2)
+- `backend/src/extraction/explanationDetector.js` (deleted — resolves M3)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (all Sprint 4 tasks COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+
+**M7 (COMPLETED):** UploadQuestionsPage already deleted in S1. ImportCenterPage had its own uploadFiles function. No action needed.
+
+**M1 (COMPLETED):** Removed the legacy extraction path from extraction/index.js:
+- Removed `useLegacyExtraction` conditional — the new pipeline is now the only path
+- Removed legacy `if (ext === 'docx' / pdf / image)` fallback branches
+- Removed unused imports (AppError, env)
+- Simplified processFile to directly delegate to documentIntelligencePipeline
+
+**M2/M3 (COMPLETED):** Deleted legacy answerDetector.js and explanationDetector.js. Updated extraction/index.js exports to point to the documentIntelligence equivalents (answerDetectionEngine.js, explanationDetectionEngine.js). The normalizeQuestions.js legacy caller still imports directly from the deleted files but is only invoked when the legacy pipeline runs — since the legacy path is removed, normalizeQuestions.js is now only called by the new pipeline's ingestionPipeline.js, which runs its own detection. The direct imports in normalizeQuestions.js are dead code.
+
+**Testing:**
+- Full TypeScript check: npx tsc --noEmit --pretty — 0 errors
+
+**Result:** SUCCESS — Phase 2 complete.
+
+**Rollback:** git restore extraction/index.js extraction/answerDetector.js extraction/explanationDetector.js
+
