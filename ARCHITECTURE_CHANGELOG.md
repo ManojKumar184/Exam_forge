@@ -288,3 +288,30 @@ Added complete JSDoc @param and @returns type annotations to all 30 exported fun
 
 **Rollback:** git restore extraction/index.js extraction/answerDetector.js extraction/explanationDetector.js
 
+
+## Change Entry 008
+
+**Date:** 2026-06-10
+**Sprint:** Phase 3 / Sprint 5
+**Task:** M5, M6, H4 — Complete Phase 3
+
+**Files Created:**
+- `src/components/questions/QuestionPreviewModal.tsx` (shared preview modal)
+- `src/components/questions/StagingEditModal.tsx` (wraps QuestionEditorForm for staging)
+- `src/components/questions/QuestionList.tsx` (shared list with selection, render props)
+
+**Files Modified:**
+- `src/pages/questions/ImportCenterPage.tsx` (replaced inline edit/preview modals)
+- `src/pages/questions/QuestionBankPage.tsx` (uses QuestionList + QuestionPreviewModal)
+- `src/pages/questions/WorkspacePage.tsx` (uses QuestionList)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (M5, M6, H4: COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+Phase 3 consolidates three frontend code-duplication hotspots:
+
+**M5 — QuestionList component:** Extracts the shared list layout, selection logic, select-all checkbox, loading/empty states, and fixed bottom bulk action bar into a reusable `QuestionList` component with `renderCard` and `renderBulkActions` render props.
+
+**M6 — StagingEditModal:** Replaces ImportCenterPage's ~200-line inline staging edit form with a reusable `StagingEditModal` that wraps `QuestionEditorForm`. Field mapping maps staged question data to QuestionEditorForm's `initial` prop, and `onSubmit` calls `updateStagedQuestionApi`.
+
+**H4 — QuestionPreviewModal:** Replaces duplicate inline preview modals in ImportCenterPage and QuestionBankPage with a shared `QuestionPreviewModal` using `<Modal>` + `QuestionContentPreview`. Accepts `badges` prop for page-specific badges and a `children` slot for extra content.

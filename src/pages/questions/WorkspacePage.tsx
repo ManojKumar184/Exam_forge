@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { fetchQuestionBanksApi, assignQuestionsToBankApi, type QuestionBank } from '../../api/questionBanks';
 import { Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader } from '../../components/ui';
 import { QuestionContentPreview } from '../../components/content/RichContent';
+import { QuestionList } from '../../components/questions/QuestionList';
 
 export function WorkspacePage() {
   const { profile, isAdmin, isFaculty } = useAuth();
@@ -200,15 +201,131 @@ export function WorkspacePage() {
         </div>
       </Card>
 
-      {/* Bulk action toolbar */}
-      {selectedIds.length > 0 && (
-        <div className="flex items-center justify-between p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl shadow-sm animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-primary-800 dark:text-primary-300">
-              {selectedIds.length} question(s) selected
-            </span>
-          </div>
-          <div className="flex gap-2">
+      {/* Questions list */}
+      <QuestionList
+        questions={questions}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        isLoading={isLoading}
+        allSelected={selectedIds.length === questions.length && questions.length > 0}
+        onToggleSelectAll={toggleSelectAll}
+        emptyTitle="Your Workspace is empty"
+        emptyDescription="All questions you upload, import, or save as drafts will appear here first. They remain private to you until published."
+        emptyAction={
+          <Link to="/upload">
+            <Button leftIcon={<ArrowRight className="w-4 h-4" />}>Upload Documents</Button>
+          </Link>
+        }
+        renderCard={(q: any, isSelected, onToggle) => {
+          const ownerName = isAdmin ? users.find(u => u.id === q.owner_id)?.full_name || 'Faculty' : null;
+          return (
+            <Card
+              key={q.id}
+              className={`p-5 transition-all relative border flex gap-4 ${
+                isSelected
+                  ? 'border-primary-500 bg-primary-50/20 dark:bg-primary-900/10'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
+              }`}
+            >
+              <div className="flex-shrink-0 pt-1">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                  checked={isSelected}
+                  onChange={onToggle}
+                />
+              </div>
+
+              <div className="flex-1 space-y-3 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="default">{q.subject?.name || 'No Subject'}</Badge>
+                  <Badge variant="info">Class {q.class}</Badge>
+                  {q.difficulty && (
+                    <Badge
+                      variant={
+                        q.difficulty === 'hard'
+                          ? 'error'
+                          : q.difficulty === 'medium'
+                          ? 'warning'
+                          : 'success'
+                      }
+                    >
+                      {q.difficulty}
+                    </Badge>
+                  )}
+                  {ownerName && (
+                    <Badge variant="default" className="bg-slate-100 text-slate-800">
+                      Workspace: {ownerName}
+                    </Badge>
+                  )}
+                  <Badge variant="warning" className="flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Private Draft
+                  </Badge>
+                  {q.status !== 'approved' && (
+                    <Badge
+                      variant={
+                        q.status === 'needs_review'
+                          ? 'error'
+                          : q.status === 'rejected'
+                          ? 'error'
+                          : 'warning'
+                      }
+                    >
+                      Status: {q.status}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <QuestionContentPreview question={q} />
+                </div>
+
+                {q.extraction_warnings && q.extraction_warnings.length > 0 && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                    <span className="text-xs font-semibold text-amber-800 dark:text-amber-400 block mb-1">
+                      Warnings ({q.extraction_warnings.length})
+                    </span>
+                    <ul className="list-disc list-inside text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
+                      {q.extraction_warnings.map((w: string, index: number) => (
+                        <li key={index}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
+                  <Link to={`/questions/${q.id}/edit`}>
+                    <Button variant="ghost" size="sm" leftIcon={<Edit className="w-4 h-4" />}>
+                      Edit
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    leftIcon={<Trash2 className="w-4 h-4" />}
+                    onClick={() => handleDelete(q.id)}
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    leftIcon={<Share2 className="w-4 h-4" />}
+                    onClick={() => {
+                      setSelectedIds([q.id]);
+                      setPublishingBankId(allowedBanks[0]?._id || '');
+                      setShowPublishModal(true);
+                    }}
+                  >
+                    Publish
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          );
+        }}
+        renderBulkActions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -228,158 +345,9 @@ export function WorkspacePage() {
             >
               Publish Selected
             </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Questions list */}
-      {isLoading ? (
-        <div className="flex justify-center p-12">
-          <Loading text="Loading workspace questions..." />
-        </div>
-      ) : questions.length === 0 ? (
-        <Card className="p-12 text-center bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
-          <EmptyState
-            title="Your Workspace is empty"
-            description="All questions you upload, import, or save as drafts will appear here first. They remain private to you until published."
-            action={
-              <Link to="/upload">
-                <Button leftIcon={<ArrowRight className="w-4 h-4" />}>Upload Documents</Button>
-              </Link>
-            }
-          />
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center px-1">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
-                checked={selectedIds.length === questions.length}
-                onChange={toggleSelectAll}
-              />
-              <span className="text-sm text-slate-500 font-medium">Select All Questions</span>
-            </div>
-            <span className="text-sm text-slate-500 font-medium">
-              Showing {questions.length} question(s)
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {questions.map(q => {
-              const isSelected = selectedIds.includes(q.id);
-              const ownerName = isAdmin ? users.find(u => u.id === q.owner_id)?.full_name || 'Faculty' : null;
-
-              return (
-                <Card
-                  key={q.id}
-                  className={`p-5 transition-all relative border flex gap-4 ${
-                    isSelected
-                      ? 'border-primary-500 bg-primary-50/20 dark:bg-primary-900/10'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex-shrink-0 pt-1">
-                    <input
-                      type="checkbox"
-                      className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(q.id)}
-                    />
-                  </div>
-
-                  <div className="flex-1 space-y-3 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="default">{q.subject?.name || 'No Subject'}</Badge>
-                      <Badge variant="info">Class {q.class}</Badge>
-                      {q.difficulty && (
-                        <Badge
-                          variant={
-                            q.difficulty === 'hard'
-                              ? 'error'
-                              : q.difficulty === 'medium'
-                              ? 'warning'
-                              : 'success'
-                          }
-                        >
-                          {q.difficulty}
-                        </Badge>
-                      )}
-                      {ownerName && (
-                        <Badge variant="default" className="bg-slate-100 text-slate-800">
-                          Workspace: {ownerName}
-                        </Badge>
-                      )}
-                      <Badge variant="warning" className="flex items-center gap-1">
-                        <Lock className="w-3 h-3" /> Private Draft
-                      </Badge>
-                      {q.status !== 'approved' && (
-                        <Badge
-                          variant={
-                            q.status === 'needs_review'
-                              ? 'error'
-                              : q.status === 'rejected'
-                              ? 'error'
-                              : 'warning'
-                          }
-                        >
-                          Status: {q.status}
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <QuestionContentPreview question={q} />
-                    </div>
-
-                    {q.extraction_warnings && q.extraction_warnings.length > 0 && (
-                      <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/30">
-                        <span className="text-xs font-semibold text-amber-800 dark:text-amber-400 block mb-1">
-                          Warnings ({q.extraction_warnings.length})
-                        </span>
-                        <ul className="list-disc list-inside text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
-                          {q.extraction_warnings.map((w: string, index: number) => (
-                            <li key={index}>{w}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-700 pt-3">
-                      <Link to={`/questions/${q.id}/edit`}>
-                        <Button variant="ghost" size="sm" leftIcon={<Edit className="w-4 h-4" />}>
-                          Edit
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                        leftIcon={<Trash2 className="w-4 h-4" />}
-                        onClick={() => handleDelete(q.id)}
-                      >
-                        Delete
-                      </Button>
-                      <Button
-                        size="sm"
-                        leftIcon={<Share2 className="w-4 h-4" />}
-                        onClick={() => {
-                          setSelectedIds([q.id]);
-                          setPublishingBankId(allowedBanks[0]?._id || '');
-                          setShowPublishModal(true);
-                        }}
-                      >
-                        Publish
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
+          </>
+        }
+      />
 
       {/* Publish to Bank Modal */}
       <Modal

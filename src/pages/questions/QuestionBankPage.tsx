@@ -11,6 +11,8 @@ import { Link } from 'react-router-dom';
 import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
 import type { Question } from '../../types';
 import { QuestionContentPreview, RichContent } from '../../components/content/RichContent';
+import { QuestionPreviewModal } from '../../components/questions/QuestionPreviewModal';
+import { QuestionList } from '../../components/questions/QuestionList';
 
 function getConfidenceVariant(confidence: number): 'success' | 'warning' | 'error' | 'default' {
   if (confidence >= 75) return 'success';
@@ -419,44 +421,27 @@ export function QuestionBankPage() {
       </Card>
 
       {/* Questions List */}
-      {isLoading ? (
-        <Loading text="Loading questions..." />
-      ) : questions.length === 0 ? (
-        <EmptyState
-          title="No questions found"
-          description="Try adjusting your filters or upload new questions"
-        />
-      ) : (
-        <div className="space-y-3">
-          {isAdmin && (
-            <div className="flex items-center gap-3 px-1 py-2 border-b border-slate-200 dark:border-slate-700">
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded border-slate-300"
-                  checked={allSelected}
-                  onChange={toggleSelectAll}
-                />
-                Select all on this page
-              </label>
-            </div>
-          )}
-          {questions.map((question) => {
-            const sectionLabel = getSectionLabel(question);
-            const subtype = getSubtypeLabel(question);
-            const warnings = question.extraction_warnings || [];
-            return (
+      <QuestionList
+        questions={questions}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        isLoading={isLoading}
+        allSelected={allSelected}
+        onToggleSelectAll={toggleSelectAll}
+        showSelection={!!isAdmin}
+        renderCard={(question: Question, isSelected, onToggle) => {
+          const sectionLabel = getSectionLabel(question);
+          const subtype = getSubtypeLabel(question);
+          const warnings = question.extraction_warnings || [];
+          return (
             <Card key={question.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                 {isAdmin && (
                   <input
                     type="checkbox"
                     className="mt-1 rounded border-slate-300 shrink-0"
-                    checked={selectedIds.includes(question.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedIds((ids) => [...ids, question.id]);
-                      else setSelectedIds((ids) => ids.filter((id) => id !== question.id));
-                    }}
+                    checked={isSelected}
+                    onChange={onToggle}
                   />
                 )}
                 <div className="flex-1 min-w-0">
@@ -591,263 +576,209 @@ export function QuestionBankPage() {
               </div>
             </Card>
           );
-          })}
-        </div>
-      )}
-
-      {isAdmin && selectedIds.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 lg:left-64 z-40 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,0,0,0.08)] safe-area-pb">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              {selectedIds.length} selected
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 dark:bg-slate-700/50 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
-                <select
-                  value={selectedBulkBankId}
-                  onChange={(e) => setSelectedBulkBankId(e.target.value)}
-                  className="h-7 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-350 dark:border-slate-650 rounded px-2"
-                >
-                  <option value="">System Global Bank</option>
-                  {questionBanks.map((qb) => (
-                    <option key={qb._id} value={qb._id}>
-                      {qb.name}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs px-2.5 py-0.5"
-                  onClick={async () => {
-                    try {
-                      let targetBankId = selectedBulkBankId;
-                      if (!targetBankId) {
-                        const sysBank = questionBanks.find(qb => qb.type === 'system');
-                        if (sysBank) targetBankId = sysBank._id;
-                      }
-                      if (targetBankId) {
-                        await assignQuestionsToBankApi(targetBankId, selectedIds);
-                        toast.success('Assigned selected questions to bank');
-                      }
-                      setSelectedIds([]);
-                      applyFilters();
-                    } catch (err: any) {
-                      toast.error(err.message || 'Failed to assign questions');
-                    }
-                  }}
-                >
-                  Assign to Bank
-                </Button>
-              </div>
-
-              {filters.bank_id && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
-                  onClick={async () => {
-                    try {
-                      await removeQuestionsFromBankApi(filters.bank_id, selectedIds);
-                      toast.success('Removed selected questions from bank');
-                      setSelectedIds([]);
-                      applyFilters();
-                    } catch (err: any) {
-                      toast.error(err.message || 'Failed to remove questions');
-                    }
-                  }}
-                >
-                  Remove from Bank
-                </Button>
-              )}
-
-              <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
-                Edit metadata
-              </Button>
+        }}
+        renderBulkActions={(isAdmin && selectedIds.length > 0) ? (
+          <>
+            <div className="flex items-center gap-1.5 shrink-0 bg-slate-50 dark:bg-slate-700/50 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
+              <select
+                value={selectedBulkBankId}
+                onChange={(e) => setSelectedBulkBankId(e.target.value)}
+                className="h-7 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-350 dark:border-slate-650 rounded px-2"
+              >
+                <option value="">System Global Bank</option>
+                {questionBanks.map((qb) => (
+                  <option key={qb._id} value={qb._id}>
+                    {qb.name}
+                  </option>
+                ))}
+              </select>
               <Button
                 size="sm"
+                variant="outline"
+                className="h-7 text-xs px-2.5 py-0.5"
                 onClick={async () => {
-                  const res = await bulkApproveQuestions(selectedIds);
+                  try {
+                    let targetBankId = selectedBulkBankId;
+                    if (!targetBankId) {
+                      const sysBank = questionBanks.find(qb => qb.type === 'system');
+                      if (sysBank) targetBankId = sysBank._id;
+                    }
+                    if (targetBankId) {
+                      await assignQuestionsToBankApi(targetBankId, selectedIds);
+                      toast.success('Assigned selected questions to bank');
+                    }
+                    setSelectedIds([]);
+                    applyFilters();
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to assign questions');
+                  }
+                }}
+              >
+                Assign to Bank
+              </Button>
+            </div>
+
+            {filters.bank_id && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                onClick={async () => {
+                  try {
+                    await removeQuestionsFromBankApi(filters.bank_id, selectedIds);
+                    toast.success('Removed selected questions from bank');
+                    setSelectedIds([]);
+                    applyFilters();
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to remove questions');
+                  }
+                }}
+              >
+                Remove from Bank
+              </Button>
+            )}
+
+            <Button size="sm" variant="outline" onClick={() => setShowBulkMetaModal(true)}>
+              Edit metadata
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                const res = await bulkApproveQuestions(selectedIds);
+                if (res?.error) {
+                  toast.error(res.error.message || 'Failed to approve questions');
+                } else {
+                  toast.success('Approved selected questions successfully');
+                  setSelectedIds([]);
+                  applyFilters();
+                }
+              }}
+            >
+              Approve all
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={async () => {
+                if (confirm('Are you sure you want to reject and delete all selected questions?')) {
+                  const res = await bulkDeleteQuestions(selectedIds);
                   if (res?.error) {
-                    toast.error(res.error.message || 'Failed to approve questions');
+                    toast.error(res.error.message || 'Failed to delete questions');
                   } else {
-                    toast.success('Approved selected questions successfully');
+                    toast.success('Deleted selected questions successfully');
                     setSelectedIds([]);
                     applyFilters();
                   }
-                }}
-              >
-                Approve all
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={async () => {
-                  if (confirm('Are you sure you want to reject and delete all selected questions?')) {
-                    const res = await bulkDeleteQuestions(selectedIds);
-                    if (res?.error) {
-                      toast.error(res.error.message || 'Failed to delete questions');
-                    } else {
-                      toast.success('Deleted selected questions successfully');
-                      setSelectedIds([]);
-                      applyFilters();
-                    }
-                  }
-                }}
-              >
-                Reject all
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
-                Clear
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+                }
+              }}
+            >
+              Reject all
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+              Clear
+            </Button>
+          </>
+        ) : null}
+      />
 
-      {/* View Question Modal */}
+      {/* View Question Modal — replaces old inline modal */}
       {selectedQuestion && !showRejectModal && !showEditModal && (
-        <Modal
-          isOpen={true}
+        <QuestionPreviewModal
+          question={selectedQuestion}
           onClose={() => setSelectedQuestion(null)}
           title="Question Details"
-          size="lg"
-        >
-          <div className="p-6 space-y-4">
-            <div className="flex flex-wrap gap-2 items-center">
-              {selectedQuestion.serial_id && (
-                <span className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
-                  Q-{selectedQuestion.serial_id}
-                </span>
-              )}
-              <Badge variant={getStatusColor(selectedQuestion.status)}>{selectedQuestion.status}</Badge>
-              <Badge variant={getQuestionTypeVariant(selectedQuestion.question_type)}>
-                {selectedQuestion.question_type.toUpperCase()}
-              </Badge>
+          showExtraFields
+          badges={
+            <>
               {getSubtypeLabel(selectedQuestion) && (
-                <Badge variant="info">{getSubtypeLabel(selectedQuestion)}</Badge>
+                <Badge variant="info" size="sm">{getSubtypeLabel(selectedQuestion)}</Badge>
               )}
               {getSectionLabel(selectedQuestion) && (
-                <Badge>{getSectionLabel(selectedQuestion)}</Badge>
+                <Badge variant="default" size="sm">{getSectionLabel(selectedQuestion)}</Badge>
               )}
-              <Badge variant={getDifficultyColor(selectedQuestion.difficulty)}>{selectedQuestion.difficulty}</Badge>
-              <Badge>Class {selectedQuestion.class}</Badge>
               {selectedQuestion.ai_confidence > 0 && (
-                <Badge variant={getConfidenceVariant(selectedQuestion.ai_confidence)}>
+                <Badge variant={getConfidenceVariant(selectedQuestion.ai_confidence)} size="sm">
                   AI {selectedQuestion.ai_confidence}%
                 </Badge>
               )}
+            </>
+          }
+        >
+          {/* Extra content specific to Question Bank: explanation, warnings, OCR review */}
+          {selectedQuestion.explanation && (
+            <div>
+              <h4 className="font-medium text-slate-900 dark:text-white mb-2">Explanation</h4>
+              <RichContent text={selectedQuestion.explanation} compact />
             </div>
-            <div className="space-y-4">
-              <div className="border border-slate-100 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/30 shadow-sm">
-                <QuestionContentPreview question={selectedQuestion} showOptions showCorrect />
-              </div>
-              {selectedQuestion.question_type === 'numerical' && selectedQuestion.numerical_answer != null && (
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="font-semibold text-slate-700 dark:text-slate-350 text-sm">Correct Answer:</span>
-                  <Badge variant="success" size="md">{selectedQuestion.numerical_answer}</Badge>
+          )}
+          {(selectedQuestion.extraction_warnings?.length ?? 0) > 0 && (
+            <Alert variant="warning" title="Classification notes">
+              <ul className="list-disc pl-4 text-sm mt-1">
+                {selectedQuestion.extraction_warnings?.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          {(() => {
+            const ocr = selectedQuestion.rendering_metadata?.ocr as
+              | {
+                  rawTextPreview?: string;
+                  confidence?: number;
+                  uncertainSpans?: unknown[];
+                }
+              | undefined;
+            return (
+              ocr || selectedQuestion.ai_metadata?.ocrConfidence != null
+            );
+          })() && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
+              <h4 className="font-medium text-slate-900 dark:text-white">OCR review</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-500 mb-1 font-medium">Raw OCR preview</p>
+                  <pre className="whitespace-pre-wrap text-xs p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 max-h-48 overflow-auto">
+                    {(selectedQuestion.rendering_metadata?.ocr as { rawTextPreview?: string })
+                      ?.rawTextPreview || 'No raw preview stored'}
+                  </pre>
                 </div>
+                <div>
+                  <p className="text-slate-500 mb-1 font-medium">Parsed question (verify)</p>
+                  <div className="p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
+                    <QuestionContentPreview question={selectedQuestion} compact />
+                  </div>
+                  {(selectedQuestion.rendering_metadata?.ocr as { confidence?: number })
+                    ?.confidence != null && (
+                    <p className="mt-2 text-slate-500">
+                      OCR confidence:{' '}
+                      {Math.round(
+                        (selectedQuestion.rendering_metadata?.ocr as { confidence: number })
+                          .confidence
+                      )}
+                      %
+                    </p>
+                  )}
+                  {((selectedQuestion.rendering_metadata?.ocr as { uncertainSpans?: unknown[] })
+                    ?.uncertainSpans?.length ?? 0) > 0 && (
+                    <p className="mt-1 text-amber-700 dark:text-amber-400">
+                      {
+                        (selectedQuestion.rendering_metadata?.ocr as { uncertainSpans: unknown[] })
+                          .uncertainSpans.length
+                      }{' '}
+                      uncertain
+                      region(s) — edit before approval
+                    </p>
+                  )}
+                </div>
+              </div>
+              {selectedQuestion.ai_metadata?.providers && (
+                <p className="text-xs text-slate-500">
+                  Classification: {(selectedQuestion.ai_metadata.providers as string[]).join(' → ')}
+                </p>
               )}
             </div>
-            {selectedQuestion.explanation && (
-              <div>
-                <h4 className="font-medium text-slate-900 dark:text-white mb-2">Explanation</h4>
-                <RichContent text={selectedQuestion.explanation} compact />
-              </div>
-            )}
-            {(selectedQuestion.extraction_warnings?.length ?? 0) > 0 && (
-              <Alert variant="warning" title="Classification notes">
-                <ul className="list-disc pl-4 text-sm mt-1">
-                  {selectedQuestion.extraction_warnings?.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
-              </Alert>
-            )}
-            {(() => {
-              const ocr = selectedQuestion.rendering_metadata?.ocr as
-                | {
-                    rawTextPreview?: string;
-                    confidence?: number;
-                    uncertainSpans?: unknown[];
-                  }
-                | undefined;
-              return (
-                ocr || selectedQuestion.ai_metadata?.ocrConfidence != null
-              );
-            })() && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4 space-y-3">
-                <h4 className="font-medium text-slate-900 dark:text-white">OCR review</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-500 mb-1 font-medium">Raw OCR preview</p>
-                    <pre className="whitespace-pre-wrap text-xs p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 max-h-48 overflow-auto">
-                      {(selectedQuestion.rendering_metadata?.ocr as { rawTextPreview?: string })
-                        ?.rawTextPreview || 'No raw preview stored'}
-                    </pre>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 mb-1 font-medium">Parsed question (verify)</p>
-                    <div className="p-3 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
-                      <QuestionContentPreview question={selectedQuestion} compact />
-                    </div>
-                    {(selectedQuestion.rendering_metadata?.ocr as { confidence?: number })
-                      ?.confidence != null && (
-                      <p className="mt-2 text-slate-500">
-                        OCR confidence:{' '}
-                        {Math.round(
-                          (selectedQuestion.rendering_metadata?.ocr as { confidence: number })
-                            .confidence
-                        )}
-                        %
-                      </p>
-                    )}
-                    {((selectedQuestion.rendering_metadata?.ocr as { uncertainSpans?: unknown[] })
-                      ?.uncertainSpans?.length ?? 0) > 0 && (
-                      <p className="mt-1 text-amber-700 dark:text-amber-400">
-                        {
-                          (selectedQuestion.rendering_metadata?.ocr as { uncertainSpans: unknown[] })
-                            .uncertainSpans.length
-                        }{' '}
-                        uncertain
-                        region(s) — edit before approval
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {selectedQuestion.ai_metadata?.providers && (
-                  <p className="text-xs text-slate-500">
-                    Classification: {(selectedQuestion.ai_metadata.providers as string[]).join(' → ')}
-                  </p>
-                )}
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-              <div>
-                <p className="text-sm text-slate-500">Subject</p>
-                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.subject?.name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Chapter</p>
-                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.chapter?.name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Exam type</p>
-                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.exam_type?.name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Tags</p>
-                <p className="font-medium text-slate-900 dark:text-white">
-                  {selectedQuestion.tags?.length ? selectedQuestion.tags.join(', ') : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">AI Confidence</p>
-                <p className="font-medium text-slate-900 dark:text-white">{selectedQuestion.ai_confidence}%</p>
-              </div>
-            </div>
-          </div>
-        </Modal>
+          )}
+        </QuestionPreviewModal>
       )}
 
       {/* Reject Modal */}

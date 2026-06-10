@@ -8,7 +8,6 @@ import {
   uploadQuestionFileApi,
   getUploadStatusApi,
   fetchUploadsApi,
-  updateStagedQuestionApi,
   rejectStagedQuestionApi,
   commitStagedQuestionsApi,
   reprocessUploadApi,
@@ -19,13 +18,14 @@ import { createQuestionApi } from '../../api/questions';
 import { getApiErrorMessage } from '../../api/client';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import { QuestionEditorForm } from '../../components/questions/QuestionEditorForm';
+import { QuestionPreviewModal } from '../../components/questions/QuestionPreviewModal';
+import { StagingEditModal } from '../../components/questions/StagingEditModal';
 import {
   Upload,
   FileText,
   Image,
   CheckCircle,
   AlertCircle,
-  X,
   ArrowRight,
   Search,
   History,
@@ -89,10 +89,7 @@ export function ImportCenterPage() {
   const [selectedStagedIndices, setSelectedStagedIndices] = useState<number[]>([]);
   const [stagingFilter, setStagingFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'warnings'>('all');
 
-  // Edit Modal state
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<any | null>(null);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  // Edit Modal state (replaced by StagingEditModal/QuestionEditorForm)
 
   // Dynamic Duplicates check state
   const [checkingDuplicateIndex, setCheckingDuplicateIndex] = useState<number | null>(null);
@@ -100,6 +97,7 @@ export function ImportCenterPage() {
 
   // Question preview modal state
   const [previewQuestion, setPreviewQuestion] = useState<any | null>(null);
+  const [stagingEdit, setStagingEdit] = useState<{ index: number; question: any } | null>(null);
 
   useEffect(() => {
     fetchSubjects();
@@ -357,60 +355,11 @@ export function ImportCenterPage() {
 
   // Edit inline staging question
   const openEditModal = (idx: number, q: any) => {
-    setEditingIndex(idx);
-    setEditForm({
-      question_text: q.question_text || '',
-      question_latex: q.question_latex || '',
-      question_type: q.question_type || 'descriptive',
-      difficulty: q.difficulty || 'medium',
-      class: q.class || 11,
-      year: q.year || null,
-      marks: q.marks || null,
-      subject_id: q.subject_id || '',
-      chapter_id: q.chapter_id || '',
-      exam_type_id: q.exam_type_id || '',
-      correct_option: q.correct_option !== undefined ? q.correct_option : null,
-      numerical_answer: q.numerical_answer !== undefined ? q.numerical_answer : null,
-      explanation: q.explanation || '',
-      answer_text: q.answer_text || '',
-      tags: (q.tags || []).join(', '),
-      options: (q.options || []).map((o: any) => ({
-        text: typeof o === 'string' ? o : o.text || '',
-        latex: typeof o === 'string' ? undefined : o.latex || undefined,
-      })),
-    });
+    setStagingEdit({ index: idx, question: q });
   };
 
-  const handleSaveEdit = async () => {
-    if (!selectedUploadId || editingIndex === null || !editForm) return;
-    setIsSavingEdit(true);
-    try {
-      const payload = {
-        ...editForm,
-        year: editForm.year || null,
-        marks: editForm.marks ? Number(editForm.marks) : null,
-        tags: editForm.tags.split(',').map((t: string) => t.trim()).filter(Boolean),
-        // Filter out empty options if descriptive/integer, else send options
-        options: editForm.question_type === 'mcq' ? editForm.options : [],
-      };
-      
-      const data = await updateStagedQuestionApi(selectedUploadId, editingIndex, payload);
-      setUploadDetail(data);
-      setEditingIndex(null);
-      setEditForm(null);
-      toast.success('Staged question updated successfully');
-    } catch (err) {
-      toast.error(getApiErrorMessage(err));
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleOptionChange = (optIdx: number, val: string) => {
-    if (!editForm) return;
-    const newOpts = [...editForm.options];
-    newOpts[optIdx] = { ...newOpts[optIdx], text: val };
-    setEditForm({ ...editForm, options: newOpts });
+  const handleStagingEditSave = (data: any) => {
+    setUploadDetail(data);
   };
 
   // History filtering
@@ -1171,274 +1120,26 @@ export function ImportCenterPage() {
       </div>
 
       {/* QUESTION PREVIEW MODAL */}
-      {previewQuestion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
-          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto relative bg-white dark:bg-slate-800 border dark:border-slate-750 shadow-2xl rounded-xl">
-            <button
-              onClick={() => setPreviewQuestion(null)}
-              className="sticky top-0 float-right z-10 p-1.5 bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="p-6 space-y-4">
-              <div className="flex flex-wrap items-center gap-2 pb-3 border-b dark:border-slate-750">
-                <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">
-                  #{previewQuestion.originalIndex + 1}
-                </span>
-                <Badge variant="default" size="sm">Class {previewQuestion.class}</Badge>
-                {previewQuestion.question_type && <Badge variant="info" size="sm">{previewQuestion.question_type.toUpperCase()}</Badge>}
-                {previewQuestion.difficulty && (
-                  <Badge variant={previewQuestion.difficulty === 'easy' ? 'success' : previewQuestion.difficulty === 'medium' ? 'info' : 'error'} size="sm">
-                    {previewQuestion.difficulty.toUpperCase()}
-                  </Badge>
-                )}
-                {previewQuestion.is_approved && <Badge variant="success" size="sm">Saved</Badge>}
-              </div>
-              <QuestionContentPreview
-                question={previewQuestion}
-                showOptions
-                showCorrect
-                showExplanation
-              />
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t dark:border-slate-750 text-sm">
-                <div>
-                  <p className="text-slate-500 text-xs">Subject</p>
-                  <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.subject_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-xs">Difficulty</p>
-                  <p className="font-medium text-slate-900 dark:text-white capitalize">{previewQuestion.difficulty || 'N/A'}</p>
-                </div>
-                {previewQuestion.marks && (
-                  <div>
-                    <p className="text-slate-500 text-xs">Marks</p>
-                    <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.marks}</p>
-                  </div>
-                )}
-                {previewQuestion.estimated_time && (
-                  <div>
-                    <p className="text-slate-500 text-xs">Est. Time</p>
-                    <p className="font-medium text-slate-900 dark:text-white">{previewQuestion.estimated_time}s</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      <QuestionPreviewModal
+        question={previewQuestion}
+        onClose={() => setPreviewQuestion(null)}
+        title="Question Preview"
+        showExtraFields
+      />
 
-      {/* QUESTION INLINE EDIT MODAL */}
-      {editingIndex !== null && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-4 bg-white dark:bg-slate-800 border dark:border-slate-750 shadow-2xl relative">
-            <button
-              onClick={() => { setEditingIndex(null); setEditForm(null); }}
-              className="absolute right-4 top-4 p-1 text-slate-400 hover:text-slate-650 dark:hover:text-slate-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-1.5 border-b dark:border-slate-750 pb-2">
-              <Edit2 className="w-5 h-5 text-blue-500" />
-              Edit Staging Question Details
-            </h3>
-
-            {/* Row 1: Type, Difficulty, Class */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select
-                label="Question Type"
-                value={editForm.question_type}
-                onChange={(e) => setEditForm({ ...editForm, question_type: e.target.value })}
-                options={[
-                  { value: 'mcq', label: 'Multiple Choice (MCQ)' },
-                  { value: 'descriptive', label: 'Descriptive' },
-                  { value: 'numerical', label: 'Numerical Answer' },
-                ]}
-              />
-              <Select
-                label="Difficulty"
-                value={editForm.difficulty}
-                onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}
-                options={[
-                  { value: 'easy', label: 'Easy' },
-                  { value: 'medium', label: 'Medium' },
-                  { value: 'hard', label: 'Hard' },
-                ]}
-              />
-              <Select
-                label="Class"
-                value={String(editForm.class)}
-                onChange={(e) => setEditForm({ ...editForm, class: Number(e.target.value) })}
-                options={[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: String(c), label: `Class ${c}` }))}
-              />
-            </div>
-
-            {/* Row 2: Subject, Chapter, Exam Type */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select
-                label="Subject"
-                value={editForm.subject_id}
-                onChange={(e) => {
-                  setEditForm({ ...editForm, subject_id: e.target.value, chapter_id: '' });
-                  if (e.target.value) fetchChapters(e.target.value);
-                }}
-                options={[
-                  { value: '', label: 'Auto-detected' },
-                  ...subjects.map((s) => ({ value: s.id, label: s.name })),
-                ]}
-              />
-              <Select
-                label="Chapter"
-                value={editForm.chapter_id}
-                onChange={(e) => setEditForm({ ...editForm, chapter_id: e.target.value })}
-                options={[
-                  { value: '', label: 'Not specified' },
-                  ...chapters
-                    .filter((c: any) => c.subject_id === editForm.subject_id)
-                    .map((c: any) => ({ value: c.id, label: c.chapter_number ? `${c.chapter_number}. ${c.name}` : c.name })),
-                ]}
-                disabled={!editForm.subject_id}
-              />
-              <Select
-                label="Exam Type"
-                value={editForm.exam_type_id}
-                onChange={(e) => setEditForm({ ...editForm, exam_type_id: e.target.value })}
-                options={[
-                  { value: '', label: 'Auto-detected' },
-                  ...examTypes.map((e) => ({ value: e.id, label: e.name })),
-                ]}
-              />
-            </div>
-
-            {/* Row 3: Marks, Year */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400">Marks (optional)</label>
-                <input
-                  type="number"
-                  value={editForm.marks !== null ? editForm.marks : ''}
-                  onChange={(e) => setEditForm({ ...editForm, marks: e.target.value !== '' ? parseFloat(e.target.value) : null })}
-                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-400">Year (optional, e.g. [2024])</label>
-                <input
-                  type="text"
-                  value={editForm.year !== null ? editForm.year : ''}
-                  onChange={(e) => setEditForm({ ...editForm, year: e.target.value !== '' ? e.target.value : null })}
-                  placeholder="[2024] or [Jan 2024]"
-                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400">Question STEM text</label>
-              <textarea
-                value={editForm.question_text}
-                onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
-                rows={4}
-                className="w-full p-2.5 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-sm font-sans"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400">LaTeX Formula override (optional)</label>
-              <input
-                type="text"
-                value={editForm.question_latex}
-                onChange={(e) => setEditForm({ ...editForm, question_latex: e.target.value })}
-                className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-sm font-mono"
-              />
-            </div>
-
-            {/* MCQ Options inputs */}
-            {editForm.question_type === 'mcq' && (
-              <div className="space-y-2 border-t dark:border-slate-750 pt-3">
-                <label className="text-xs font-bold text-slate-400">MCQ Options list</label>
-                <div className="grid grid-cols-1 gap-2">
-                  {editForm.options.map((opt: any, optIdx: number) => (
-                    <div key={optIdx} className="flex flex-col gap-1 p-2 border dark:border-slate-750 rounded-lg bg-slate-50/50 dark:bg-slate-900/30">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs text-slate-500 w-5 shrink-0">{String.fromCharCode(65 + optIdx)}.</span>
-                        <input
-                          type="text"
-                          value={opt.text}
-                          onChange={(e) => handleOptionChange(optIdx, e.target.value)}
-                          className="flex-1 p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                          placeholder="Option text"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Select
-                  label="Correct Option Index"
-                  value={editForm.correct_option !== null ? String(editForm.correct_option) : ''}
-                  onChange={(e) => setEditForm({ ...editForm, correct_option: e.target.value !== '' ? parseInt(e.target.value, 10) : null })}
-                  options={[
-                    { value: '', label: 'None Selected' },
-                    ...editForm.options.map((_: any, i: number) => ({ value: String(i), label: `Option ${String.fromCharCode(65 + i)}` }))
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* Numerical Answer input */}
-            {editForm.question_type === 'numerical' && (
-              <div className="space-y-2 border-t dark:border-slate-755 pt-3">
-                <label className="text-xs font-bold text-slate-400">Numerical Value Answer</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editForm.numerical_answer !== null ? editForm.numerical_answer : ''}
-                  onChange={(e) => setEditForm({ ...editForm, numerical_answer: e.target.value !== '' ? parseFloat(e.target.value) : null })}
-                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                />
-              </div>
-            )}
-
-            {/* Answer text for descriptive */}
-            {editForm.question_type === 'descriptive' && (
-              <div className="space-y-1 border-t dark:border-slate-750 pt-3">
-                <label className="text-xs font-bold text-slate-400">Answer Text (for descriptive)</label>
-                <textarea
-                  value={editForm.answer_text}
-                  onChange={(e) => setEditForm({ ...editForm, answer_text: e.target.value })}
-                  rows={2}
-                  className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-                />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400">Explanation / Solutions Text</label>
-              <textarea
-                value={editForm.explanation}
-                onChange={(e) => setEditForm({ ...editForm, explanation: e.target.value })}
-                rows={2}
-                className="w-full p-2.5 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400">Comma Separated Tags</label>
-              <input
-                type="text"
-                value={editForm.tags}
-                onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
-                className="w-full p-2 border dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg text-xs"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 border-t dark:border-slate-750 pt-3">
-              <Button variant="ghost" onClick={() => { setEditingIndex(null); setEditForm(null); }}>Cancel</Button>
-              <Button onClick={handleSaveEdit} isLoading={isSavingEdit}>Save Staged Question</Button>
-            </div>
-          </Card>
-        </div>
+      {/* STAGING EDIT MODAL — uses QuestionEditorForm */}
+      {stagingEdit && selectedUploadId && (
+        <StagingEditModal
+          key={`${stagingEdit.index}-${stagingEdit.question.question_text?.slice(0, 20)}`}
+          uploadId={selectedUploadId}
+          index={stagingEdit.index}
+          question={stagingEdit.question}
+          subjects={subjects}
+          chapters={chapters}
+          examTypes={examTypes}
+          onClose={() => setStagingEdit(null)}
+          onSaved={handleStagingEditSave}
+        />
       )}
     </div>
   );
