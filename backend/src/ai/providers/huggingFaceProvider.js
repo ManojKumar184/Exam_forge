@@ -17,6 +17,16 @@ function extractJSON(str) {
   return str;
 }
 
+/** Extract answer text from a question object in various formats. */
+function extractAnswer(q) {
+  return (
+    q.answerText ||
+    (q.correctOption !== undefined ? `Option ${String.fromCharCode(65 + Number(q.correctOption))}` : '') ||
+    (q.numericalAnswer !== undefined ? String(q.numericalAnswer) : '') ||
+    (q.correctAnswers?.length ? q.correctAnswers.join(', ') : '')
+  );
+}
+
 export class HuggingFaceProvider extends BaseAIProvider {
   constructor() {
     super('huggingface');
@@ -105,12 +115,20 @@ You MUST return a raw JSON object matching this schema exactly. DO NOT add any e
 }
 DO NOT wrap the response in markdown blocks or include any extra commentary. Output ONLY valid JSON.`;
 
+    const explanation = (question.explanation || '').slice(0, 800);
+
     const prompt = `Classify this question:
 Question Text:
 ${question.questionText || ''}
 
 Options:
 ${(question.options || []).map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o.text}`).join('\n')}
+
+Answer:
+${(extractAnswer(question) || 'Not provided').slice(0, 500)}
+
+Explanation:
+${explanation || 'Not provided'}
 
 Additional Context:
 ${JSON.stringify(docMeta)}`;
@@ -188,11 +206,14 @@ You MUST return a JSON array of objects, where each object corresponds to a ques
 DO NOT wrap the response in markdown blocks or include any extra commentary. Output ONLY valid JSON array.`;
 
     const prompt = `Classify this batch of ${questions.length} questions:
-${questions.map((q, idx) => `
+${questions.map((q, idx) => {
+      return `
 --- Question ${idx + 1} ---
 Text: ${q.questionText || ''}
 Options: ${(q.options || []).map((o, oIdx) => `${String.fromCharCode(65 + oIdx)}. ${o.text}`).join('\n')}
-`).join('\n')}`;
+Answer: ${(extractAnswer(q) || 'Not provided').slice(0, 500)}
+Explanation: ${(q.explanation || 'Not provided').slice(0, 800)}`;
+    }).join('\n')}`;
 
     for (const modelId of this.models) {
       try {

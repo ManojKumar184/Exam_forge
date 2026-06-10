@@ -21,10 +21,12 @@ export async function classifyQuestionMetadata(
     class: result.class,
     subjectId: result.subjectId,
     chapterId: result.chapterId,
+    topicId: result.topicId,
     examTypeId: result.examTypeId,
     difficulty: result.difficulty,
     tags: result.tags,
     status: result.status,
+    fieldConfidence: result.fieldConfidence,
     extractionWarnings: result.extractionWarnings,
     syllabusMappings: result.syllabusMappings,
   };

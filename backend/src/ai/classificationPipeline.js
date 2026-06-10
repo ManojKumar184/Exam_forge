@@ -44,6 +44,99 @@ function resolveLlmCatalogHints(llm, catalog, question, base = {}) {
   return { subjectId, chapterId, examTypeId };
 }
 
+/** Per-field confidence thresholds for auto-review marking. */
+const FIELD_THRESHOLDS = {
+  class: 0.9,
+  subject: 0.9,
+  chapter: 0.85,
+  topic: 0.8,
+  difficulty: 0.75,
+};
+
+/**
+ * Compute per-field confidence from all available provider signals.
+ * @returns {{ class: number, subject: number, chapter: number, topic: number, difficulty: number }}
+ */
+function computeFieldConfidence(rules, semantic, llm) {
+  const fc = { class: 0, subject: 0, chapter: 0, topic: 0, difficulty: 0 };
+
+  // ── Rules contributions ──────────────────────────────────────
+  if (rules.class >= 6 && rules.class <= 12) fc.class = Math.max(fc.class, 0.7);
+  else fc.class = Math.max(fc.class, 0.35);
+
+  if (rules.subjectId) fc.subject = Math.max(fc.subject, 0.75);
+  else fc.subject = Math.max(fc.subject, 0.25);
+
+  if (rules.chapterId) {
+    fc.chapter = Math.max(fc.chapter, 0.65);
+    fc.topic = Math.max(fc.topic, 0.60);
+  } else {
+    fc.chapter = Math.max(fc.chapter, 0.2);
+    fc.topic = Math.max(fc.topic, 0.15);
+  }
+
+  if (rules.difficulty) fc.difficulty = Math.max(fc.difficulty, 0.6);
+
+  // ── Semantic contributions ───────────────────────────────────
+  if (semantic?.semanticScores) {
+    if (semantic.semanticScores.subject > 0) {
+      fc.subject = Math.max(fc.subject, semantic.semanticScores.subject);
+    }
+    if (semantic.semanticScores.topic > 0) {
+      fc.chapter = Math.max(fc.chapter, semantic.semanticScores.topic * 0.9);
+      fc.topic = Math.max(fc.topic, semantic.semanticScores.topic * 0.85);
+    }
+  }
+
+  // ── LLM contributions ────────────────────────────────────────
+  if (llm) {
+    const llmBase = (llm.confidence || 0.45) * 0.8; // discount LLM confidence slightly
+
+    if (llm.class) fc.class = Math.max(fc.class, llmBase);
+    if (llm.hints?.subject) fc.subject = Math.max(fc.subject, llmBase * 0.85);
+    if (llm.hints?.topic) {
+      fc.chapter = Math.max(fc.chapter, llmBase * 0.75);
+      fc.topic = Math.max(fc.topic, llmBase * 0.7);
+    }
+    if (llm.difficulty) fc.difficulty = Math.max(fc.difficulty, llmBase * 0.8);
+  }
+
+  return fc;
+}
+
+/**
+ * Check per-field confidence against thresholds and return warnings.
+ */
+function checkFieldThresholds(fieldConfidence) {
+  const warnings = [];
+  for (const [field, threshold] of Object.entries(FIELD_THRESHOLDS)) {
+    const score = fieldConfidence[field] || 0;
+    if (score < threshold) {
+      warnings.push(
+        `${field} confidence ${Math.round(score * 100)}% below threshold ${Math.round(threshold * 100)}%`
+      );
+    }
+  }
+  return warnings;
+}
+
+/**
+ * Determine the overall status considering all signals.
+ */
+function determineStatus(aiConfidence, subjectId, examTypeId, question, fieldWarnings) {
+  if ((question.extractionWarnings || []).some((w) => w.includes('OCR'))) {
+    return 'needs_review';
+  }
+  if (!subjectId || !examTypeId || aiConfidence < 55) {
+    return 'needs_review';
+  }
+  // Per-field threshold violations mark for review
+  if (fieldWarnings.length > 0) {
+    return 'needs_review';
+  }
+  return 'pending';
+}
+
 export function mergeClassification(rules, semantic, llm, question, catalog = {}) {
   const warnings = [...(rules.extractionWarnings || [])];
   let classLevel = rules.class ?? semantic?.class ?? llm?.class;
@@ -73,13 +166,13 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
   if (llm?.validationOk === false && llm.validationNote) {
     warnings.push(`AI validation: ${llm.validationNote}`);
   }
-  if (llm?.hints?.subject && !subjectId) {
-    warnings.push(`LLM subject hint: ${llm.hints.subject}`);
-  }
-  if (llm?.hints?.topic && !chapterId) {
-    warnings.push(`LLM topic hint: ${llm.hints.topic}`);
-  }
 
+  // ── Compute per-field confidence ───────────────────────────────
+  const fieldConfidence = computeFieldConfidence(rules, semantic, llm);
+  const fieldWarnings = checkFieldThresholds(fieldConfidence);
+  warnings.push(...fieldWarnings);
+
+  // ── Overall aiConfidence (backward compatible) ─────────────────
   const confidences = [(rules.confidence ?? rules.aiConfidence / 100) || 0.3];
   if (semantic?.semanticConfidence) confidences.push(semantic.semanticConfidence);
   if (llm?.confidence) confidences.push(llm.confidence);
@@ -90,49 +183,80 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
 
   const tags = [...new Set([...(rules.tags || []), ...(llm?.tags || []), ...(question.tags || [])])];
   if (llm?.questionType === 'mcq' && !tags.includes('mcq_single')) tags.push('mcq_single');
-  let status = rules.status || 'pending';
 
-  if (!subjectId || !examTypeId || aiConfidence < 55) {
-    status = 'needs_review';
-  }
-  if ((question.extractionWarnings || []).some((w) => w.includes('OCR'))) {
-    status = 'needs_review';
-  }
+  const status = determineStatus(aiConfidence, subjectId, examTypeId, question, fieldWarnings);
 
   const providers = ['rules', 'semantic'];
   if (llm) providers.push(llm.provider || 'llm');
 
-  // Resolve syllabusMappings from available hints
+  // ── Syllabus-only constraint enforcement ────────────────────────
+  let topicId = null;
   let syllabusMappings = null;
   const syllabusCatalog = catalog?.syllabus || null;
   if (syllabusCatalog) {
     // Try LLM hints first (most specific)
     if (llmHints && (llmHints.subject || llmHints.topic || llmHints.examType)) {
       syllabusMappings = resolveHintsToSyllabusMappings(llmHints, syllabusCatalog);
+      if (!syllabusMappings) {
+        warnings.push('LLM hints did not match any existing syllabus nodes — syllabus mapping skipped');
+      }
     }
     // Fall back to flat IDs via name-based lookup if LLM hints didn't resolve
     if (!syllabusMappings && subjectId) {
-      // Try to match via the syllabus by finding the subject by name
       const subjectName = rules.subjectName || null;
       if (subjectName) {
         syllabusMappings = resolveHintsToSyllabusMappings(
           { subject: subjectName, topic: rules.topicName || null, examType: rules.examTypeName || null, class: classLevel },
           syllabusCatalog
         );
+        if (!syllabusMappings) {
+          warnings.push(`Rules subject "${subjectName}" did not match any syllabus node — syllabus mapping skipped`);
+        }
       }
     }
+
+    // Extract topicId from resolved syllabus mappings if available
+    if (syllabusMappings?.[0]?.topicId) {
+      topicId = resolveId(syllabusMappings[0].topicId);
+    }
+  } else {
+    // No syllabus catalog available — use chapterId as topicId fallback
+    if (chapterId) {
+      topicId = chapterId;
+    }
+  }
+
+  if (!syllabusCatalog && llmHints && (llmHints.subject || llmHints.topic)) {
+    // LLM produced hints but no syllabus catalog to validate against
+    warnings.push('No syllabus catalog available — LLM hints could not be validated against existing nodes');
+  }
+
+  // ── LLM hint warnings (only when hints failed to resolve) ──────
+  if (llm?.hints?.subject && !subjectId) {
+    warnings.push(`LLM subject hint: ${llm.hints.subject}`);
+  }
+  if (llm?.hints?.topic && !chapterId && !topicId) {
+    warnings.push(`LLM topic hint: ${llm.hints.topic}`);
   }
 
   return {
     class: classLevel,
     subjectId,
     chapterId,
+    topicId,
     examTypeId,
     difficulty,
     questionType,
     tags,
     status,
     aiConfidence,
+    fieldConfidence: {
+      class: Math.round(fieldConfidence.class * 100),
+      subject: Math.round(fieldConfidence.subject * 100),
+      chapter: Math.round(fieldConfidence.chapter * 100),
+      topic: Math.round(fieldConfidence.topic * 100),
+      difficulty: Math.round(fieldConfidence.difficulty * 100),
+    },
     aiMetadata: {
       providers,
       rules: rules.aiMetadata || { status: 'CLASSIFIED' },
@@ -163,11 +287,16 @@ export async function runClassificationPipeline(
   let llm = null;
   const llmProvider = getLlmProvider();
 
-  // Call LLM only if rules classification is uncertain
+  // Check per-field confidence to decide if LLM augmentation is needed
+  const fieldConfForTrigger = computeFieldConfidence(rules, null, null);
+  const hasWeakField = checkFieldThresholds(fieldConfForTrigger).length > 0;
+
+  // Call LLM only if rules classification is uncertain or any field is below threshold
   const isUncertain = !question.questionType || 
                       question.questionType === 'descriptive' || 
                       (rules.confidence * 100) < 70 || 
-                      rules.status === 'needs_review';
+                      rules.status === 'needs_review' ||
+                      hasWeakField;
 
   if (llmProvider && !uploadContext.skipLlm && isUncertain) {
     try {
@@ -220,10 +349,13 @@ export async function runClassificationPipelineBatch(
       
       questions.forEach((q, idx) => {
         const rules = rulesList[idx];
+        const fieldConfForTrigger = computeFieldConfidence(rules, null, null);
+        const hasWeakField = checkFieldThresholds(fieldConfForTrigger).length > 0;
         const isUncertain = !q.questionType || 
                             q.questionType === 'descriptive' || 
                             (rules.confidence * 100) < 70 || 
-                            rules.status === 'needs_review';
+                            rules.status === 'needs_review' ||
+                            hasWeakField;
         if (isUncertain) {
           uncertainIndices.push(idx);
           uncertainQuestions.push(q);
