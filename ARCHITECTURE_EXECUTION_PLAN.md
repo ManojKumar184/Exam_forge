@@ -88,7 +88,7 @@ Student Attempt → Results → Analytics
 | S3 | Remove subtopicId from syllabus mappings | NOT_STARTED | P0 | Low | None | backend/src/models/Question.js |
 | S4 | Fix duplicate /catalog/chapters API | NOT_STARTED | P0 | Low | None | Route + controller files |
 | S5 | Remove residual Gemini/Ollama references | NOT_STARTED | P0 | Low | None | backend/src/services/questionReconstructService.js, validators |
-| S6 | Remove dead extraction scripts | NOT_STARTED | P0 | Low | None | 11 scripts in backend/src/extraction/ |
+| S6 | Remove dead extraction scripts | COMPLETED | P0 | Low | None | 11 scripts in backend/src/extraction/ |
 | S7 | Remove semanticDuplicates.js | COMPLETED | P0 | Low | None | backend/src/extraction/semanticDuplicates.js |
 
 ---

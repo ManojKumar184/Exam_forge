@@ -131,3 +131,42 @@ semanticDuplicates.js contained a single exported function (`findSemanticDuplica
 
 **Rollback:** `git restore backend/src/extraction/detectDuplicates.js backend/src/extraction/semanticDuplicates.js`
 
+
+## Change Entry 004
+
+**Date:** 2026-06-10
+**Sprint:** Phase 1 / Sprint 1
+**Task:** S6 — Remove dead extraction scripts (10 files)
+
+**Files Modified:**
+- `backend/src/extraction/debug_q4.js` (deleted)
+- `backend/src/extraction/inspect.js` (deleted)
+- `backend/src/extraction/test_dataset_docx.js` (deleted)
+- `backend/src/extraction/test_docx_load.js` (deleted)
+- `backend/src/extraction/validate_dataset.js` (deleted)
+- `backend/src/extraction/verify_blocks.js` (deleted)
+- `backend/src/extraction/verify_browser.js` (deleted)
+- `backend/src/extraction/stressTestHarness.js` (deleted)
+- `backend/src/extraction/equationRegression.js` (deleted)
+- `backend/src/extraction/mathRegression.js` (deleted)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (S6 status updated + corrected file count)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+All 10 files were debug/test scripts with zero imports across the entire codebase. The original audit listed 11 files, but `templateValidator.js` was verified as actively exported from `extraction/index.js` and was excluded.
+
+**Implementation:**
+1. Verified each file has zero imports across all .js, .ts, .tsx files
+2. Excluded `templateValidator.js` (actively exported from index.js)
+3. Deleted all 10 confirmed-dead files
+4. Ran full TypeScript typecheck — 0 errors
+
+**Testing:**
+- Code search for each filename across entire codebase — no import references found
+- Checked extraction/index.js exports — no exports for any of the 10 files
+- Full TypeScript check: npx tsc --noEmit --pretty — 0 errors
+
+**Result:** SUCCESS — 10 files (~2000+ lines) of dead code removed, build clean, no logic changes.
+
+**Rollback:** git restore backend/src/extraction/*.js
+
