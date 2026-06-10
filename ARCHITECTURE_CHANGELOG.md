@@ -215,3 +215,43 @@ Sprint 2 completes Phase 1 Quick Wins. Four tasks executed:
 
 **Rollback:** git restore on modified files.
 
+
+## Change Entry 006
+
+**Date:** 2026-06-10
+**Sprint:** Phase 2 / Sprint 3
+**Task:** M2 (DEFERRED), M3 (DEFERRED), M4 (COMPLETED)
+
+**Files Modified:**
+- `backend/src/services/authService.js` (JSDoc types added)
+- `backend/src/services/questionService.js` (JSDoc types added)
+- `backend/src/services/uploadService.js` (JSDoc types added)
+- `ARCHITECTURE_EXECUTION_PLAN.md` (M2/M3 DEFERRED, M4 COMPLETED)
+- `ARCHITECTURE_CHANGELOG.md` (this entry)
+
+**Reason:**
+
+**M2/M3 — Answer & Explanation Detectors (DEFERRED):**
+Analysis showed the legacy files (`answerDetector.js`, `explanationDetector.js`) and their documentIntelligence counterparts (`answerDetectionEngine.js`, `explanationDetectionEngine.js`) serve different pipelines with different data models:
+- Legacy: text-based API (called by normalizeQuestions.js in the legacy pipeline)
+- New: segment-based API (called by ingestionPipeline.js in the default pipeline)
+
+Forcing a merge would risk behavior changes. Natural consolidation occurs when M1 removes the legacy extraction path in Sprint 4 — at that point the legacy callers disappear and the legacy files become dead code.
+
+**M4 — Replace any types with JSDoc annotations (COMPLETED):**
+Added complete JSDoc @param and @returns type annotations to all 30 exported functions across the three core services.
+
+**Implementation:**
+1. Analyzed all function signatures in authService.js, questionService.js, uploadService.js
+2. Added @param types for every parameter (string, array, Record<string, any>, object destructuring)
+3. Added @returns types for every exported function
+4. Used import() syntax for cross-file type references (User model)
+5. No logic was changed — pure documentation
+
+**Testing:**
+- Full TypeScript check: npx tsc --noEmit --pretty — 0 errors
+
+**Result:** SUCCESS — 30 functions annotated across 3 services.
+
+**Rollback:** git restore on modified files.
+

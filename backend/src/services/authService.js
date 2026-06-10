@@ -21,6 +21,10 @@ function parseExpiryToMs(expiry) {
   return n * multipliers[unit];
 }
 
+/**
+ * @param {{ email: string, password: string, fullName: string, role: import('../models/User.js').UserRole, schoolInstitute?: string }} params
+ * @returns {Promise<{ user: import('../models/User.js').IUser, accessToken: string, refreshToken: string } | { user: import('../models/User.js').IUser, pendingApproval: boolean }>}
+ */
 export async function registerUser({ email, password, fullName, role, schoolInstitute }) {
   if (role === 'super_admin') {
     throw new AppError('Cannot register as administrator', 403, 'FORBIDDEN_ROLE');
@@ -54,6 +58,10 @@ export async function registerUser({ email, password, fullName, role, schoolInst
   return issueTokenPair(user);
 }
 
+/**
+ * @param {{ email: string, password: string }} params
+ * @returns {Promise<{ user: import('../models/User.js').IUser, accessToken: string, refreshToken: string }>}
+ */
 export async function loginUser({ email, password }) {
   const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash');
   if (!user) {
@@ -88,6 +96,10 @@ export async function loginUser({ email, password }) {
   return issueTokenPair(user);
 }
 
+/**
+ * @param {string} refreshToken
+ * @returns {Promise<{ user: import('../models/User.js').IUser, accessToken: string, refreshToken: string }>}
+ */
 export async function refreshSession(refreshToken) {
   if (!refreshToken) {
     throw new AppError('Refresh token required', 401, 'NO_REFRESH_TOKEN');
@@ -116,6 +128,11 @@ export async function refreshSession(refreshToken) {
   return issueTokenPair(user);
 }
 
+/**
+ * @param {string} userId
+ * @param {string} [refreshToken]
+ * @returns {Promise<void>}
+ */
 export async function logoutUser(userId, refreshToken) {
   const user = await User.findById(userId).select('+refreshTokens');
   if (!user) return;
@@ -128,6 +145,10 @@ export async function logoutUser(userId, refreshToken) {
   await user.save();
 }
 
+/**
+ * @param {string} userId
+ * @returns {Promise<import('../models/User.js').IUser>}
+ */
 export async function getUserById(userId) {
   const user = await User.findById(userId);
   if (!user || !user.isActive) {
@@ -136,6 +157,11 @@ export async function getUserById(userId) {
   return user;
 }
 
+/**
+ * @param {string} userId
+ * @param {Record<string, any>} updates
+ * @returns {Promise<import('../models/User.js').IUser>}
+ */
 export async function updateUserProfile(userId, updates) {
   const allowed = ['fullName', 'schoolInstitute', 'phone', 'avatarUrl'];
   const patch = {};
@@ -152,6 +178,10 @@ export async function updateUserProfile(userId, updates) {
   return user;
 }
 
+/**
+ * @param {string} email
+ * @returns {Promise<{ message: string, resetToken?: string }>}
+ */
 export async function requestPasswordReset(email) {
   const user = await User.findOne({ email: email.toLowerCase() });
   if (!user) {
@@ -170,6 +200,10 @@ export async function requestPasswordReset(email) {
   };
 }
 
+/**
+ * @param {{ token: string, password: string }} params
+ * @returns {Promise<{ message: string }>}
+ */
 export async function resetPassword({ token, password }) {
   const hashed = crypto.createHash('sha256').update(token).digest('hex');
   const user = await User.findOne({

@@ -14,6 +14,12 @@ import { retryAsync } from '../utils/retry.js';
 import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
 
+/**
+ * @param {{ filename: string, originalname: string, mimetype: string, size: number }} file
+ * @param {import('../models/User.js').IUser} user
+ * @param {Record<string, any>} [options]
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function startAsyncUpload(file, user, options = {}) {
   const fileType = getFileType(file.mimetype, file.originalname);
   if (!fileType) throw new AppError('Unsupported file type', 400, 'UNSUPPORTED_FILE');
@@ -308,6 +314,13 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
   }
 }
 
+/**
+ * @param {string} [html]
+ * @param {string} [plain]
+ * @param {import('../models/User.js').IUser} user
+ * @param {Record<string, any>} [options]
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function startManualImport(html, plain, user, options = {}) {
   const upload = await Upload.create({
     filename: 'Manual Import',
@@ -511,6 +524,13 @@ async function processManualImportInternal(upload, html, plain, user, options = 
   }
 }
 
+/**
+ * @param {string} uploadId
+ * @param {string|number} index
+ * @param {Record<string, any>} questionFields
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function updateStagedQuestion(uploadId, index, questionFields, user) {
   const upload = await Upload.findById(uploadId);
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -538,6 +558,12 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
   return mapUploadDetail(upload);
 }
 
+/**
+ * @param {string} uploadId
+ * @param {string|number} index
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function rejectStagedQuestion(uploadId, index, user) {
   const upload = await Upload.findById(uploadId);
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -562,6 +588,12 @@ export async function rejectStagedQuestion(uploadId, index, user) {
   return mapUploadDetail(upload);
 }
 
+/**
+ * @param {string} uploadId
+ * @param {string[]} indices
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function commitStagedQuestions(uploadId, indices, user) {
   const upload = await Upload.findById(uploadId);
   if (!docMetaChecked(upload)) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -659,6 +691,11 @@ export async function commitStagedQuestions(uploadId, indices, user) {
   return mapUploadDetail(upload);
 }
 
+/**
+ * @param {string} uploadId
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function reprocessUpload(uploadId, user) {
   const upload = await Upload.findById(uploadId).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -713,6 +750,11 @@ export async function reprocessUpload(uploadId, user) {
   return mapUpload(upload);
 }
 
+/**
+ * @param {string} uploadId
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function duplicateUploadSession(uploadId, user) {
   const upload = await Upload.findById(uploadId);
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -752,6 +794,10 @@ export async function duplicateUploadSession(uploadId, user) {
   return mapUploadDetail(dup);
 }
 
+/**
+ * @param {string} uploadId
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function resumeUpload(uploadId) {
   const upload = await Upload.findById(uploadId).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
@@ -807,12 +853,21 @@ export async function resumeUpload(uploadId) {
   return mapUpload(upload);
 }
 
+/**
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Array<Record<string, any>>>}
+ */
 export async function listUploads(user) {
   const filter = user.role === 'super_admin' ? {} : { uploadedBy: user._id };
   const uploads = await Upload.find(filter).populate('uploadedBy').sort({ createdAt: -1 }).limit(50);
   return uploads.map(mapUpload);
 }
 
+/**
+ * @param {string} id
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function getUploadById(id, user) {
   const upload = await Upload.findById(id).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');

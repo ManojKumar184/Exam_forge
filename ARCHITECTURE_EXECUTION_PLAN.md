@@ -100,9 +100,9 @@ Student Attempt → Results → Analytics
 | ID | Task | Status | Priority | Effort | Risk | Files |
 |---|---|---|---|---|---|---|
 | M1 | Remove legacy extraction path | NOT_STARTED | P1 | High | Medium | backend/src/extraction/index.js, pipeline files |
-| M2 | Consolidate duplicate answer detectors | NOT_STARTED | P1 | Medium | Low | answerDetector.js + answerDetectionEngine.js |
-| M3 | Consolidate duplicate explanation detectors | NOT_STARTED | P1 | Medium | Low | explanationDetector.js + explanationDetectionEngine.js |
-| M4 | Replace any types in key services | NOT_STARTED | P2 | Medium | Low | backend/src/services/*.js |
+| M2 | Consolidate duplicate answer detectors | DEFERRED | P1 | Medium | Low | answerDetector.js + answerDetectionEngine.js |
+| M3 | Consolidate duplicate explanation detectors | DEFERRED | P1 | Medium | Low | explanationDetector.js + explanationDetectionEngine.js |
+| M4 | Replace any types in key services | COMPLETED | P2 | Medium | Low | backend/src/services/*.js |
 | M5 | Merge QuestionBankPage and WorkspacePage | NOT_STARTED | P1 | High | Medium | src/pages/questions/QuestionBankPage.tsx, WorkspacePage.tsx |
 | M6 | Merge staging edit modal with QuestionEditorForm | NOT_STARTED | P1 | Medium | Low | ImportCenterPage.tsx, QuestionEditorForm.tsx |
 | M7 | Move upload logic from UploadQuestionsPage into ImportCenter | NOT_STARTED | P2 | Medium | Low | UploadQuestionsPage.tsx, ImportCenterPage.tsx |

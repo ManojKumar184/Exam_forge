@@ -162,6 +162,11 @@ function buildListFilter(query, user) {
   return conds;
 }
 
+/**
+ * @param {Record<string, any>} query
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<{ total: number, breakdown: Array<{ _id: { difficulty: string, questionType: string }, count: number }> }>}
+ */
 export async function countQuestions(query, user) {
   const filter = buildListFilter(query, user);
   const total = await Question.countDocuments(filter);
@@ -177,6 +182,11 @@ export async function countQuestions(query, user) {
   return { total, breakdown };
 }
 
+/**
+ * @param {Record<string, any>} query
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<{ items: Array<Record<string, any>>, pagination: { page: number, limit: number, total: number, totalPages: number } }>}
+ */
 export async function listQuestions(query, user) {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
@@ -211,6 +221,11 @@ export async function listQuestions(query, user) {
   };
 }
 
+/**
+ * @param {string} id
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function getQuestionById(id, user) {
   const question = await Question.findById(id)
     .populate('subjectId', 'name code icon color')
@@ -226,6 +241,11 @@ export async function getQuestionById(id, user) {
   return mapQuestion(question);
 }
 
+/**
+ * @param {Record<string, any>} body
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function createQuestion(body, user) {
   if (body.chapter_name && body.chapter_name.trim()) {
     const trimmedName = body.chapter_name.trim();
@@ -338,6 +358,12 @@ export async function createQuestion(body, user) {
   return mapQuestion(doc);
 }
 
+/**
+ * @param {string} id
+ * @param {Record<string, any>} body
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function updateQuestion(id, body, user) {
   const question = await Question.findById(id);
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
@@ -418,6 +444,11 @@ export async function updateQuestion(id, body, user) {
   return mapQuestion(question);
 }
 
+/**
+ * @param {string} id
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<void>}
+ */
 export async function deleteQuestion(id, user) {
   const question = await Question.findById(id);
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
@@ -430,6 +461,11 @@ export async function deleteQuestion(id, user) {
   if (!result) throw new AppError('Question not found', 404, 'NOT_FOUND');
 }
 
+/**
+ * @param {string} id
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function approveQuestion(id, user) {
   const existing = await Question.findById(id);
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
@@ -459,6 +495,12 @@ export async function approveQuestion(id, user) {
   return mapQuestion(existing);
 }
 
+/**
+ * @param {string} id
+ * @param {import('../models/User.js').IUser} user
+ * @param {string} [notes]
+ * @returns {Promise<Record<string, any>>}
+ */
 export async function rejectQuestion(id, user, notes) {
   const existing = await Question.findById(id);
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
@@ -482,6 +524,11 @@ export async function rejectQuestion(id, user, notes) {
   return mapQuestion(existing);
 }
 
+/**
+ * @param {string[]} ids
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<void>}
+ */
 export async function bulkApprove(ids, user) {
   const questions = await Question.find({ _id: { $in: ids } });
   for (const q of questions) {
@@ -509,6 +556,12 @@ export async function bulkApprove(ids, user) {
   }
 }
 
+/**
+ * @param {string[]} ids
+ * @param {import('../models/User.js').IUser} user
+ * @param {string} [notes]
+ * @returns {Promise<void>}
+ */
 export async function bulkReject(ids, user, notes) {
   const questions = await Question.find({ _id: { $in: ids } });
   for (const q of questions) {
@@ -529,6 +582,11 @@ export async function bulkReject(ids, user, notes) {
   }
 }
 
+/**
+ * @param {string[]} ids
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<void>}
+ */
 export async function bulkDelete(ids, user) {
   if (user.role !== 'super_admin') {
     await Question.deleteMany({ _id: { $in: ids }, ownerId: user._id });
@@ -537,6 +595,12 @@ export async function bulkDelete(ids, user) {
   }
 }
 
+/**
+ * @param {string[]} ids
+ * @param {Record<string, any>} updates
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<{ modified: number }>}
+ */
 export async function bulkUpdateMetadata(ids, updates, user) {
   const fields = bodyToQuestionFields(updates);
   if (fields.questionText) {
