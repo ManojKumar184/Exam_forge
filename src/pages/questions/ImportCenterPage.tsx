@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import toast from 'react-hot-toast';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
-import { Card, Button, Alert, Badge, Select, PageHeader } from '../../components/ui';
+import { Card, Button, Alert, Badge, Select, PageHeader, OnboardingTip } from '../../components/ui';
 import {
   uploadQuestionFileApi,
   getUploadStatusApi,
@@ -55,20 +55,47 @@ interface UploadedFile {
 
 export function ImportCenterPage() {
   const { profile } = useAuth();
-  const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes, fetchChapters } = useDataStore();
+  const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
 
-  // Navigation & Tabs state
+  // Navigation & Tabs state — teacher-friendly labels
   const [activeTab, setActiveTab] = useState<'ingest' | 'staging' | 'history' | 'create'>('ingest');
   
-  // Selected upload for staging view
-  const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
+  // Selected upload for staging view — persists across refresh via localStorage
+  const [selectedUploadId, setSelectedUploadId] = useState<string | null>(() => localStorage.getItem('import_staging_upload_id') || null);
   const [uploadDetail, setUploadDetail] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Ingestion settings
-  const [uploadClass, setUploadClass] = useState('11');
-  const [uploadSubjectId, setUploadSubjectId] = useState('');
+  // Persist staging selection to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedUploadId) {
+      localStorage.setItem('import_staging_upload_id', selectedUploadId);
+    }
+  }, [selectedUploadId]);
+
+  // On mount, auto-restore staging session if one was saved
+  useEffect(() => {
+    if (selectedUploadId && !uploadDetail) {
+      loadUploadDetail(selectedUploadId);
+    }
+  }, [selectedUploadId]);
+
+  // Clear staging session from localStorage when explicitly reset
+  const clearStagingSession = useCallback(() => {
+    localStorage.removeItem('import_staging_upload_id');
+    setSelectedUploadId(null);
+    setUploadDetail(null);
+  }, []);
+
+  // On mount, auto-restore staging session from localStorage
+  useEffect(() => {
+    if (selectedUploadId && !uploadDetail) {
+      loadUploadDetail(selectedUploadId);
+    }
+  }, []); // run once on mount
+
+  // Ingestion settings — only exam pattern is required; class & subject are auto-detected
   const [uploadExamTypeId, setUploadExamTypeId] = useState('');
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
 
   // File Ingest state
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -227,7 +254,20 @@ export function ImportCenterPage() {
   });
 
   const uploadFiles = async () => {
+    // Only exam pattern is required — class & subject are auto-detected by classification
+    const errors: string[] = [];
+    if (!uploadExamTypeId) {
+      errors.push('Exam Pattern is required. Please select an exam pattern before uploading.');
+    }
+    if (errors.length > 0) {
+      setUploadErrors(errors);
+      return;
+    }
+    setUploadErrors([]);
+
     setIsUploading(true);
+    // Clear any stale errors once upload starts
+    setUploadErrors([]);
     const pendingFiles = files.filter(f => f.status === 'pending');
 
     for (const fileItem of pendingFiles) {
@@ -239,8 +279,6 @@ export function ImportCenterPage() {
 
       try {
         const result = await uploadQuestionFileApi(fileItem.file, {
-          class: parseInt(uploadClass, 10),
-          subject_id: uploadSubjectId || undefined,
           exam_type_id: uploadExamTypeId || undefined,
         });
 
@@ -423,7 +461,7 @@ export function ImportCenterPage() {
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       <PageHeader
         title="Import Center"
-        subtitle="Universal portal for questions ingestion, structured extraction staging, and manual paste processing."
+        subtitle="Upload documents to extract questions, review them, and save to your workspace."
       />
 
       {/* Tab Selector Header */}
@@ -437,7 +475,7 @@ export function ImportCenterPage() {
           }`}
         >
           <Upload className="w-4 h-4" />
-          Ingest Center
+          Upload Files
         </button>
         <button
           onClick={() => {
@@ -453,7 +491,7 @@ export function ImportCenterPage() {
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          Staging Queue
+          Review Questions
           {uploadDetail && metrics.pending > 0 && (
             <span className="absolute -top-1.5 -right-1 bg-amber-500 text-white font-bold text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
               {metrics.pending}
@@ -493,6 +531,12 @@ export function ImportCenterPage() {
         {activeTab === 'ingest' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 space-y-6">
+              {/* Onboarding: First-time upload tip */}
+              <OnboardingTip id="import-upload" variant="info" title="Getting Started">
+                Upload a <strong>DOCX</strong>, <strong>PDF</strong>, or scanned exam image to extract questions automatically.
+                After upload, questions appear in the <strong>Review Questions</strong> tab where you can check them before saving to your workspace.
+              </OnboardingTip>
+
               {/* File Dropzone */}
               <Card className="p-6 space-y-4 shadow-card border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between border-b dark:border-slate-750 pb-2">
@@ -591,31 +635,30 @@ export function ImportCenterPage() {
                   Import Settings
                 </h3>
 
-                <Select
-                  label="Default Target Class"
-                  options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
-                  value={uploadClass}
-                  onChange={(e) => setUploadClass(e.target.value)}
-                />
-                <Select
-                  label="Subject Map"
-                  options={[{ value: '', label: 'Auto-detect Curricula' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
-                  value={uploadSubjectId}
-                  onChange={(e) => setUploadSubjectId(e.target.value)}
-                />
-                <Select
-                  label="Exam Pattern Type"
-                  options={[{ value: '', label: 'Auto-detect Exam Type' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
+                  <Select
+                  label="Exam Pattern *"
+                  options={[{ value: '', label: '— Select Exam Pattern —' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
                   value={uploadExamTypeId}
-                  onChange={(e) => setUploadExamTypeId(e.target.value)}
+                  onChange={(e) => { setUploadExamTypeId(e.target.value); setUploadErrors([]); }}
+                  className={!uploadExamTypeId && uploadErrors.length > 0 ? 'border-red-400' : ''}
                 />
 
-                <Alert variant="info" title="How Ingest Staging Works">
+                {uploadErrors.length > 0 && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">
+                    {uploadErrors.map((err, i) => (
+                      <p key={i} className="text-xs text-red-700 dark:text-red-400 font-medium flex items-center gap-1.5">
+                        <span>⚠</span> {err}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <Alert variant="info" title="How Question Import Works">
                   <div className="text-[11px] text-slate-500 space-y-1.5">
-                    <p>1. Files/text are parsed in chunks on the server.</p>
-                    <p>2. Questions are stored temporarily in a **Staging Area**.</p>
-                    <p>3. Review the extracted outputs, options, and latex rendering.</p>
-                    <p>4. Approve questions to save them privately to **My Workspace**.</p>
+                    <p>1. Your file is sent to the server for processing.</p>
+                    <p>2. Questions are extracted and held in a temporary review area.</p>
+                    <p>3. Review the extracted questions, options, and formatting.</p>
+                    <p>4. Approve questions to save them to your **My Workspace**.</p>
                   </div>
                 </Alert>
               </Card>
@@ -696,13 +739,7 @@ export function ImportCenterPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-3 pt-3 border-t dark:border-slate-750">
-                  <span>Reconstruction: <strong className="text-slate-500">{uploadDetail.reconstruction_version}</strong></span>
-                  <span>·</span>
-                  <span>Classification Model: <strong className="text-slate-500">{uploadDetail.classification_version}</strong></span>
-                  <span>·</span>
-                  <span>Class Override: <strong className="text-slate-500">{uploadDetail.upload_options?.class || 'None'}</strong></span>
-                </div>
+
               </Card>
             ) : (
               <Card className="p-8 text-center border border-slate-100 dark:border-slate-800">
@@ -717,6 +754,12 @@ export function ImportCenterPage() {
 
             {/* STAGING QUEUE ITEMS */}
             {uploadDetail && (
+              <>
+              <OnboardingTip id="import-review" variant="success" title="How to Review Questions">
+                Check each extracted question below. Use <strong>Edit Question</strong> to fix any mistakes in text, options, or formatting.
+                Click <strong>Approve &amp; Save</strong> to move it to your <strong>My Workspace</strong>, or <strong>Reject</strong> to discard it.
+              </OnboardingTip>
+
               <div className="space-y-4">
                 {/* Filters and Actions Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 dark:bg-slate-800/60 p-3 rounded-xl shadow-sm border dark:border-slate-750">
@@ -794,6 +837,16 @@ export function ImportCenterPage() {
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="text-xs font-bold text-slate-500">#{q.originalIndex + 1}</span>
                                   <Badge variant="default" size="sm">Class {q.class}</Badge>
+                                  {(q.subject || subjects.find(s => s.id === q.subject_id)) && (
+                                    <Badge variant="primary" size="sm">
+                                      {q.subject?.name || subjects.find(s => s.id === q.subject_id)?.name}
+                                    </Badge>
+                                  )}
+                                  {(q.chapter || chapters.find(c => c.id === q.chapter_id)) && (
+                                    <Badge variant="default" size="sm">
+                                      {q.chapter?.name || chapters.find(c => c.id === q.chapter_id)?.name}
+                                    </Badge>
+                                  )}
                                   {q.question_type && <Badge variant="info" size="sm">{q.question_type.toUpperCase()}</Badge>}
                                   {q.difficulty && (
                                     <Badge
@@ -840,7 +893,7 @@ export function ImportCenterPage() {
                                 <div className="p-2.5 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200/50 dark:border-amber-800/30 space-y-1">
                                   <div className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                     <AlertCircle className="w-3.5 h-3.5" />
-                                    Parser Warnings:
+                                    Extraction Notes:
                                   </div>
                                   {q.extraction_warnings.map((w: string, i: number) => (
                                     <p key={i} className="text-[11px] text-amber-700 dark:text-amber-300">· {w}</p>
@@ -973,6 +1026,7 @@ export function ImportCenterPage() {
                   </Card>
                 )}
               </div>
+              </>
             )}
           </div>
         )}
@@ -982,9 +1036,6 @@ export function ImportCenterPage() {
           <div className="space-y-4">
             <QuestionEditorForm
               initial={undefined}
-              subjects={subjects}
-              chapters={chapters}
-              examTypes={examTypes}
               submitLabel="Create Question"
               onCancel={() => setActiveTab('ingest')}
               onSubmit={async (payload) => {
@@ -1069,9 +1120,7 @@ export function ImportCenterPage() {
                           <div><span className="text-slate-400">Saved Workspace:</span> <strong className="text-emerald-600">{approved}</strong></div>
                         </div>
 
-                        <div className="text-[10px] text-slate-400">
-                          Versions: Reconstruction: {h.reconstruction_version} | Classify: {h.classification_version}
-                        </div>
+
                       </div>
 
                       <div className="flex justify-end gap-2 border-t dark:border-slate-750 pt-3 mt-3">
@@ -1134,9 +1183,6 @@ export function ImportCenterPage() {
           uploadId={selectedUploadId}
           index={stagingEdit.index}
           question={stagingEdit.question}
-          subjects={subjects}
-          chapters={chapters}
-          examTypes={examTypes}
           onClose={() => setStagingEdit(null)}
           onSaved={handleStagingEditSave}
         />

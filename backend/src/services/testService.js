@@ -36,10 +36,7 @@ async function buildTestFilter(query, user) {
 
     if (query.chapter_id) {
       const chapterIds = Array.isArray(query.chapter_id) ? query.chapter_id : String(query.chapter_id).split(',').map(s => s.trim()).filter(Boolean);
-      questionFilter.$or = [
-        { chapterId: { $in: chapterIds } },
-        { 'syllabusMappings.chapterId': { $in: chapterIds } }
-      ];
+      questionFilter['syllabusMappings.chapterId'] = { $in: chapterIds };
       filterByQuestions = true;
     }
 
@@ -49,11 +46,26 @@ async function buildTestFilter(query, user) {
       filterByQuestions = true;
     }
 
+    if (query.syllabus_subject_id) {
+      questionFilter['syllabusMappings.subjectId'] = query.syllabus_subject_id;
+      filterByQuestions = true;
+    }
+
+    if (query.syllabus_exam_pattern_id) {
+      questionFilter['syllabusMappings.examPatternId'] = query.syllabus_exam_pattern_id;
+      filterByQuestions = true;
+    }
 
 
-    if (query.subject_id) {
+
+    if (query.subject_id && !query.syllabus_subject_id) {
       const subjectIds = Array.isArray(query.subject_id) ? query.subject_id : String(query.subject_id).split(',').map(s => s.trim()).filter(Boolean);
       paperFilter.subjectId = { $in: subjectIds };
+    }
+
+    if (query.syllabus_subject_id) {
+      questionFilter['syllabusMappings.subjectId'] = query.syllabus_subject_id;
+      filterByQuestions = true;
     }
 
     if (filterByQuestions) {
@@ -78,7 +90,7 @@ export async function listTests(query, user) {
   const tests = await OnlineTest.find(filter)
     .populate({
       path: 'paperId',
-      populate: ['subjectId', 'examTypeId', { path: 'questions.questionId' }],
+      populate: [{ path: 'questions.questionId' }],
     })
     .sort({ createdAt: -1 });
   return tests.map(mapOnlineTest);
@@ -87,7 +99,7 @@ export async function listTests(query, user) {
 export async function getTestById(id, user) {
   const test = await OnlineTest.findById(id).populate({
     path: 'paperId',
-    populate: ['subjectId', 'examTypeId', { path: 'questions.questionId' }],
+    populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString()) {
@@ -174,7 +186,7 @@ export async function deleteTest(id, user) {
 export async function startAttempt(testId, user, accessCode = null) {
   const test = await OnlineTest.findById(testId).populate({
     path: 'paperId',
-    populate: [{ path: 'questions.questionId' }, 'subjectId', 'examTypeId'],
+    populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
 

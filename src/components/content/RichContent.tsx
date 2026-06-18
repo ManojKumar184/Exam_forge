@@ -199,12 +199,9 @@ export function RichContent({
       {blockLatex && !primaryText.includes('$') ? (
         <MathRenderer latex={blockLatex} display className={compact ? 'text-sm' : undefined} />
       ) : null}
-      {primaryText ? (
-        <div
-          className={`${compact ? 'text-sm' : 'text-base'} overflow-x-auto prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1`}
-        >
+      {primaryText ? (        <div className={`${compact ? 'text-sm' : 'text-base'} overflow-x-auto prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1`}>
           {hasHtmlMarkup ? (
-            <div dangerouslySetInnerHTML={{ __html: primaryText }} />
+            <div dangerouslySetInnerHTML={{ __html: !/<p\b|<br\s*\/?>/i.test(primaryText) ? primaryText.replace(/\n/g, '<br/>\n') : primaryText }} />
           ) : (
             renderTextWithTablesAndMath(primaryText, tables, compact)
           )}

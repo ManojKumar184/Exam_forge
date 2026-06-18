@@ -1,7 +1,5 @@
 export { User } from './User.js';
-export { Subject } from './Subject.js';
-export { Topic } from './Topic.js';
-export { ExamType } from './ExamType.js';
+// Subject, Topic, ExamType collections removed — all syllabus data lives in SyllabusNode
 export { Question } from './Question.js';
 export { Paper } from './Paper.js';
 export { OnlineTest } from './OnlineTest.js';

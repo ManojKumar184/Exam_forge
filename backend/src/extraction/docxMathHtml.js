@@ -230,12 +230,38 @@ export function enrichBlockFromHtml(block, html, xmlTables = []) {
   const mergedText = finalLines.length ? finalLines.join('\n') : text;
   const finalText = mergedText || text;
 
+  const tableImages = [];
+  for (const table of collectedTables) {
+    if (table && table.rows) {
+      for (const row of table.rows) {
+        for (const cell of row) {
+          const cellText = typeof cell === 'object' ? cell.text : cell;
+          if (cellText && cellText.includes('![image]')) {
+            const imgRegex = /!\[image\]\(([^)]+)\)/g;
+            let m;
+            while ((m = imgRegex.exec(cellText)) !== null) {
+              tableImages.push(m[1]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const finalImages = [...(block.images || [])];
+  for (const img of tableImages) {
+    if (!finalImages.includes(img)) {
+      finalImages.push(img);
+    }
+  }
+
   return {
     ...block,
     lines: finalText.split('\n').filter(Boolean),
     options: finalOptions || block.options,
     explanation: finalExplanation || block.explanation,
     questionLatex,
+    images: finalImages,
     hasEquation: Boolean(
       questionLatex || /\$|\\frac|\\int|\\sum|\\sqrt|\\begin\{/.test(finalText)
     ),

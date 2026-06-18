@@ -1,12 +1,12 @@
 import { Question } from '../models/Question.js';
 import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
 import { logger } from '../utils/logger.js';
-import { env } from '../config/env.js';
 
 let isRunning = false;
 
 export async function startEnrichmentWorker() {
-  if (env.ai.provider !== 'huggingface') {
+  const { getLlmProvider } = await import('../ai/providerRegistry.js');
+  if (!getLlmProvider()) {
     logger.info('[enrichment-worker] No supported LLM provider is configured for enrichment worker.');
     return;
   }

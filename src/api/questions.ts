@@ -6,9 +6,12 @@ export interface QuestionsListParams {
   limit?: number;
   search?: string;
   status?: string;
-  subject_id?: string;
-  chapter_id?: string;
-  exam_type_id?: string;
+  // Syllabus-based filters (filter by syllabusMappings)
+  syllabus_subject_id?: string;
+  syllabus_chapter_id?: string;
+  syllabus_exam_pattern_id?: string;
+  syllabus_class_id?: string;
+  syllabus_topic_id?: string;
   class?: number;
   difficulty?: string;
   question_type?: string;

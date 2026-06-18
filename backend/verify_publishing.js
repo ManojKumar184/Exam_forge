@@ -1,11 +1,16 @@
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { ExamTemplate } from './src/models/ExamTemplate.js';
 import { ExportPreset } from './src/models/ExportPreset.js';
 import { InstitutionProfile } from './src/models/InstitutionProfile.js';
 import { buildPaperExportHtml } from './src/generators/paperExportHtml.js';
 import { buildPaperExportDocx } from './src/services/paperDocxService.js';
 
-const MONGODB_URI = 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/examforge?retryWrites=true&w=majority&appName=exam-forge';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
 
 async function run() {
   console.log("=== STARTING INSTITUTIONAL PUBLISHING VERIFICATION ===");

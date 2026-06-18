@@ -414,15 +414,33 @@ export function buildTextFromDocxStructure(structure) {
 export function alignHtmlSegmentsToBlocks(blocks, htmlSegments) {
   if (!htmlSegments?.length) return blocks;
 
+  const normalizeText = (text) => (text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
   return blocks.map((block, idx) => {
     const qNum = block.questionNumber;
-    let segment =
-      htmlSegments.find((s) => qNum && new RegExp(`\\b${qNum}[\\).:\\s]`).test(s.text || '')) ||
-      htmlSegments[idx];
-
+    let segment = null;
+    
+    if (qNum) {
+      segment = htmlSegments.find((s) => new RegExp(`\\b${qNum}[\\).:\\s]`).test(s.text || ''));
+    }
+    
     if (!segment && block.lines?.length) {
-      const head = block.lines[0].slice(0, 48);
-      segment = htmlSegments.find((s) => s.text?.includes(head));
+      const blockNorm = normalizeText(block.lines[0]).slice(0, 50);
+      if (blockNorm) {
+        segment = htmlSegments.find((s) => {
+          const segNorm = normalizeText(s.text || '');
+          return segNorm.includes(blockNorm);
+        });
+      }
+    }
+
+    if (!segment) {
+      if (block.lines?.length) {
+        const head = block.lines[0].slice(0, 30).trim();
+        if (head.length > 5) {
+          segment = htmlSegments.find((s) => s.text?.includes(head));
+        }
+      }
     }
 
     return segment ? { ...block, html: segment.html, segmentIndex: segment.index } : block;

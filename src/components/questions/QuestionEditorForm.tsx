@@ -12,7 +12,6 @@ import {
   type ReconstructResult,
 } from '../../utils/questionReconstruct';
 import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAutoWrap';
-import { useDataStore } from '../../stores/dataStore';
 import type { SemanticBlock } from '../../utils/clipboardIngestion';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
@@ -22,9 +21,6 @@ const DRAFT_KEY = 'examforge_question_draft';
 
 interface QuestionEditorFormProps {
   initial?: Partial<Question>;
-  subjects: Array<{ id: string; name: string }>;
-  chapters: Array<{ id: string; name: string; subject_id: string; chapter_number?: number | null }>;
-  examTypes: Array<{ id: string; name: string }>;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
   submitLabel?: string;
@@ -114,9 +110,6 @@ function applyReconstructResult(
 
 export function QuestionEditorForm({
   initial,
-  subjects,
-  chapters,
-  examTypes,
   onSubmit,
   onCancel,
   submitLabel = 'Save question',
@@ -133,11 +126,8 @@ export function QuestionEditorForm({
   const [answerText, setAnswerText] = useState('');
   const [classLevel, setClassLevel] = useState(11);
   const [year, setYear] = useState<string | null>(null);
-  const [subjectId, setSubjectId] = useState('');
-  const [chapterId, setChapterId] = useState('');
   const [customChapterName, setCustomChapterName] = useState('');
   const [isCustomChapter, setIsCustomChapter] = useState(false);
-  const [examTypeId, setExamTypeId] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [correctOption, setCorrectOption] = useState<number | null>(0);
   const [numericalAnswer, setNumericalAnswer] = useState('');
@@ -153,6 +143,29 @@ export function QuestionEditorForm({
   const [selectedBankId, setSelectedBankId] = useState('');
   const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
 
+  /** Extract numeric class (e.g., "Class 11" → 11) from syllabus class node name */
+  const getClassFromNode = useCallback((): number => {
+    if (!selectedClassNode || !syllabusTree.length) return classLevel;
+    const examPattern = syllabusTree.find(n => n._id === selectedExamPattern);
+    if (!examPattern) return classLevel;
+    const classNode = (examPattern.children || []).find(n => n._id === selectedClassNode);
+    if (!classNode) return classLevel;
+    const match = classNode.name.match(/(\d+)/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (parsed >= 6 && parsed <= 12) return parsed;
+    }
+    return classLevel;
+  }, [selectedClassNode, selectedExamPattern, syllabusTree, classLevel]);
+
+  // Auto-update classLevel when syllabus class node changes
+  useEffect(() => {
+    if (selectedClassNode) {
+      setClassLevel(getClassFromNode());
+    }
+  }, [selectedClassNode, getClassFromNode]);
+
+  // Initialize syllabus tree and question banks on mount
   useEffect(() => {
     fetchSyllabusTree().then(setSyllabusTree).catch((err) => console.error('Failed to load syllabus tree:', err));
     fetchQuestionBanksApi().then(setQuestionBanks).catch((err) => console.error('Failed to load question banks:', err));
@@ -176,20 +189,13 @@ export function QuestionEditorForm({
   const [errors, setErrors] = useState<string[]>([]);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconstructTimer = useRef<ReturnType<typeof setTimeout>>();
-  const { fetchChapters } = useDataStore();
 
   const isMcq = subtype === 'mcq_single' || subtype === 'mcq_multiple';
-  const filteredChapters = chapters.filter((c) => c.subject_id === subjectId);
 
   const selectSubtype = (val: EditorSubtype) => {
     setSubtype(val);
     setAutosaveStatus('saving');
   };
-
-  useEffect(() => {
-    if (subjectId) fetchChapters(subjectId);
-    else setChapterId('');
-  }, [subjectId, fetchChapters]);
 
   useEffect(() => {
     if (!initial?.id) {
@@ -202,11 +208,8 @@ export function QuestionEditorForm({
           setQuestionImages(d.questionImages || []);
           setOptions(d.options || defaultOptions());
           setSubtype(d.subtype || 'mcq_single');
-          setSubjectId(d.subjectId || '');
-          setChapterId(d.chapterId || '');
           setCustomChapterName(d.customChapterName || '');
           setIsCustomChapter(d.isCustomChapter || false);
-          setExamTypeId(d.examTypeId || '');
           setYear(d.year ?? null);
           setOcrText(d.ocrText || '');
           setAnswerText(d.answerText || '');
@@ -244,11 +247,8 @@ export function QuestionEditorForm({
     setAnswerText(d?.answerText || initial.answer_text || '');
     setClassLevel(d?.classLevel || initial.class || 11);
     setYear(d?.year ?? initial.year ?? null);
-    setSubjectId(d?.subjectId || initial.subject_id || '');
-    setChapterId(d?.chapterId || initial.chapter_id || '');
     setCustomChapterName(d?.customChapterName || '');
     setIsCustomChapter(d?.isCustomChapter || false);
-    setExamTypeId(d?.examTypeId || initial.exam_type_id || '');
     setDifficulty(d?.difficulty || initial.difficulty || 'medium');
     setCorrectOption(d?.correctOption !== undefined ? d.correctOption : (initial.correct_option ?? 0));
     setNumericalAnswer(
@@ -294,11 +294,8 @@ export function QuestionEditorForm({
         questionImages,
         options,
         subtype,
-        subjectId,
-        chapterId,
         customChapterName,
         isCustomChapter,
-        examTypeId,
         ocrText,
         explanation,
         answerText,
@@ -319,7 +316,7 @@ export function QuestionEditorForm({
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, subjectId, chapterId, customChapterName, isCustomChapter, examTypeId, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
+  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -440,7 +437,7 @@ export function QuestionEditorForm({
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [options.length, subtype, bodyHtml, bodyPlain, subjectId, examTypeId, correctOption, numericalAnswer, explanation, classLevel, chapterId, tagsInput, difficulty]);
+  }, [options.length, subtype, bodyHtml, bodyPlain, correctOption, numericalAnswer, explanation, classLevel, tagsInput, difficulty]);
 
   const insertLatex = (snippet: string) => {
     const wrapped = snippet.startsWith('$$') ? snippet : autoWrapEquations(snippet);
@@ -454,8 +451,8 @@ export function QuestionEditorForm({
     const text = bodyPlain || bodyHtml.replace(/<[^>]+>/g, ' ').trim();
     const errs: string[] = [];
     if (text.length < 5) errs.push('Question content is required');
-    if (!subjectId) errs.push('Subject is required');
-    if (!examTypeId) errs.push('Exam type is required');
+    if (!selectedExamPattern) errs.push('Exam pattern is required (select from Classification tree)');
+    if (!selectedSubjectNode) errs.push('Subject is required (select from Classification tree)');
     if (isMcq) {
       const filled = options.filter((o) => o.text?.trim()).length;
       if (filled < 2) errs.push('MCQ needs at least 2 options');
@@ -483,17 +480,17 @@ export function QuestionEditorForm({
       });
     }
 
+    // Derive class from syllabus tree class node name (e.g., "Class 11" → 11)
+    const derivedClass = selectedClassNode ? getClassFromNode() : classLevel;
+
     return {
       question_text: displayText,
       question_latex: questionLatex.trim() || autoLatex || null,
       question_images: questionImages,
       question_type: sub.questionType,
-      class: classLevel,
+      class: derivedClass,
       year: year || null,
-      subject_id: subjectId,
-      chapter_id: isCustomChapter ? null : (chapterId || null),
-      chapter_name: isCustomChapter ? customChapterName || null : null,
-      exam_type_id: examTypeId,
+      chapter_name: (isCustomChapter && !selectedChapterNode) ? customChapterName || null : null,
       difficulty,
       marks: isFaculty ? (marks ?? 4) : null,
       options: isMcq ? options.filter((o) => o.text?.trim()) : [],
@@ -541,9 +538,9 @@ export function QuestionEditorForm({
     ai_confidence: 0,
     ai_metadata: { provider: 'manual', reconstruction: lastReconstruct?.sources },
     status: 'pending',
-    subject_id: subjectId,
-    chapter_id: chapterId,
-    exam_type_id: examTypeId,
+    subject_id: selectedSubjectNode || null,
+    chapter_id: selectedChapterNode || null,
+    exam_type_id: selectedExamPattern || null,
     syllabus_mappings: [
       {
         examPatternId: selectedExamPattern || null,
@@ -771,8 +768,8 @@ export function QuestionEditorForm({
         </Card>
 
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-          Syllabus Engine Mapping
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+          Classification
         </div>
         <Card className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Select
@@ -790,7 +787,7 @@ export function QuestionEditorForm({
             className="py-1 text-xs"
           />
           <Select
-            label="Syllabus Class"
+            label="Class"
             value={selectedClassNode}
             onChange={(e) => {
               setSelectedClassNode(e.target.value);
@@ -807,7 +804,7 @@ export function QuestionEditorForm({
             className="py-1 text-xs"
           />
           <Select
-            label="Syllabus Subject"
+            label="Subject"
             value={selectedSubjectNode}
             onChange={(e) => {
               setSelectedSubjectNode(e.target.value);
@@ -824,7 +821,7 @@ export function QuestionEditorForm({
             className="py-1 text-xs"
           />
           <Select
-            label="Syllabus Chapter"
+            label="Chapter"
             value={selectedChapterNode}
             onChange={(e) => {
               setSelectedChapterNode(e.target.value);
@@ -841,7 +838,7 @@ export function QuestionEditorForm({
             className="py-1 text-xs"
           />
           <Select
-            label="Syllabus Topic"
+            label="Topic"
             value={selectedTopicNode}
             onChange={(e) => {
               setSelectedTopicNode(e.target.value);
@@ -855,100 +852,6 @@ export function QuestionEditorForm({
                 .find(n => n._id === selectedChapterNode)?.children || []).map(n => ({ value: n._id, label: n.name }))
             ]}
             disabled={!selectedChapterNode}
-            className="py-1 text-xs"
-          />
-        </Card>
-
-        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mt-4 mb-1 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-          Metadata & Taxonomy
-        </div>
-
-        <Card className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Select
-            label="Class"
-            value={String(classLevel)}
-            onChange={(e) => {
-              setClassLevel(Number(e.target.value));
-              setAutosaveStatus('saving');
-            }}
-            options={[6, 7, 8, 9, 10, 11, 12].map((c) => ({ value: String(c), label: `Class ${c}` }))}
-            className="py-1 text-xs"
-          />
-          <Select
-            label="Subject"
-            value={subjectId}
-            onChange={(e) => {
-              setSubjectId(e.target.value);
-              setChapterId('');
-              setAutosaveStatus('saving');
-            }}
-            options={[{ value: '', label: 'Select…' }, ...subjects.map((s) => ({ value: s.id, label: s.name }))]}
-            className="py-1 text-xs"
-          />
-          <div className="flex flex-col space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="block text-sm font-medium text-slate-700 dark:text-slate-350 select-none">
-                Chapter / topic
-              </span>
-              {subjectId && (
-                <button
-                  type="button"
-                  className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold hover:underline"
-                  onClick={() => {
-                    setIsCustomChapter(!isCustomChapter);
-                    setChapterId('');
-                    setCustomChapterName('');
-                    setAutosaveStatus('saving');
-                  }}
-                >
-                  {isCustomChapter ? 'Select existing' : 'Type new'}
-                </button>
-              )}
-            </div>
-            {isCustomChapter ? (
-              <Input
-                value={customChapterName}
-                onChange={(e) => {
-                  setCustomChapterName(e.target.value);
-                  setAutosaveStatus('saving');
-                }}
-                placeholder="Type new chapter/topic name"
-                className="py-1 text-xs"
-              />
-            ) : (
-              <Select
-                value={chapterId}
-                onChange={(e) => {
-                  setChapterId(e.target.value);
-                  setAutosaveStatus('saving');
-                }}
-                options={[
-                  {
-                    value: '',
-                    label: !subjectId
-                      ? 'Select subject first'
-                      : filteredChapters.length
-                        ? 'No chapter (optional)'
-                        : 'Loading chapters…',
-                  },
-                  ...filteredChapters.map((c) => ({
-                    value: c.id,
-                    label: c.chapter_number != null ? `${c.chapter_number}. ${c.name}` : c.name,
-                  })),
-                ]}
-                className="py-1 text-xs"
-              />
-            )}
-          </div>
-          <Select
-            label="Exam"
-            value={examTypeId}
-            onChange={(e) => {
-              setExamTypeId(e.target.value);
-              setAutosaveStatus('saving');
-            }}
-            options={[{ value: '', label: 'Select…' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
             className="py-1 text-xs"
           />
           <Select
@@ -966,7 +869,7 @@ export function QuestionEditorForm({
             className="py-1 text-xs"
           />
           <Input
-            label="Year (optional, e.g. [2024] or [Jan 2024])"
+            label="Year (optional)"
             type="text"
             value={year === null ? '' : year}
             onChange={(e) => {

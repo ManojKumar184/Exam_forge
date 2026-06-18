@@ -32,10 +32,22 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR || path.join(backendRoot, 'uploads'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 25,
   ai: {
-    provider: process.env.AI_PROVIDER || 'huggingface',
-    hfToken: process.env.HF_API_TOKEN || '',
-    hfModel: process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct',
-    requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 25000,
+    provider: process.env.AI_PROVIDER || 'space',
+    spaceRequestTimeoutMs: Number(process.env.SPACE_REQUEST_TIMEOUT_MS) || 45000,
+    spaceColdStartTimeoutMs: Number(process.env.SPACE_COLD_START_TIMEOUT_MS) || 120000,
+    requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30000,
+    // Retry backoff: attempt 1 → 3s, attempt 2 → 10s, attempt 3 → fail
+    aiRetryBaseDelayMs: Number(process.env.AI_RETRY_BASE_DELAY_MS) || 3000,
+    aiRetryMaxDelayMs: Number(process.env.AI_RETRY_MAX_DELAY_MS) || 10000,
+    aiMaxRetries: Number(process.env.AI_MAX_RETRIES) || 3,
+    // Prompt budget: target < 3000 chars, absolute max 5000 chars
+    promptTargetChars: Number(process.env.AI_PROMPT_TARGET_CHARS) || 3000,
+    promptMaxChars: Number(process.env.AI_PROMPT_MAX_CHARS) || 5000,
+    // Batch sizing: 10-25 questions per batch, dynamic based on prompt length
+    batchMinSize: Number(process.env.AI_BATCH_MIN_SIZE) || 10,
+    batchMaxSize: Number(process.env.AI_BATCH_MAX_SIZE) || 25,
+    // Concurrency: max parallel AI calls when per-question fallback
+    maxConcurrentAiCalls: Number(process.env.AI_MAX_CONCURRENT_CALLS) || 3,
   },
   ocr: {
     enabled: process.env.OCR_ENABLED !== 'false',

@@ -62,16 +62,14 @@ async function buildPaperFilter(query, user) {
 export async function listPapers(query, user) {
   const filter = await buildPaperFilter(query, user);
   const papers = await Paper.find(filter)
-    .populate('subjectId', 'name code icon color')
-    .populate('examTypeId', 'name code description isActive createdAt')
+    // Populate for flat Subject/ExamType removed — collections were dropped
     .sort({ updatedAt: -1 });
   return papers.map(mapPaper);
 }
 
 export async function getPaperById(id, user) {
   const paper = await Paper.findById(id)
-    .populate('subjectId', 'name code icon color')
-    .populate('examTypeId', 'name code description isActive createdAt')
+    // Populate for flat Subject/ExamType removed — collections were dropped
     .populate('questions.questionId');
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
   if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
@@ -132,8 +130,9 @@ function mapBodyToPaperFields(body) {
 
 async function validatePaperAgainstTemplate(fields) {
   if (fields.examTypeId) {
-    const { ExamType } = await import('../models/ExamType.js');
-    const examType = await ExamType.findById(fields.examTypeId);
+    // ExamType collection was dropped — look up exam pattern from SyllabusNode tree
+    const { SyllabusNode } = await import('../models/SyllabusNode.js');
+    const examType = await SyllabusNode.findOne({ _id: fields.examTypeId, type: 'exam_pattern', isActive: true });
     if (examType) {
       const examCode = (examType.code || '').toUpperCase();
       const questionIds = (fields.questions || []).map(q => q.questionId || q.question_id).filter(Boolean);
@@ -204,7 +203,8 @@ export async function createPaper(body, user) {
   await validatePaperAgainstTemplate(fields);
 
   const doc = await Paper.create(fields);
-  await doc.populate(['subjectId', 'examTypeId', 'questions.questionId']);
+  // Populate for flat Subject/ExamType removed; only populate questions
+  await doc.populate(['questions.questionId']);
   return mapPaper(doc);
 }
 
@@ -234,7 +234,8 @@ export async function updatePaper(id, body, user) {
   await validatePaperAgainstTemplate(paper);
 
   await paper.save();
-  await paper.populate(['subjectId', 'examTypeId', 'questions.questionId']);
+  // Populate for flat Subject/ExamType removed; only populate questions
+  await paper.populate(['questions.questionId']);
   return mapPaper(paper);
 }
 

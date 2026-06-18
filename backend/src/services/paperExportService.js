@@ -4,17 +4,34 @@ import { mapPaper } from '../utils/examMapper.js';
 import { buildPaperExportHtml } from '../generators/paperExportHtml.js';
 import { generatePdfFromHtml } from '../generators/pdfGenerator.js';
 import { buildPaperExportDocx } from './paperDocxService.js';
+import { createBoundedCache } from '../utils/cacheHelpers.js';
 
-// ── Paper load cache (module-level, avoids redundant DB lookups within a request) ──
-const paperLoadCache = new Map();
+// ── Paper load cache with TTL (30 seconds) — prevents stale data on concurrent edits ──
+// Timestamps are stored alongside values to avoid a separate unbounded Map
+const paperLoadCache = createBoundedCache(100);
+const CACHE_TTL_MS = 30_000;
+
+function getCachedPaper(cacheKey) {
+  const entry = paperLoadCache.get(cacheKey);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    paperLoadCache.delete(cacheKey);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setCachedPaper(cacheKey, data) {
+  paperLoadCache.set(cacheKey, { data, ts: Date.now() });
+}
 
 async function loadPaperForExport(paperId, user) {
   const cacheKey = `${paperId}:${user._id}:${user.role}`;
-  if (paperLoadCache.has(cacheKey)) return paperLoadCache.get(cacheKey);
+  const cached = getCachedPaper(cacheKey);
+  if (cached !== undefined) return cached;
 
   const paper = await Paper.findById(paperId)
-    .populate('subjectId', 'name code icon color')
-    .populate('examTypeId', 'name code description isActive createdAt')
+    // Populate for flat Subject/ExamType removed — collections were dropped
     .populate('createdBy', 'fullName schoolInstitute')
     .populate('questions.questionId');
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
@@ -23,7 +40,7 @@ async function loadPaperForExport(paperId, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
   const mapped = mapPaper(paper);
-  paperLoadCache.set(cacheKey, mapped);
+  setCachedPaper(cacheKey, mapped);
   return mapped;
 }
 

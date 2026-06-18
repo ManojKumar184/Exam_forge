@@ -42,12 +42,13 @@ export class DocumentIntelligencePipeline {
       returnRawBlocks: false,
     });
 
-    questions = questions.map((question, index) => {
-      const segment = segments[index] || {};
-      const block = blocks[index] || {};
+    questions = questions.map((question) => {
+      const segmentId = question.renderingMetadata?.segmentId;
+      const segment = segmentId ? (segments.find(s => s.id === segmentId) || {}) : {};
+      const block = segmentId ? (blocks.find(b => b.segmentId === segmentId) || {}) : {};
       const answer = detectAnswer(segment, question.options || block.options || []);
       const explanation = detectExplanation(segment);
-      const classification = classifyQuestion(segment, block);
+      const classification = classifyQuestion(segment, block, answer);
 
       const enriched = {
         ...question,

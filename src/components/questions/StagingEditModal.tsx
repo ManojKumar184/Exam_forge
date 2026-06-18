@@ -9,9 +9,6 @@ interface StagingEditModalProps {
   uploadId: string;
   index: number;
   question: Record<string, any>;
-  subjects: Array<{ id: string; name: string }>;
-  chapters: Array<{ id: string; name: string; subject_id: string; chapter_number?: number | null }>;
-  examTypes: Array<{ id: string; name: string }>;
   onClose: () => void;
   onSaved: (data: any) => void;
 }
@@ -25,9 +22,6 @@ function mapStagedToInitial(q: Record<string, any>): Partial<Question> {
     class: q.class || 11,
     year: q.year || null,
     marks: q.marks ?? null,
-    subject_id: q.subject_id || '',
-    chapter_id: q.chapter_id || '',
-    exam_type_id: q.exam_type_id || '',
     correct_option: q.correct_option !== undefined && q.correct_option !== null ? q.correct_option : null,
     numerical_answer: q.numerical_answer !== undefined && q.numerical_answer !== null ? q.numerical_answer : null,
     explanation: q.explanation || '',
@@ -39,6 +33,7 @@ function mapStagedToInitial(q: Record<string, any>): Partial<Question> {
       latex: typeof o === 'string' ? undefined : o.latex || undefined,
     })),
     question_images: q.question_images || [],
+    syllabus_mappings: q.syllabus_mappings || null,
   };
 }
 
@@ -46,9 +41,6 @@ export function StagingEditModal({
   uploadId,
   index,
   question,
-  subjects,
-  chapters,
-  examTypes,
   onClose,
   onSaved,
 }: StagingEditModalProps) {
@@ -92,9 +84,6 @@ export function StagingEditModal({
         <div className="p-4">
           <QuestionEditorForm
             initial={initial}
-            subjects={subjects}
-            chapters={chapters}
-            examTypes={examTypes}
             submitLabel={isSaving ? 'Saving...' : 'Save Changes'}
             onCancel={onClose}
             onSubmit={handleSubmit}

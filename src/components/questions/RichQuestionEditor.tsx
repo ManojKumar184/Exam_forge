@@ -89,6 +89,32 @@ export function RichQuestionEditor({
     [images, onImagesChange, value, emitPaste]
   );
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Enter key should insert newline, NOT submit form
+    if (e.key === 'Enter') {
+      // Prevent default form submission behavior
+      e.stopPropagation();
+      
+      // If Shift+Enter, insert a line break
+      if (e.shiftKey) {
+        document.execCommand('insertLineBreak');
+        e.preventDefault();
+        return;
+      }
+      
+      // Regular Enter: insert a new paragraph <p> tag
+      // contentEditable already does this by default, but we need to
+      // prevent any parent form from submitting
+      document.execCommand('insertParagraph');
+      e.preventDefault();
+    }
+    
+    // Escape key: blur the editor
+    if (e.key === 'Escape') {
+      (e.target as HTMLElement).blur();
+    }
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     const imageFiles: File[] = [];
@@ -173,6 +199,7 @@ export function RichQuestionEditor({
           className="min-h-[260px] max-h-[480px] overflow-y-auto p-4 text-base text-slate-900 dark:text-white focus:outline-none prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1"
           data-placeholder={placeholder}
           onInput={syncFromDom}
+          onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onBlur={syncFromDom}
         />

@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
+// Flat Subject, ExamType, Topic collections were dropped.
+// Only SyllabusNode-based syllabus mappings remain.
 import { Question } from './models/Question.js';
 import { SyllabusNode } from './models/SyllabusNode.js';
-import { Subject } from './models/Subject.js';
-import { ExamType } from './models/ExamType.js';
-import { Topic } from './models/Topic.js';
 
 export async function migrateSyllabus() {
   console.log('[migration] Starting syllabus mapping migration for existing questions...');
 
   // Fetch all questions with existing populated relations
-  const questions = await Question.find({}).populate(['subjectId', 'chapterId', 'examTypeId']);
+  // Flat model populate removed (Subject, Topic, ExamType collections dropped)
+  const questions = await Question.find({});
   console.log(`[migration] Found ${questions.length} questions to process.`);
 
   let migratedCount = 0;

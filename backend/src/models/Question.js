@@ -12,9 +12,6 @@ const questionOptionSchema = new mongoose.Schema(
 
 const questionSchema = new mongoose.Schema(
   {
-    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
-    chapterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Topic', default: null },
-    examTypeId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExamType', default: null },
     questionText: { type: String, required: true },
     questionType: {
       type: String,
@@ -22,10 +19,13 @@ const questionSchema = new mongoose.Schema(
         // Canonical types
         'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER',
         'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE',
-        // Legacy backward-compatible aliases
+        // Legacy backward-compatible aliases (case-insensitive variants)
         'mcq', 'descriptive', 'numerical',
         'MCQ_MULTI', 'INTEGER', 'NUMERICAL',
         'MATCH_COLUMNS', 'SHORT_ANSWER', 'LONG_ANSWER',
+        'mcq_single', 'mcq_multiple', 'numerical_integer',
+        'match_following', 'assertion_reason',
+        'integer', 'match_columns',
         // Complex patterns (context_type, not canonical)
         'COMPREHENSION', 'PARAGRAPH_BASED', 'STATEMENT_SET',
         'MATRIX_MATCH', 'TRUE_FALSE', 'NESTED_OPTION_MCQ',
@@ -144,16 +144,12 @@ const questionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-questionSchema.index({ status: 1, subjectId: 1, class: 1, difficulty: 1 });
-questionSchema.index({ status: 1, class: 1, examTypeId: 1, difficulty: 1 });
-questionSchema.index({ status: 1, chapterId: 1, difficulty: 1 });
 questionSchema.index({ status: 1, uploadId: 1 });
 questionSchema.index({ status: 1, questionType: 1, class: 1 });
 questionSchema.index({ questionText: 'text' });
 questionSchema.index({ createdAt: -1 });
 questionSchema.index({ uploadId: 1, status: 1 });
 questionSchema.index({ duplicateOf: 1 });
-questionSchema.index({ subjectId: 1, class: 1, status: 1, difficulty: 1 });
 questionSchema.index({ aiConfidence: 1, status: 1 });
 questionSchema.index({ "syllabusMappings.examPatternId": 1 });
 questionSchema.index({ "syllabusMappings.classId": 1 });

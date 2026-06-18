@@ -78,15 +78,27 @@ const uploadSchema = new mongoose.Schema(
     },
     telemetry: {
       type: mongoose.Schema.Types.Mixed,
-      default: { peakMemory: 0, maxLoopLag: 0 },
+      default: { peakMemory: 0 },
     },
     uploadOptions: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    // Active processing guard — prevents watchdog from launching parallel instances
+    activeProcessing: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    // Classification diagnostics
+    classificationDiagnostics: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
   },
   { timestamps: true }
 );
+
+uploadSchema.index({ status: 1, 'activeProcessing.startedAt': 1 });
 
 uploadSchema.index({ uploadedBy: 1, createdAt: -1 });
 uploadSchema.index({ status: 1, processingStage: 1 });

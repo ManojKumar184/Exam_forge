@@ -11,7 +11,8 @@ import {
   type TestPerformanceAnalytics,
 } from '../../api/analytics';
 import { fetchTestsApi } from '../../api/tests';
-import { Card, StatCard, Loading, Alert, Button, Badge } from '../../components/ui';
+import { Card, StatCard, Loading, Alert, Button, Badge, PageHeader } from '../../components/ui';
+import toast from 'react-hot-toast';
 import {
   Users,
   FileQuestion,
@@ -65,7 +66,7 @@ export function AnalyticsPage() {
     setIsReplayTriggering(true);
     try {
       await runReplayHarnessApi();
-      alert('Replay harness test started in background! Wait a few seconds and refresh.');
+      toast.success('Regression suite started! Check results in a moment.');
       setTimeout(loadReplaySummary, 3000);
     } catch (e) {
       console.error(e);
@@ -140,10 +141,10 @@ export function AnalyticsPage() {
   if (isAdmin && adminData) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Platform Analytics & SaaS Infrastructure</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage global system performance, AI pipelines, and test validations</p>
-        </div>
+        <PageHeader
+          title="Analytics"
+          subtitle="Platform performance, system monitoring, and validation reports"
+        />
 
         {/* Tabs navigation */}
         <div className="flex space-x-1 border-b border-slate-200 dark:border-slate-700">

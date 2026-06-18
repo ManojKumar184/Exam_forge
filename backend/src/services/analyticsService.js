@@ -69,10 +69,6 @@ export async function getAdminAnalytics() {
   }
   activityFeed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // HuggingFace token check for quick dashboard display
-  const hfToken = env.ai.hfToken;
-  const hfConfigured = Boolean(hfToken);
-
   return {
     total_users: (roleMap.super_admin || 0) + (roleMap.faculty || 0) + (roleMap.student || 0),
     total_admins: roleMap.super_admin || 0,
@@ -90,7 +86,6 @@ export async function getAdminAnalytics() {
     rejected_questions: questionMap.rejected || 0,
     needs_review_questions: questionMap.needs_review || 0,
     activity_feed: activityFeed,
-    hf_configured: hfConfigured,
   };
 }
 
@@ -138,7 +133,7 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null) {
   const testFilter = facultyId ? { _id: testId, createdBy: facultyId } : { _id: testId };
   const test = await OnlineTest.findOne(testFilter).populate({
     path: 'paperId',
-    populate: [{ path: 'questions.questionId', populate: 'chapterId' }],
+    populate: [{ path: 'questions.questionId' }],
   });
   if (!test) return null;
 
@@ -159,7 +154,10 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null) {
       question_id: qid,
       question_type: q.questionType,
       difficulty: q.difficulty,
-      chapter: q.chapterId?.name || 'Unknown',
+      // Flat Topic collection dropped — chapter name extracted from syllabusMappings
+      chapter: q.syllabusMappings?.[0]?.chapterId
+        ? (q.syllabusMappings[0].chapterIdName || 'Chapter ' + q.syllabusMappings[0].chapterId.toString().slice(-6))
+        : 'Unknown',
       tags: q.tags || [],
       max_marks: Number(pq.customMarks || q.marks || 0),
       attempts: 0,
@@ -263,26 +261,6 @@ export function getReplayStatus() {
 }
 
 export async function getSystemMonitor() {
-  const hfToken = env.ai.hfToken;
-  let hfStatus = 'offline';
-  
-  if (hfToken) {
-    try {
-      const res = await fetch("https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct", {
-        headers: { Authorization: `Bearer ${hfToken}` },
-        signal: AbortSignal.timeout(3000)
-      });
-      if (res.ok) {
-        hfStatus = 'online';
-      } else if (res.status === 401 || res.status === 403) {
-        hfStatus = 'invalid_token';
-      } else {
-        hfStatus = 'degraded';
-      }
-    } catch (err) {
-      hfStatus = 'offline';
-    }
-  }
 
   // Calculate parsing metrics from latest 100 questions
   const questions = await Question.find({})
@@ -319,11 +297,13 @@ export async function getSystemMonitor() {
   const storageUsedBytes = (questionsCount * 1200) + (papersCount * 5000) + (attemptsCount * 2500);
   const storageLimitBytes = 5 * 1024 * 1024 * 1024; // 5 GB limit
 
+  // Check if Space provider is available
+  const spaceConfigured = true; // Space provider is always available
+  
   return {
-    huggingFace: {
-      status: hfStatus,
-      primaryModel: 'Qwen/Qwen2.5-7B-Instruct',
-      configured: Boolean(hfToken)
+    aiProvider: {
+      name: 'exforge_llama',
+      configured: spaceConfigured,
     },
     parser: {
       healthStatus: avgConfidence > 75 ? 'healthy' : avgConfidence > 50 ? 'warning' : 'critical',

@@ -25,20 +25,40 @@ function resolveLlmCatalogHints(llm, catalog, question, base = {}) {
   let chapterId = base.chapterId;
   let examTypeId = base.examTypeId;
 
+  // Flat model collections (subjects, topics, examTypes) were dropped.
+  // Use syllabus tree (catalog.syllabus) as the primary source.
+  const syllabusCatalog = catalog?.syllabus;
+  
   if (llm.hints.subject) {
-    const byName = findByName(catalog.subjects, llm.hints.subject);
-    subjectId = byName?._id || matchSubjectSemantically(text, catalog.subjects).subject?._id || subjectId;
+    // Try syllabus tree first, fall back to flat catalog
+    let subjectSource = syllabusCatalog?.subjects;
+    if (!subjectSource?.length) subjectSource = catalog.subjects;
+    const byName = findByName(subjectSource, llm.hints.subject);
+    subjectId = byName?._id || subjectId;
+    if (!subjectId && subjectSource?.length) {
+      subjectId = matchSubjectSemantically(text, subjectSource).subject?._id || subjectId;
+    }
   }
   if (llm.hints.examType) {
     const byName = findByName(catalog.examTypes, llm.hints.examType);
     examTypeId = byName?._id || matchExamTypeSemantically(text, catalog.examTypes).examType?._id || examTypeId;
   }
   if (llm.hints.topic) {
-    const byName = findByName(catalog.topics, llm.hints.topic);
-    chapterId =
-      byName?._id ||
-      matchTopicSemantically(text, catalog.topics, subjectId, base.class).topic?._id ||
-      chapterId;
+    // Try syllabus tree chapters (primary source)
+    if (syllabusCatalog?.chapters?.length) {
+      const bySyllabusName = findByName(syllabusCatalog.chapters, llm.hints.topic);
+      if (bySyllabusName) {
+        chapterId = bySyllabusName._id.toString();
+      }
+    }
+    // Fall back to flat Topic model (empty since collection was dropped)
+    if (!chapterId && catalog.topics?.length) {
+      const byName = findByName(catalog.topics, llm.hints.topic);
+      chapterId =
+        byName?._id ||
+        matchTopicSemantically(text, catalog.topics, subjectId, base.class).topic?._id ||
+        chapterId;
+    }
   }
 
   return { subjectId, chapterId, examTypeId };
@@ -193,7 +213,13 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
   let topicId = null;
   let syllabusMappings = null;
   const syllabusCatalog = catalog?.syllabus || null;
-  if (syllabusCatalog) {
+
+  // Use already-resolved syllabusMappings from the rules provider (avoids re-resolution failures)
+  if (rules.syllabusMappings) {
+    syllabusMappings = rules.syllabusMappings;
+  }
+
+  if (syllabusCatalog && !syllabusMappings) {
     // Try LLM hints first (most specific)
     if (llmHints && (llmHints.subject || llmHints.topic || llmHints.examType)) {
       syllabusMappings = resolveHintsToSyllabusMappings(llmHints, syllabusCatalog);
@@ -215,7 +241,10 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
       }
     }
 
-    // Extract topicId from resolved syllabus mappings if available
+    // Extract chapterId and topicId from resolved syllabus mappings if available
+    if (syllabusMappings?.[0]?.chapterId) {
+      chapterId = resolveId(syllabusMappings[0].chapterId);
+    }
     if (syllabusMappings?.[0]?.topicId) {
       topicId = resolveId(syllabusMappings[0].topicId);
     }
@@ -287,25 +316,15 @@ export async function runClassificationPipeline(
   let llm = null;
   const llmProvider = getLlmProvider();
 
-  // Check per-field confidence to decide if LLM augmentation is needed
-  const fieldConfForTrigger = computeFieldConfidence(rules, null, null);
-  const hasWeakField = checkFieldThresholds(fieldConfForTrigger).length > 0;
-
-  // Call LLM only if rules classification is uncertain or any field is below threshold
-  const isUncertain = !question.questionType || 
-                      question.questionType === 'descriptive' || 
-                      (rules.confidence * 100) < 70 || 
-                      rules.status === 'needs_review' ||
-                      hasWeakField;
-
-  if (llmProvider && !uploadContext.skipLlm && isUncertain) {
+  // AI-PRIMARY: Always query LLM for classification; rules + semantic act as fallback
+  if (llmProvider && !uploadContext.skipLlm) {
     try {
       llm = await llmProvider.classify(question, catalog, docMeta);
       if (llm) {
         llm.provider = llmProvider.name;
       }
     } catch (err) {
-      logger.warn('LLM classification failed', { error: err.message });
+      logger.warn('LLM classification failed, falling back to rules+semantic', { error: err.message });
     }
   }
 
@@ -338,64 +357,103 @@ export async function runClassificationPipelineBatch(
     })
   );
 
-  // 3. Run LLM batch classification only for uncertain cases
+  // 3. AI-PRIMARY: Run LLM batch classification on ALL questions
   let llmList = null;
   const llmProvider = getLlmProvider();
+  const pipelineStart = Date.now();
 
   if (llmProvider && !uploadContext.skipLlm) {
+    const llmStart = Date.now();
     try {
-      const uncertainIndices = [];
-      const uncertainQuestions = [];
-      
-      questions.forEach((q, idx) => {
-        const rules = rulesList[idx];
-        const fieldConfForTrigger = computeFieldConfidence(rules, null, null);
-        const hasWeakField = checkFieldThresholds(fieldConfForTrigger).length > 0;
-        const isUncertain = !q.questionType || 
-                            q.questionType === 'descriptive' || 
-                            (rules.confidence * 100) < 70 || 
-                            rules.status === 'needs_review' ||
-                            hasWeakField;
-        if (isUncertain) {
-          uncertainIndices.push(idx);
-          uncertainQuestions.push(q);
-        }
-      });
+      if (typeof llmProvider.classifyBatch === 'function') {
+        // Pass upload context so the provider can log diagnostics with uploadId
+        docMeta.uploadId = uploadContext.uploadId || docMeta.uploadId;
+        docMeta.batchIndex = uploadContext.batchIndex || 0;
+        llmList = await llmProvider.classifyBatch(questions, catalog, docMeta);
+      }
 
-      if (uncertainQuestions.length > 0) {
-        let uncertainLlmResults = null;
-        if (typeof llmProvider.classifyBatch === 'function') {
-          uncertainLlmResults = await llmProvider.classifyBatch(uncertainQuestions, catalog, docMeta);
-        }
-        
-        if (!uncertainLlmResults) {
-          logger.info('[pipeline] Falling back to sequential classification for batch');
-          uncertainLlmResults = await Promise.all(
-            uncertainQuestions.map((q) => llmProvider.classify(q, catalog, docMeta).catch(() => null))
-          );
-        }
-
-        llmList = new Array(questions.length).fill(null);
-        uncertainIndices.forEach((qIdx, arrIdx) => {
-          llmList[qIdx] = uncertainLlmResults[arrIdx];
-        });
-      } else {
-        llmList = new Array(questions.length).fill(null);
+      if (!llmList) {
+        logger.info('[pipeline] Batch classify returned null, falling back to sub-batched parallel classify');
+        const fallbackStart = Date.now();
+        llmList = await _fallbackParallelClassify(llmProvider, questions, catalog, docMeta);
+        logger.info(`[PIPELINE_DIAG] Phase=fallback Questions=${questions.length} Duration=${Date.now() - fallbackStart}ms`);
       }
     } catch (err) {
-      logger.warn('LLM batch classification failed', { error: err.message });
+      logger.warn('LLM batch classification failed, falling back to sub-batched parallel classify', { error: err.message });
+      try {
+        const fallbackStart = Date.now();
+        llmList = await _fallbackParallelClassify(llmProvider, questions, catalog, docMeta);
+        logger.info(`[PIPELINE_DIAG] Phase=fallback_catch Questions=${questions.length} Duration=${Date.now() - fallbackStart}ms`);
+      } catch (fallbackErr) {
+        logger.warn('Fallback parallel classify also failed, using rules+semantic only', { error: fallbackErr.message });
+      }
     }
+    const llmDuration = Date.now() - llmStart;
+    const llmCount = llmList?.filter(r => r !== null)?.length || 0;
+    logger.info(`[PIPELINE_DIAG] Phase=LLM Questions=${questions.length} Successful=${llmCount} Duration=${llmDuration}ms`);
   }
 
   // 4. Merge results for each question
-  return questions.map((q, idx) => {
+  const mergeStart = Date.now();
+  const results = questions.map((q, idx) => {
     const rules = rulesList[idx];
     const semantic = semanticList[idx];
     const llm = llmList?.[idx] || null;
     if (llm) {
-      llm.provider = llmProvider.name;
+      llm.provider = llmProvider?.name || 'llm';
     }
     return mergeClassification(rules, semantic, llm, q, catalog);
   });
+
+  const totalDuration = Date.now() - pipelineStart;
+  logger.info(`[PIPELINE_DIAG] Phase=total Questions=${questions.length} Rules_ok=${rulesList.filter(r => r !== null).length} LLM_ok=${llmList?.filter(r => r !== null).length || 0} Merge_duration=${Date.now() - mergeStart}ms Total_duration=${totalDuration}ms`);
+
+  return results;
+}
+
+/**
+ * Fallback: split questions into smaller sub-batches and classify each with retry.
+ * Avoids hammering the API with N per-question calls simultaneously.
+ * Uses the provider's classifyBatch on sub-batches if available, otherwise classify per-question.
+ */
+async function _fallbackParallelClassify(llmProvider, questions, catalog, docMeta) {
+  if (!llmProvider || !questions?.length) return null;
+
+  const SUB_BATCH_SIZE = 3;
+  const results = [];
+
+  for (let i = 0; i < questions.length; i += SUB_BATCH_SIZE) {
+    const subBatch = questions.slice(i, i + SUB_BATCH_SIZE);
+    let subResults = null;
+
+    // Try sub-batch classify first
+    if (typeof llmProvider.classifyBatch === 'function') {
+      try {
+        subResults = await llmProvider.classifyBatch(subBatch, catalog, docMeta);
+      } catch (err) {
+        logger.warn(`[pipeline] Sub-batch(${i}) classifyBatch failed, trying per-question`, { error: err.message });
+      }
+    }
+
+    // Fall back to per-question with concurrency limiting
+    if (!subResults) {
+      const concurrencyLimit = llmProvider.maxConcurrentCalls || 3;
+      subResults = [];
+      for (let j = 0; j < subBatch.length; j += concurrencyLimit) {
+        const batch = subBatch.slice(j, j + concurrencyLimit);
+        const batchResults = await Promise.all(
+          batch.map((q) => llmProvider.classify(q, catalog, docMeta).catch((err) => {
+            logger.warn(`[pipeline] Per-question classify failed: ${err.message}`);
+            return null;
+          }))
+        );
+        subResults.push(...batchResults);
+      }
+    }
+
+    results.push(...subResults);
+  }
+
+  return results;
 }
 

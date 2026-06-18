@@ -21,6 +21,10 @@
 
 const EXPLANATION_LABEL_RE = /^(Explanation|Solution|Reason|Detailed Solution|Sol)\s*[:：]/i;
 
+// Section/Part/Topic header patterns that should NOT be included in explanations
+const SECTION_HEADER_RE = /^(?:SECTION|PART)\s+[A-Z0-9]/i;
+const TOPIC_HEADER_RE = /^(?:Topic|Subject|Class)\s+\d+/i;
+
 /**
  * Detect explanation within a block of text (e.g., the [solution] section content).
  *
@@ -59,6 +63,17 @@ export function detectExplanation(text) {
   }
 
   if (explanationStart === -1) {
+    // No explanation label found — check if text is a section header (should NOT be treated as explanation)
+    const firstLine = text.trim().split('\n')[0]?.trim() || '';
+    if (SECTION_HEADER_RE.test(firstLine) || TOPIC_HEADER_RE.test(firstLine)) {
+      return {
+        explanation: null,
+        explanationLatex: null,
+        confidence: 0,
+        warnings: ['Text is a section/header — not treated as explanation'],
+      };
+    }
+    
     // No explanation label found — maybe the entire text IS the explanation?
     // Only if the text has reasonable length and no answer-like prefix
     if (text.trim().length > 30 && !/^(?:Answer|Ans|Correct)\b/i.test(text.trim())) {

@@ -106,7 +106,7 @@ export async function getGradingQueue(testId, user) {
 export async function getAttemptDetail(testId, attemptId, user) {
   const test = await OnlineTest.findById(testId).populate({
     path: 'paperId',
-    populate: [{ path: 'questions.questionId' }, 'subjectId', 'examTypeId'],
+    populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
 

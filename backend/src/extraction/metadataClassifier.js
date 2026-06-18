@@ -1,6 +1,5 @@
-import { Subject } from '../models/Subject.js';
-import { Topic } from '../models/Topic.js';
-import { ExamType } from '../models/ExamType.js';
+// Flat Subject, Topic, ExamType collections dropped — loadClassificationCatalog returns empty arrays.
+// The AI classification pipeline uses catalog.syllabus (SyllabusNode tree) instead.
 
 const CLASS_PATTERNS = [
   /\bclass\s*[-:]?\s*(\d{1,2})\b/i,
@@ -132,15 +131,13 @@ export function estimateDifficulty(question, context = {}) {
 export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {}, syllabusCatalog = null) {
   const header = (rawText || '').slice(0, 3500);
   const classesFound = detectClassesInDocument(header);
-  const defaultClass = uploadContext.class
-    ? Number(uploadContext.class)
-    : classesFound[0] || detectClassFromText(header, 11);
+  // Class is auto-detected from document text; no manual override
+  const defaultClass = classesFound[0] || detectClassFromText(header, 11);
 
-  const subject =
-    uploadContext.subjectId
-      ? catalog.subjects?.find((s) => s._id.toString() === uploadContext.subjectId)
-      : detectSubjectFromText(`${header} ${uploadContext.filename || ''}`, catalog.subjects || []);
+  // Subject is auto-detected from document text + filename; no manual override
+  const subject = detectSubjectFromText(`${header} ${uploadContext.filename || ''}`, catalog.subjects || []);
 
+  // Exam type is selected by faculty during upload (only manual selection)
   const examType =
     uploadContext.examTypeId
       ? catalog.examTypes?.find((e) => e._id.toString() === uploadContext.examTypeId)
@@ -180,24 +177,91 @@ export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {},
 export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploadContext = {}, syllabusCatalog = null) {
   const text = question.questionText || '';
   const blockClass = detectClassFromText(text, docMeta.defaultClass || 11);
-  const classLevel = docMeta.isMixed ? blockClass : docMeta.defaultClass || blockClass;
+  // When no explicit class was found in the document and the fallback is used,
+  // try per-question detection first; it may contain class-revealing topic content
+  const noClassFound = !docMeta.classesFound || docMeta.classesFound.length === 0;
+  const classLevel = (noClassFound && docMeta.isMixed !== true)
+    ? blockClass  // Use per-question detection when document has no explicit class
+    : (docMeta.isMixed ? blockClass : docMeta.defaultClass || blockClass);
 
   const detectedSubject = detectSubjectFromText(text, catalog.subjects || []);
   const detectedExamType = detectExamTypeFromText(text, catalog.examTypes || []);
 
-  const subjectId =
-    uploadContext.subjectId ||
-    docMeta.subjectId ||
-    detectedSubject?._id ||
-    null;
+  // Class and subject are auto-detected; no manual overrides from uploadContext
+  const subjectId = docMeta.subjectId || detectedSubject?._id || null;
 
-  const examTypeId =
-    uploadContext.examTypeId ||
-    docMeta.examTypeId ||
-    detectedExamType?._id ||
-    null;
+  const examTypeId = docMeta.examTypeId || detectedExamType?._id || null;
 
-  const topic = detectTopicFromText(text, catalog.topics || [], subjectId, classLevel);
+  // When examTypeId is set (from upload form dropdown), resolve names from catalog
+  // so syllabus mapping can match via name in resolveHintsToSyllabusMappings
+  let resolvedSubjectName = detectedSubject?.name || null;
+  if (!resolvedSubjectName && subjectId && catalog?.subjects) {
+    // Resolve subject name from catalog by ID for syllabus mapping
+    const subj = catalog.subjects.find(s => s._id.toString() === subjectId.toString());
+    if (subj) resolvedSubjectName = subj.name;
+  }
+  let resolvedExamTypeName = detectedExamType?.name || null;
+  if (!resolvedExamTypeName && examTypeId && catalog?.examTypes) {
+    const et = catalog.examTypes.find(e => e._id.toString() === examTypeId.toString());
+    if (et) resolvedExamTypeName = et.name;
+  }
+
+  // Try topic detection first with the scoped class
+  let topic = detectTopicFromText(text, catalog.topics || [], subjectId, classLevel);
+  
+  // Keep track of whether cross-class inference changed the class
+  let crossClassDetected = null;
+  
+  // CROSS-CLASS FALLBACK: If topic not found in current class,
+  // try other classes. This handles documents where class isn't explicitly stated
+  // but the topic content reveals it (e.g., "Coulomb's Law" → Class 12 Physics)
+  if (!topic && subjectId) {
+    // Use syllabus tree to find the exam pattern's available classes
+    if (syllabusCatalog && resolvedSubjectName) {
+      // Find syllabus subject node by name (IDs differ from flat Subject model)
+      const subjectSyllabusNode = syllabusCatalog.subjects.find(
+        s => s.name?.toLowerCase() === (resolvedSubjectName || '').toLowerCase()
+      );
+      if (subjectSyllabusNode?.parentId) {
+        const examPatternId = syllabusCatalog.byId[subjectSyllabusNode.parentId.toString()]?.parentId;
+        if (examPatternId) {
+          const examPatternChildren = syllabusCatalog.getChildren(examPatternId.toString());
+          const otherClasses = examPatternChildren.filter(c => c.type === 'class');
+          for (const otherClass of otherClasses) {
+            const otherClassNum = parseInt(otherClass.name.replace(/\D/g, ''), 10);
+            if (isNaN(otherClassNum) || otherClassNum === classLevel) continue;
+            const otherTopic = detectTopicFromText(text, catalog.topics || [], subjectId, otherClassNum);
+            if (otherTopic) {
+              topic = otherTopic;
+              crossClassDetected = otherClassNum;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Final fallback: try all common Indian education classes
+    if (!topic) {
+      const commonClasses = [12, 11, 10].filter(c => c !== classLevel);
+      for (const tryClass of commonClasses) {
+        const otherTopic = detectTopicFromText(text, catalog.topics || [], subjectId, tryClass);
+        if (otherTopic) {
+          topic = otherTopic;
+          crossClassDetected = tryClass;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Apply cross-class inference result to classLevel
+  let finalClassLevel = classLevel;
+  if (crossClassDetected !== null) {
+    finalClassLevel = crossClassDetected;
+    warnings.push(`Class inferred from content: detected as Class ${crossClassDetected} via topic matching`);
+  }
+  
   const difficulty = estimateDifficulty(question, uploadContext);
   const tags = [...(question.tags || [])];
 
@@ -210,7 +274,7 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
   let aiConfidence = 0;
 
   const scores = [];
-  if (classLevel >= 6 && classLevel <= 12) scores.push(0.7);
+  if (finalClassLevel >= 6 && finalClassLevel <= 12) scores.push(0.7);
   else warnings.push('Invalid class detected');
   if (subjectId) scores.push(0.75);
   else warnings.push('Subject not classified');
@@ -229,13 +293,13 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
   let syllabusMappings = null;
 
   return {
-    class: classLevel,
+    class: finalClassLevel,
     subjectId,
     chapterId: topic?._id || null,
     examTypeId,
-    subjectName: detectedSubject?.name || null,
+    subjectName: resolvedSubjectName,
     topicName: topic?.name || null,
-    examTypeName: detectedExamType?.name || null,
+    examTypeName: resolvedExamTypeName,
     difficulty,
     tags: [...new Set(tags)],
     status,
@@ -260,10 +324,7 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
 }
 
 export async function loadClassificationCatalog() {
-  const [subjects, topics, examTypes] = await Promise.all([
-    Subject.find({}).lean(),
-    Topic.find({}).lean(),
-    ExamType.find({ isActive: { $ne: false } }).lean(),
-  ]);
-  return { subjects, topics, examTypes };
+  // Flat Subject, Topic, ExamType collections were dropped.
+  // Return empty arrays — the classification pipeline uses catalog.syllabus (SyllabusNode tree).
+  return { subjects: [], topics: [], examTypes: [] };
 }

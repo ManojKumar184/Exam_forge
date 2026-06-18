@@ -182,12 +182,29 @@ export function resolveHintsToSyllabusMappings(hints, syllabusCatalog) {
         const chapterName = hints.chapter || hints.topic;
         const childChapters = syllabusCatalog.getChildren(subjectNode._id.toString())
           .filter(c => c.type === 'chapter');
-        const chapterNode = findNodeByName(chapterName, childChapters);
+        let chapterNode = findNodeByName(chapterName, childChapters);
+
+        // If not found as a chapter name, search by topic name across all chapters' children.
+        // This handles hints.topic being a precise topic name (e.g., "Coulomb's Law")
+        // rather than its parent chapter name (e.g., "Electric Charges and Fields").
+        if (!chapterNode && hints.topic) {
+          for (const ch of childChapters) {
+            const chId = ch._id.toString();
+            const childTopics = syllabusCatalog.getChildren(chId).filter(t => t.type === 'topic');
+            const topicNode = findNodeByName(hints.topic, childTopics);
+            if (topicNode) {
+              chapterNode = ch;
+              mapping.topicId = topicNode._id;
+              break;
+            }
+          }
+        }
+
         if (chapterNode) {
           mapping.chapterId = chapterNode._id;
 
-          // Try to find a topic within this chapter
-          if (hints.topic && hints.topic !== chapterName) {
+          // Try to find a topic within this chapter (if not already found above)
+          if (hints.topic && !mapping.topicId) {
             const childTopics = syllabusCatalog.getChildren(chapterNode._id.toString())
               .filter(t => t.type === 'topic');
             const topicNode = findNodeByName(hints.topic, childTopics);

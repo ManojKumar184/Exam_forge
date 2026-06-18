@@ -8,17 +8,13 @@ export async function uploadFile(req, res) {
     });
   }
 
-  const data = await uploadService.startAsyncUpload(req.file, req.user, {
-    class: req.body.class,
-    subject_id: req.body.subject_id,
-    exam_type_id: req.body.exam_type_id,
-  });
+  const data = await uploadService.startAsyncUpload(req.file, req.user, {});
 
   res.status(202).json({ success: true, data });
 }
 
 export async function uploadManual(req, res) {
-  const { html, plain, class: uploadClass, subject_id, exam_type_id } = req.body;
+  const { html, plain } = req.body;
   if (!plain?.trim()) {
     return res.status(400).json({
       success: false,
@@ -26,11 +22,7 @@ export async function uploadManual(req, res) {
     });
   }
 
-  const data = await uploadService.startManualImport(html, plain, req.user, {
-    class: uploadClass,
-    subject_id,
-    exam_type_id,
-  });
+  const data = await uploadService.startManualImport(html, plain, req.user, {});
 
   res.status(202).json({ success: true, data });
 }

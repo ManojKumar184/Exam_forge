@@ -13,3 +13,4 @@ export { EmptyState, NoResultsState, NoDataState } from './EmptyState';
 export { Alert } from './Alert';
 export { PageHeader } from './PageHeader';
 export { DataTable } from './DataTable';
+export { OnboardingTip } from './OnboardingTip';

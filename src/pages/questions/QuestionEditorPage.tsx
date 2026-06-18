@@ -12,15 +12,9 @@ export function QuestionEditorPage() {
   const navigate = useNavigate();
   const isEdit = Boolean(questionId);
   const { isFaculty, isAdmin } = useAuth();
-  const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes, fetchChapters, createQuestion, updateQuestion } =
-    useDataStore();
+  const { createQuestion, updateQuestion } = useDataStore();
   const [initial, setInitial] = useState<Question | null>(null);
   const [loading, setLoading] = useState(isEdit);
-
-  useEffect(() => {
-    fetchSubjects();
-    fetchExamTypes();
-  }, []);
 
   useEffect(() => {
     if (!isEdit || !questionId) return;
@@ -30,10 +24,6 @@ export function QuestionEditorPage() {
       .catch(() => navigate('/questions'))
       .finally(() => setLoading(false));
   }, [questionId, isEdit]);
-
-  useEffect(() => {
-    if (initial?.subject_id) fetchChapters(initial.subject_id);
-  }, [initial?.subject_id]);
 
   if (!isFaculty && !isAdmin) {
     return (
@@ -66,9 +56,6 @@ export function QuestionEditorPage() {
 
       <QuestionEditorForm
         initial={initial || undefined}
-        subjects={subjects}
-        chapters={chapters}
-        examTypes={examTypes}
         submitLabel={isEdit ? 'Update question' : 'Create question'}
         onCancel={() => navigate(isAdmin ? '/questions' : '/dashboard')}
         onSubmit={async (payload) => {

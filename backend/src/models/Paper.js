@@ -62,8 +62,9 @@ const paperSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String, default: null },
     paperCode: { type: String, required: true, unique: true },
-    examTypeId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExamType', default: null },
-    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    // Flat model fields removed (Subject, ExamType collections dropped); use syllabusMappings or string-based references
+    examTypeId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, default: null },
     class: { type: Number, required: true, min: 6, max: 12 },
     totalMarks: { type: Number, required: true },
     totalQuestions: { type: Number, required: true },

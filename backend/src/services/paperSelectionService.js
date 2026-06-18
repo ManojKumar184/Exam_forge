@@ -1,7 +1,7 @@
 import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapQuestion } from '../utils/questionMapper.js';
-import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
+import { normalizeQuestionType, getQuestionCategory } from '../utils/questionTypeNormalizer.js';
 
 function parseIdList(value) {
   if (!value) return [];
@@ -27,21 +27,6 @@ export function buildQuestionFilter(config) {
   const classes = parseIdList(config.classes || config.class_list).map(Number).filter((n) => n >= 6);
   if (classes.length) filter.class = { $in: classes };
   else if (config.class) filter.class = Number(config.class);
-
-  const subjectIds = parseIdList(config.subject_ids || config.subjectIds);
-  if (subjectIds.length) filter.subjectId = { $in: subjectIds };
-  else if (config.subject_id || config.subjectId) {
-    filter.subjectId = config.subject_id || config.subjectId;
-  }
-
-  const chapterIds = parseIdList(config.chapter_ids || config.chapterIds);
-  if (chapterIds.length) filter.chapterId = { $in: chapterIds };
-
-  const examTypeIds = parseIdList(config.exam_type_ids || config.examTypeIds);
-  if (examTypeIds.length) filter.examTypeId = { $in: examTypeIds };
-  else if (config.exam_type_id || config.examTypeId) {
-    filter.examTypeId = config.exam_type_id || config.examTypeId;
-  }
 
   const difficulties = parseIdList(config.difficulties || config.difficulty_list);
   if (difficulties.length) filter.difficulty = { $in: difficulties };
@@ -200,12 +185,14 @@ export async function selectQuestionsForPaper(config) {
 
   const filter = buildQuestionFilter(config);
 
-  // Resolve exam type rules to restrict questionType
+  // Resolve exam type rules to restrict questionType (ExamType collection was dropped — use SyllabusNode)
   let resolvedExamTypes = [];
-  const examIdList = parseIdList(config.exam_type_ids || config.examTypeIds || config.exam_type_id || config.examTypeId);
+  const examIdList = parseIdList(config.syllabus_exam_pattern_id || config.syllabusExamPatternId || config.exam_type_ids || config.examTypeIds || config.exam_type_id || config.examTypeId);
   if (examIdList.length) {
-    const { ExamType } = await import('../models/ExamType.js');
-    resolvedExamTypes = await ExamType.find({
+    const { SyllabusNode } = await import('../models/SyllabusNode.js');
+    resolvedExamTypes = await SyllabusNode.find({
+      type: 'exam_pattern',
+      isActive: true,
       $or: [
         { _id: { $in: examIdList } },
         { code: { $in: examIdList.map(c => c.toUpperCase()) } }
@@ -261,7 +248,12 @@ export async function selectQuestionsForPaper(config) {
     let sectionPool = pool;
     const types = spec.question_types || (spec.question_type ? [spec.question_type] : []);
     if (types.length) {
-      sectionPool = pool.filter((q) => types.includes(q.questionType));
+      // Map types to categories (MCQ_SINGLE -> mcq, NUMERICAL_INTEGER -> numerical, etc.)
+      const targetCategories = types.map(t => getQuestionCategory(t));
+      sectionPool = pool.filter((q) => {
+        const category = getQuestionCategory(q.questionType);
+        return targetCategories.includes(category);
+      });
     }
 
     if (sectionPool.length < count) {

@@ -64,9 +64,6 @@ export interface QuestionOption {
 export interface Question {
   id: string;
   serial_id?: number;
-  subject_id: string | null;
-  chapter_id: string | null;
-  exam_type_id: string | null;
   question_text: string;
   question_type: QuestionType;
   context_type?: ContextType;
@@ -321,9 +318,6 @@ export interface AnalyticsData {
 
 // Filter types
 export interface QuestionFilters {
-  subject_id?: string;
-  chapter_id?: string;
-  exam_type_id?: string;
   class?: number;
   difficulty?: Difficulty;
   question_type?: QuestionType;

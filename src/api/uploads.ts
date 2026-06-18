@@ -8,14 +8,10 @@ export interface UploadProcessResult {
 }
 
 export async function uploadQuestionFileApi(
-  file: File,
-  options?: { class?: number; subject_id?: string; exam_type_id?: string }
+  file: File
 ): Promise<UploadProcessResult> {
   const formData = new FormData();
   formData.append('file', file);
-  if (options?.class) formData.append('class', String(options.class));
-  if (options?.subject_id) formData.append('subject_id', options.subject_id);
-  if (options?.exam_type_id) formData.append('exam_type_id', options.exam_type_id);
 
   const { data } = await apiClient.post<{ success: boolean; data: any }>(
     '/uploads',
@@ -35,9 +31,6 @@ export async function uploadQuestionFileApi(
 export async function uploadManualApi(payload: {
   html?: string;
   plain: string;
-  class?: number;
-  subject_id?: string;
-  exam_type_id?: string;
 }): Promise<UploadProcessResult> {
   const { data } = await apiClient.post<{ success: boolean; data: any }>(
     '/uploads/manual',

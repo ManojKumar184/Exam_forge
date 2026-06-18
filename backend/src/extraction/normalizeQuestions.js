@@ -18,6 +18,11 @@ function extractBracketYear(text) {
   return m ? m[0] : null;
 }
 
+function stripBracketYear(text) {
+  if (!text) return '';
+  return text.replace(BRACKET_YEAR_RE, '').trim();
+}
+
 function stripQuestionPrefix(line) {
   return line.replace(/^Q\d{1,3}[\.\)]\s*/i, '').trim();
 }
@@ -333,6 +338,8 @@ function mergeAnswerExplanationBlocks(blocks) {
   // Part A uses Q1-Q28 (offset 0). Part B restarts at Q1 (offset +28 → Q29+).
   let sectionOffset = 0;
   let partACount = 0;
+  // Track active section context (e.g., MCQ_MULTIPLE) propagated from section headers
+  let activeSectionContext = null;
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
@@ -340,13 +347,28 @@ function mergeAnswerExplanationBlocks(blocks) {
     const firstLine = (text.split('\n')[0] || '').trim();
 
     // ── Filter: Part / Topic / Section headers ──
-    if (/^part\s+[a-z]/i.test(firstLine) ||
+    // Detect section headers that specify multiple-correct type
+    const sectionHeader = detectSectionHeader(firstLine);
+    const isMultiCorrectSection = /(?:one\s+or\s+more|multiple|more\s+than\s+one)\s+correct/i.test(firstLine) ||
+                                  (sectionHeader && sectionHeader.examPart === 'mcq_multiple');
+    
+    if (sectionHeader ||
+        /^part\s+[a-z]/i.test(firstLine) ||
         /^topic\s+\d/i.test(firstLine) ||
+        /^section\s+[a-z0-9]/i.test(firstLine) ||
         /^\d+\)\s*(?:multiple choice|numeric)/i.test(firstLine) ||
-        /^\d+\s+MCQs?\b/i.test(firstLine)) {
-      // Preserve section name on the most recent merged block
+        /^\d+\s+MCQs?\b/i.test(firstLine) ||
+        /MCQswith/i.test(firstLine)) {
+      // Preserve section info on the most recent merged block
       if (merged.length > 0 && !merged[merged.length - 1].section) {
         merged[merged.length - 1].section = firstLine;
+      }
+      // If this is a multiple-correct section header, propagate context to subsequent questions
+      if (isMultiCorrectSection) {
+        activeSectionContext = { questionType: 'MCQ_MULTIPLE' };
+      } else {
+        // Other section headers clear the context (next section resets)
+        activeSectionContext = null;
       }
       continue;
     }
@@ -455,6 +477,28 @@ function mergeAnswerExplanationBlocks(blocks) {
         .concat(`qnum:${block.questionNumber}`);
     }
 
+    // Propagate active section context (e.g., MCQ_MULTIPLE) to this block
+    if (block.section) {
+      if (/(?:one\s+or\s+more|multiple|more\s+than\s+one)\s+correct/i.test(block.section)) {
+        activeSectionContext = { questionType: 'MCQ_MULTIPLE' };
+      } else if (/(?:numeric|integer|numerical)/i.test(block.section)) {
+        activeSectionContext = { questionType: 'NUMERICAL_INTEGER' };
+      } else {
+        activeSectionContext = null;
+      }
+    }
+
+    if (activeSectionContext) {
+      block.sectionContext = { ...activeSectionContext };
+      // Merge questionType override into block tags for downstream use
+      if (activeSectionContext.questionType) {
+        block.tags = [...(block.tags || []).filter(t => !t.startsWith('typeOverride:')), `typeOverride:${activeSectionContext.questionType}`];
+      }
+    } else {
+      // Clear any typeOverride if section context is reset
+      block.tags = (block.tags || []).filter(t => !t.startsWith('typeOverride:'));
+    }
+
     merged.push({ ...block });
   }
 
@@ -511,8 +555,18 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         }
       );
 
-      let questionType = normalizeQuestionType(pipeline.questionType);
-      const finalQuestionText = pipeline.stem.replace(/^Q\d{1,3}[\.\)]\s*/i, '').trim();
+      // Apply section context override (e.g., MCQ_MULTIPLE from section header)
+      // but preserve structural question types like MATCH_FOLLOWING or ASSERTION_REASON
+      const isStructuralType = ['MATCH_FOLLOWING', 'ASSERTION_REASON', 'MATRIX_MATCH'].includes(pipeline.questionType);
+      let questionType = normalizeQuestionType(
+        (!isStructuralType && block.sectionContext?.questionType) || pipeline.questionType
+      );
+      // Strip year bracket from final question text (e.g., [April 8, 2025 (II)] removed)
+      // Year is already extracted and stored separately via extractBracketYear
+      const finalQuestionText = pipeline.stem
+        .replace(/^Q\d{1,3}[\.\)]\s*/i, '')
+        .replace(BRACKET_YEAR_RE, '')  // Strip year brackets from displayed text
+        .trim();
       const finalOptions = pipeline.options.map(o => ({
         text: o.text || '',
         latex: o.latex || null,
@@ -600,6 +654,7 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         sourceFile: context.sourceFile || null,
         extractedFrom: context.extractedFrom || null,
         renderingMetadata: {
+          segmentId: block.segmentId || null,
           section: block.section || null,
           questionNumber: block.questionNumber || null,
           subtype: pipeline.subtype || null,
@@ -607,7 +662,11 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         },
         
         // Year extracted from question text — full bracket preserved (e.g. [April 8, 2025 (II)])
+        // The year bracket is also STRIPPED from questionText to prevent rendering artifacts
         year: extractBracketYear(questionText) || extractBracketYear(pipeline.stem) || null,
+        // Strip year bracket from final question text to prevent rendering issues
+        // e.g., "[April 8, 2025 (II)]" should not appear in the displayed question
+        yearBracket: extractBracketYear(questionText) || extractBracketYear(pipeline.stem) || null,
 
         // SaaS semantic fields
         correctAnswers: pipeline.correctAnswers || [],

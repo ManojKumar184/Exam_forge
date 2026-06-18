@@ -84,10 +84,12 @@ export function PapersListPage() {
   useEffect(() => {
     const apiFilters: Record<string, any> = {};
     if (bankFilter) apiFilters.bank_id = bankFilter;
-    if (syllabusFilters.syllabus_subject_id) apiFilters.subject_id = syllabusFilters.syllabus_subject_id;
-    if (syllabusFilters.syllabus_chapter_id) apiFilters.chapter_id = syllabusFilters.syllabus_chapter_id;
-    if (syllabusFilters.syllabus_topic_id) apiFilters.topic_id = syllabusFilters.syllabus_topic_id;
-    if (syllabusFilters.syllabus_subtopic_id) apiFilters.subtopic_id = syllabusFilters.syllabus_subtopic_id;
+    // Send syllabus filters directly — backend filters by syllabusMappings
+    if (syllabusFilters.syllabus_subject_id) apiFilters.syllabus_subject_id = syllabusFilters.syllabus_subject_id;
+    if (syllabusFilters.syllabus_chapter_id) apiFilters.syllabus_chapter_id = syllabusFilters.syllabus_chapter_id;
+    if (syllabusFilters.syllabus_topic_id) apiFilters.syllabus_topic_id = syllabusFilters.syllabus_topic_id;
+    if (syllabusFilters.syllabus_subtopic_id) apiFilters.syllabus_subtopic_id = syllabusFilters.syllabus_subtopic_id;
+    if (syllabusFilters.syllabus_exam_pattern_id) apiFilters.syllabus_exam_pattern_id = syllabusFilters.syllabus_exam_pattern_id;
 
     fetchPapers(apiFilters);
   }, [bankFilter, syllabusFilters]);

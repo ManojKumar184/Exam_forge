@@ -16,8 +16,6 @@ import { apiConfig } from '../../config/api';
 
 export function ModerationQueuePage() {
   const {
-    subjects, chapters, examTypes,
-    fetchSubjects, fetchChapters, fetchExamTypes,
     approveQuestion, rejectQuestion, updateQuestion
   } = useDataStore();
 
@@ -56,9 +54,6 @@ export function ModerationQueuePage() {
     explanation: string;
     class: number;
     difficulty: Question['difficulty'];
-    subject_id: string;
-    chapter_id: string;
-    exam_type_id: string;
     tags: string[];
   }>({
     question_text: '',
@@ -70,9 +65,6 @@ export function ModerationQueuePage() {
     explanation: '',
     class: 11,
     difficulty: 'medium',
-    subject_id: '',
-    chapter_id: '',
-    exam_type_id: '',
     tags: [],
   });
 
@@ -109,8 +101,6 @@ export function ModerationQueuePage() {
   };
 
   useEffect(() => {
-    fetchSubjects();
-    fetchExamTypes();
     loadQueue();
   }, []);
 
@@ -132,25 +122,16 @@ export function ModerationQueuePage() {
         explanation: activeQuestion.explanation || '',
         class: activeQuestion.class || 11,
         difficulty: activeQuestion.difficulty || 'medium',
-        subject_id: activeQuestion.subject_id || '',
-        chapter_id: activeQuestion.chapter_id || '',
-        exam_type_id: activeQuestion.exam_type_id || '',
         tags: activeQuestion.tags || [],
       });
       setTagsText((activeQuestion.tags || []).join(', '));
-      if (activeQuestion.subject_id) {
-        fetchChapters(activeQuestion.subject_id);
-      }
     }
   }, [selectedId, activeQuestion]);
 
   const handleApprove = async () => {
     if (!activeQuestion) return;
-    if (!editForm.subject_id || !editForm.exam_type_id) {
-      toast.error('Subject and Exam Type are required before approving.');
-      setActiveTab('edit');
-      return;
-    }
+    // Syllabus mappings are validated server-side — subject/exam type from flat collections are no longer required
+    // Advanced syllabus-based classification happens server-side via the AI pipeline
     
     try {
       // First save changes, then approve
@@ -272,8 +253,8 @@ export function ModerationQueuePage() {
     <div className="h-full flex flex-col gap-4 overflow-hidden -mt-1 pb-16">
       {/* Header */}
       <PageHeader
-        title="Semantic Moderation Queue"
-        subtitle="Enforce SaaS publishing standards. High confidence items go to Pending; low confidence/duplicates go to Needs Review."
+        title="Review Queue"
+        subtitle="Review and approve extracted questions before they are published."
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="warning" className="text-xs px-3 py-1">
@@ -623,30 +604,6 @@ export function ModerationQueuePage() {
                       onChange={(e) => setEditForm(p => ({ ...p, explanation: e.target.value }))}
                       rows={3}
                     />
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                      <Select
-                        label="SaaS Subject Classification"
-                        options={subjects.map(s => ({ value: s.id, label: s.name }))}
-                        value={editForm.subject_id}
-                        onChange={(e) => setEditForm(p => ({ ...p, subject_id: e.target.value, chapter_id: '' }))}
-                      />
-                      <Select
-                        label="SaaS Chapter / Topic"
-                        options={chapters
-                          .filter(c => c.subject_id === editForm.subject_id)
-                          .map(c => ({ value: c.id, label: c.name }))}
-                        value={editForm.chapter_id}
-                        onChange={(e) => setEditForm(p => ({ ...p, chapter_id: e.target.value }))}
-                        placeholder="Select chapter"
-                      />
-                      <Select
-                        label="SaaS Exam Type Classification"
-                        options={examTypes.map(e => ({ value: e.id, label: e.name }))}
-                        value={editForm.exam_type_id}
-                        onChange={(e) => setEditForm(p => ({ ...p, exam_type_id: e.target.value }))}
-                      />
-                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Select

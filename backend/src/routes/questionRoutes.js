@@ -30,25 +30,25 @@ router.post(
 
 router.post(
   '/bulk/approve',
-  authorize('super_admin'),
+  authorize('super_admin', 'faculty'),
   validate(bulkIdsSchema),
   asyncHandler(questionController.bulkApprove)
 );
 router.post(
   '/bulk/reject',
-  authorize('super_admin'),
+  authorize('super_admin', 'faculty'),
   validate(bulkIdsSchema),
   asyncHandler(questionController.bulkReject)
 );
 router.post(
   '/bulk/delete',
-  authorize('super_admin'),
+  authorize('super_admin', 'faculty'),
   validate(bulkIdsSchema),
   asyncHandler(questionController.bulkDelete)
 );
 router.post(
   '/bulk/update-metadata',
-  authorize('super_admin'),
+  authorize('super_admin', 'faculty'),
   validate(bulkUpdateMetadataSchema),
   asyncHandler(questionController.bulkUpdateMetadata)
 );
@@ -64,14 +64,14 @@ router.post(
 
 router.patch(
   '/:id',
-  authorize('super_admin'),
+  authorize('super_admin', 'faculty'),
   validate(updateQuestionSchema),
   asyncHandler(questionController.update)
 );
 
-router.delete('/:id', authorize('super_admin'), asyncHandler(questionController.remove));
+router.delete('/:id', authorize('super_admin', 'faculty'), asyncHandler(questionController.remove));
 
-router.post('/:id/approve', authorize('super_admin'), asyncHandler(questionController.approve));
-router.post('/:id/reject', authorize('super_admin'), asyncHandler(questionController.reject));
+router.post('/:id/approve', authorize('super_admin', 'faculty'), asyncHandler(questionController.approve));
+router.post('/:id/reject', authorize('super_admin', 'faculty'), asyncHandler(questionController.reject));
 
 export default router;

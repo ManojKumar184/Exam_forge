@@ -32,7 +32,7 @@ export function SettingsPage() {
       <PageHeader title="Settings" subtitle="Manage your account profile" />
 
       {message && (
-        <Alert variant={message.includes('success') ? 'success' : 'error'} title={message} />
+        <Alert variant={message === 'Profile updated successfully.' ? 'success' : 'error'} title={message} />
       )}
 
       <div className="grid grid-cols-1 gap-6">

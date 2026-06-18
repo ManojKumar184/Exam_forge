@@ -4,8 +4,9 @@
 
 const puppeteer = require('c:/Users/manoj555/Desktop/Exam_forge/node_modules/puppeteer');
 const mongoose = require('c:/Users/manoj555/Desktop/Exam_forge/backend/node_modules/mongoose');
-
-const MONGODB_URI = 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/examforge?retryWrites=true&w=majority&appName=exam-forge';
+const path = require('path');
+require('c:/Users/manoj555/Desktop/Exam_forge/backend/node_modules/dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
 
 (async () => {
   const browser = await puppeteer.launch({

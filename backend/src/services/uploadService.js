@@ -15,6 +15,71 @@ import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
 
 /**
+ * Atomic heartbeat/stage update — no version conflicts.
+ * Uses updateOne with $set instead of full document save().
+ */
+async function atomicStageUpdate(uploadId, updates = {}) {
+  const $set = {
+    lastHeartbeat: new Date(),
+    ...updates,
+  };
+  await Upload.updateOne({ _id: uploadId }, { $set });
+}
+
+/**
+ * Atomic checkpoint + staged questions push.
+ * Uses $push with $each to avoid reassigning the entire array.
+ */
+async function atomicPushStaged(uploadId, stagedQuestionObjs) {
+  if (!stagedQuestionObjs?.length) return;
+  await Upload.updateOne(
+    { _id: uploadId },
+    {
+      $push: { stagedQuestions: { $each: stagedQuestionObjs } },
+      $set: { lastHeartbeat: new Date() },
+    }
+  );
+}
+
+/**
+ * Atomic set active processing guard.
+ * Claims exclusive processing rights for this upload.
+ * @returns {boolean} true if claim succeeded, false if another processor is active
+ */
+async function claimActiveProcessing(uploadId, processingId) {
+  const result = await Upload.updateOne(
+    {
+      _id: uploadId,
+      $or: [
+        { activeProcessing: null },
+        // Allow re-claim if the previous processing was started > 3 min ago (zombie)
+        { 'activeProcessing.startedAt': { $lt: new Date(Date.now() - 180000) } },
+      ],
+    },
+    {
+      $set: {
+        activeProcessing: {
+          processingId,
+          startedAt: new Date(),
+        },
+        lastHeartbeat: new Date(),
+      },
+    }
+  );
+  return result.modifiedCount > 0;
+}
+
+/**
+ * Release active processing guard.
+ */
+async function releaseActiveProcessing(uploadId) {
+  await Upload.updateOne(
+    { _id: uploadId },
+    { $set: { activeProcessing: null, lastHeartbeat: new Date() } }
+  );
+}
+
+/**
  * @param {{ filename: string, originalname: string, mimetype: string, size: number }} file
  * @param {import('../models/User.js').IUser} user
  * @param {Record<string, any>} [options]
@@ -40,10 +105,12 @@ export async function startAsyncUpload(file, user, options = {}) {
     classificationVersion: 'v1.0.0',
   });
 
+  const processingId = `${upload._id}-${Date.now()}`;
+
   // Start background process
   setTimeout(async () => {
     try {
-      await processUploadInternal(upload, file, user, options);
+      await processUploadInternal(upload, file, user, options, 0, processingId);
     } catch (err) {
       logger.error('Background upload processing failed', {
         uploadId: upload._id.toString(),
@@ -55,59 +122,87 @@ export async function startAsyncUpload(file, user, options = {}) {
   return mapUpload(upload);
 }
 
-async function processUploadInternal(upload, file, user, options = {}, startIdx = 0) {
-  const fileType = upload.fileType;
-  
-  // Helper for status and stage logging updates (watchdog heartbeat)
-  const onStageChange = async (stage, progress, logMessage) => {
-    upload.processingStage = stage;
-    upload.progress = progress;
-    if (logMessage) {
-      upload.stageLogs.push(`[UPLOAD_STAGE] ${stage} - ${logMessage} - ${new Date().toISOString()}`);
-    }
-    upload.lastHeartbeat = new Date();
-    await upload.save();
-  };
+async function processUploadInternal(upload, file, user, options = {}, startIdx = 0, processingId = null) {
+  const uploadId = upload._id;
+  const startTime = Date.now();
 
-  // Stage 0: uploaded
-  await onStageChange('uploaded', 5, 'File uploaded and received on server');
+  // Claim active processing — if another processor is running, this one aborts
+  const processingTag = processingId || `${uploadId}-${Date.now()}`;
+  const claimed = await claimActiveProcessing(uploadId, processingTag);
+  if (!claimed) {
+    logger.warn(`[upload-worker] Aborting — another processor is already active for upload ${uploadId}`);
+    return;
+  }
 
   try {
+    // Stage 0: uploaded
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'uploaded',
+      progress: 5,
+    });
+
     const filePath = path.join(env.uploadDir, 'documents', file.filename);
-    
+
     // Stage 1: extracting
-    await onStageChange('extracting', 15, 'XML extraction and ZIP extraction initiated');
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'extracting',
+      progress: 15,
+    });
 
     const [catalog, syllabusCatalog] = await Promise.all([
       loadClassificationCatalog(),
       loadSyllabusCatalog().catch(() => null),
     ]);
 
-    // Enrich catalog with syllabus for pipeline consumption
     if (syllabusCatalog) {
       catalog.syllabus = syllabusCatalog;
     }
 
+    // Restore onStageChange for extraction pipeline compatibility
+    // (normalizeQuestions.js calls context.onStageChange for per-question progress)
+    const atomicOnStageChange = async (stage, progress, logMessage) => {
+      try {
+        const $set = {
+          processingStage: stage,
+          progress,
+          lastHeartbeat: new Date(),
+        };
+        // Build update object conditionally — never pass $push: undefined
+        const update = { $set };
+        if (logMessage) {
+          update.$push = { stageLogs: `[UPLOAD_STAGE] ${stage} - ${logMessage} - ${new Date().toISOString()}` };
+        }
+        await Upload.updateOne({ _id: uploadId }, update);
+      } catch (err) {
+        // Non-critical: don't let progress updates fail the upload
+        logger.warn('Atomic onStageChange failed', { uploadId: uploadId.toString(), error: err.message });
+      }
+    };
+
     const uploadContext = {
       imageDir: path.join(env.uploadDir, 'images'),
-      class: options.class ? Number(options.class) : undefined,
-      subjectId: options.subject_id || options.subjectId || null,
-      examTypeId: options.exam_type_id || options.examTypeId || null,
+      class: undefined,
       filename: file.originalname,
       source: 'upload',
       sourceFile: file.originalname,
-      onStageChange,
-      skipLlm: true, // synchronously bypass Ollama refinement during ingestion
-      returnRawBlocks: true, // request raw blocks to process chunk-by-chunk!
+      uploadId: uploadId.toString(),
+      batchIndex: 0,
+      skipLlm: false,
+      skipRefinement: true,
+      returnRawBlocks: true,
+      onStageChange: atomicOnStageChange,
     };
 
     const extractResult = await retryAsync(
-      () => extractionService.processFile(filePath, fileType, uploadContext),
+      () => extractionService.processFile(filePath, upload.fileType, uploadContext),
       { label: 'upload-extraction', retries: 1 }
     );
 
     if (extractResult.usedOcr) {
-      await onStageChange('ocr', 35, 'Tesseract OCR fallback triggered for page images');
+      await atomicStageUpdate(uploadId, {
+        processingStage: 'ocr',
+        progress: 35,
+      });
     }
 
     const docMeta = parseDocumentMetadata(
@@ -119,40 +214,59 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
 
     const blocks = extractResult.blocks || [];
     if (!blocks.length) {
-      upload.status = 'failed';
-      upload.progress = 100;
-      upload.processingError =
-        extractResult.warnings?.join('; ') || 'No questions could be extracted from this file';
-      upload.extractionWarnings = extractResult.warnings || [];
-      upload.processingStage = 'failed';
-      upload.stageLogs.push(`[UPLOAD_STAGE] failed - No questions extracted - ${new Date().toISOString()}`);
-      await upload.save();
+      await Upload.updateOne(
+        { _id: uploadId },
+        {
+          $set: {
+            status: 'failed',
+            progress: 100,
+            processingError: extractResult.warnings?.join('; ') || 'No questions could be extracted from this file',
+            extractionWarnings: extractResult.warnings || [],
+            processingStage: 'failed',
+            activeProcessing: null,
+            lastHeartbeat: new Date(),
+          },
+          $push: { stageLogs: `[UPLOAD_STAGE] failed - No questions extracted - ${new Date().toISOString()}` }
+        }
+      );
       return;
     }
 
-    const stagedQuestions = startIdx === 0 ? [] : [...(upload.stagedQuestions || [])];
-    const chunkSize = 10;
+    const chunkSize = Math.min(env.ai.batchMaxSize || 25, 10); // Default 10, but could be larger
     let totalDuplicatesCount = 0;
-    
-    let peakMemory = upload.telemetry?.peakMemory || 0;
-    let maxLoopLag = upload.telemetry?.maxLoopLag || 0;
+    let classifiedDiagnostics = [];
 
-    await onStageChange('reconstructing', 40, `Found ${blocks.length} blocks. Reconstructing and persisting staging queue incrementally in chunks of ${chunkSize}...`);
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'reconstructing',
+      progress: 40,
+    });
 
+    // ── Process chunks ─────────────────────────────────
     for (let i = startIdx; i < blocks.length; i += chunkSize) {
       const chunk = blocks.slice(i, i + chunkSize);
-      logger.info(`[upload-worker] Reconstructing chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(blocks.length / chunkSize)} (${chunk.length} blocks)`);
+      const chunkIndex = Math.floor(i / chunkSize);
+      const totalChunks = Math.ceil(blocks.length / chunkSize);
+      const chunkStartTime = Date.now();
 
-      // 1. Reconstruct chunk questions using normalizeQuestions
+      logger.info(`[UPLOAD_CHUNK] Upload=${uploadId} Chunk=${chunkIndex + 1}/${totalChunks} Blocks=${chunk.length}`);
+
+      // 1. Reconstruct chunk
+      const reconStart = Date.now();
       const reconstructedQuestions = await normalizeQuestions(chunk, {
         ...uploadContext,
-        returnRawBlocks: false // do actual reconstruction for this chunk
+        returnRawBlocks: false,
       });
+      const reconDuration = Date.now() - reconStart;
 
-      // 3. Classify the chunk questions in a batch
+      // 2. Classify the chunk questions
+      const classifyStart = Date.now();
       let classifiedList = [];
       try {
-        classifiedList = await classifyQuestionMetadataBatch(reconstructedQuestions, catalog, docMeta, uploadContext);
+        uploadContext.batchIndex = chunkIndex;
+        const classifyMeta = { ...docMeta, uploadId: uploadId.toString(), batchIndex: chunkIndex };
+        classifiedList = await classifyQuestionMetadataBatch(
+          reconstructedQuestions, catalog, classifyMeta, uploadContext
+        );
       } catch (err) {
         logger.warn('[upload-worker] Batch classification failed, using fallbacks', { error: err.message });
         classifiedList = reconstructedQuestions.map(() => ({
@@ -160,157 +274,197 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
           extractionWarnings: ['Batch classification failed fallback'],
         }));
       }
+      const classifyDuration = Date.now() - classifyStart;
 
+      // 3. Process each question — PARALLELIZE duplicate checks
+      const stagedChunk = [];
+      const dupStart = Date.now();
+
+      const duplicateResults = await Promise.all(
+        reconstructedQuestions.map((q) =>
+          detectDuplicatesInScopes(Question, q, user).catch(() => ({
+            isDuplicate: false,
+            duplicateOf: null,
+            duplicateScore: 0,
+            duplicateMethod: null,
+            possibleMatches: [],
+          }))
+        )
+      );
+      const dupDuration = Date.now() - dupStart;
+
+      const buildStart = Date.now();
       for (let j = 0; j < reconstructedQuestions.length; j++) {
         const q = reconstructedQuestions[j];
         const classified = classifiedList[j] || {};
+        const duplicateAnalysis = duplicateResults[j] || {};
         const blockIndex = i + j;
-        
-        try {
-          // Detect duplicates in scopes (Faculty Workspace, Faculty Banks, Institution Banks)
-          const duplicateAnalysis = await detectDuplicatesInScopes(Question, q, user);
-          
-          if (duplicateAnalysis.isDuplicate) {
-            totalDuplicatesCount++;
-          }
-          
-          const imageMetadata = q.imageMetadata || (q.questionImages || []).map((url, order) => ({
-            url,
-            order,
-            caption: null,
-            type: 'diagram',
-          }));
-  
-          const lowConfidence = 
-            (q.parserConfidence !== undefined && q.parserConfidence < 0.70) ||
-            (q.semanticConfidence !== undefined && q.semanticConfidence < 0.70) ||
-            (q.mathPreservationConfidence !== undefined && q.mathPreservationConfidence < 0.70) ||
-            (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70) ||
-            (classified.aiConfidence !== undefined && classified.aiConfidence < 70);
-  
-          const status = (classified.status === 'needs_review' || duplicateAnalysis.isDuplicate || lowConfidence) ? 'needs_review' : 'pending';
-  
-          const extractionWarnings = [
-            ...(classified.extractionWarnings || []),
-            ...(docMeta.warnings || []),
-            ...(q.extractionWarnings || []),
-          ];
-          if (lowConfidence) {
-            extractionWarnings.push('Low confidence score detected');
-          }
-          if (duplicateAnalysis.isDuplicate) {
-            extractionWarnings.push(`Probable duplicate found (${duplicateAnalysis.duplicateMethod}, score ${duplicateAnalysis.duplicateScore})`);
-          }
-  
-          const stagedQuestionObj = {
-            ...q,
-            class: classified.class ?? q.class,
-            subjectId: classified.subjectId ?? q.subjectId,
-            chapterId: classified.chapterId ?? q.chapterId,
-            examTypeId: classified.examTypeId ?? q.examTypeId,
-            difficulty: classified.difficulty ?? q.difficulty,
-            tags: [...new Set([...(classified.tags || []), ...(q.tags || [])])],
-            status,
-            renderingMetadata: {
-              ...(q.renderingMetadata || {}),
-            },
-            questionImages: q.questionImages || [],
-            imageMetadata,
-            diagrams: q.diagrams || [],
-            hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
-            hasTable: Boolean(q.hasTable),
-            questionLatex: q.questionLatex,
-            hasEquation: Boolean(q.hasEquation || q.questionLatex),
-            duplicateOf: duplicateAnalysis.duplicateOf || null,
-            duplicateConfidence: duplicateAnalysis.duplicateScore,
-            duplicateMethod: duplicateAnalysis.duplicateMethod,
-            possibleMatches: duplicateAnalysis.possibleMatches || [],
-            extractionWarnings,
-            aiConfidence: classified.aiConfidence ?? 0,
-            aiMetadata: classified.aiMetadata || {},
-            syllabusMappings: classified.syllabusMappings || null,
-            uploadId: upload._id,
-            createdBy: user._id,
-            ownerId: user._id,
-            isPrivate: user.role === 'faculty',
-            visibility: user.role === 'faculty' ? 'private' : 'public',
-            source: 'upload',
-            sourceFile: file.originalname,
-            debugInfo: q.debugInfo || null,
-            semanticEnriched: false,
-            
-            // Staging flags
-            isApproved: false,
-            isRejected: false,
-            savedQuestionId: null,
-          };            // Run structural validation on the staged question
-            const validationResult = validateQuestion(stagedQuestionObj);
-            stagedQuestionObj.validationResult = {
-              valid: validationResult.valid,
-              issues: validationResult.issues,
-              confidence: validationResult.confidence,
-            };
-            if (!validationResult.valid) {
-              stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
-              stagedQuestionObj.status = 'needs_review';
-            }
 
-            stagedQuestions.push(stagedQuestionObj);
-          logger.info(`[upload-worker] Staged question ${blockIndex + 1}/${blocks.length}`);
-        } catch (err) {
-          logger.error(`Failed to stage question block ${blockIndex + 1} during upload`, { error: err.message });
-          upload.stageLogs.push(`[UPLOAD_STAGE] warning - Failed to stage question ${blockIndex + 1}: ${err.message} - ${new Date().toISOString()}`);
+        if (duplicateAnalysis.isDuplicate) {
+          totalDuplicatesCount++;
         }
+
+        const imageMetadata = q.imageMetadata || (q.questionImages || []).map((url, order) => ({
+          url, order, caption: null, type: 'diagram',
+        }));
+
+        const lowConfidence =
+          (q.parserConfidence !== undefined && q.parserConfidence < 0.70) ||
+          (q.semanticConfidence !== undefined && q.semanticConfidence < 0.70) ||
+          (q.mathPreservationConfidence !== undefined && q.mathPreservationConfidence < 0.70) ||
+          (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70) ||
+          (classified.aiConfidence !== undefined && classified.aiConfidence < 70);
+
+        const status = (classified.status === 'needs_review' || duplicateAnalysis.isDuplicate || lowConfidence)
+          ? 'needs_review' : 'pending';
+
+        const extractionWarnings = [
+          ...(classified.extractionWarnings || []),
+          ...(docMeta.warnings || []),
+          ...(q.extractionWarnings || []),
+        ];
+        if (lowConfidence) extractionWarnings.push('Low confidence score detected');
+        if (duplicateAnalysis.isDuplicate) {
+          extractionWarnings.push(`Probable duplicate found (${duplicateAnalysis.duplicateMethod}, score ${duplicateAnalysis.duplicateScore})`);
+        }
+
+        const stagedQuestionObj = {
+          ...q,
+          class: classified.class ?? q.class,
+          difficulty: classified.difficulty ?? q.difficulty,
+          tags: [...new Set([...(classified.tags || []), ...(q.tags || [])])],
+          status,
+          renderingMetadata: { ...(q.renderingMetadata || {}) },
+          questionImages: q.questionImages || [],
+          imageMetadata,
+          diagrams: q.diagrams || [],
+          hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
+          hasTable: Boolean(q.hasTable),
+          questionLatex: q.questionLatex,
+          hasEquation: Boolean(q.hasEquation || q.questionLatex),
+          duplicateOf: duplicateAnalysis.duplicateOf || null,
+          duplicateConfidence: duplicateAnalysis.duplicateScore,
+          duplicateMethod: duplicateAnalysis.duplicateMethod,
+          possibleMatches: duplicateAnalysis.possibleMatches || [],
+          extractionWarnings,
+          aiConfidence: classified.aiConfidence ?? 0,
+          aiMetadata: classified.aiMetadata || {},
+          syllabusMappings: classified.syllabusMappings || null,
+          uploadId: uploadId,
+          createdBy: user._id,
+          ownerId: user._id,
+          isPrivate: user.role === 'faculty',
+          visibility: user.role === 'faculty' ? 'private' : 'public',
+          source: 'upload',
+          sourceFile: file.originalname,
+          debugInfo: q.debugInfo || null,
+          semanticEnriched: false,
+          isApproved: false,
+          isRejected: false,
+          savedQuestionId: null,
+        };
+
+        // Run structural validation
+        const validationResult = validateQuestion(stagedQuestionObj);
+        stagedQuestionObj.validationResult = {
+          valid: validationResult.valid,
+          issues: validationResult.issues,
+          confidence: validationResult.confidence,
+        };
+        if (!validationResult.valid) {
+          stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
+          stagedQuestionObj.status = 'needs_review';
+        }
+
+        stagedChunk.push(stagedQuestionObj);
+      }
+      const buildDuration = Date.now() - buildStart;
+
+      // Push staged questions atomically + update checkpoint + progress
+      const dbStart = Date.now();
+      if (stagedChunk.length > 0) {
+        await atomicPushStaged(uploadId, stagedChunk);
       }
 
-      // Update progress, checkpoint, telemetry and heartbeat
-      const yieldStart = Date.now();
-      await new Promise(resolve => setTimeout(resolve, 50));
-      const lag = Math.max(0, Date.now() - yieldStart - 50);
-      if (lag > maxLoopLag) maxLoopLag = lag;
-
+      const progress = 40 + Math.round((Math.min(i + chunkSize, blocks.length) / blocks.length) * 50);
+      const checkpoint = { chunkIndex: chunkIndex + 1, nextBlockIndex: i + chunkSize };
       const mem = process.memoryUsage().heapUsed;
-      if (mem > peakMemory) peakMemory = mem;
 
-      upload.checkpoint = {
-        chunkIndex: Math.floor(i / chunkSize) + 1,
-        nextBlockIndex: i + chunkSize
-      };
-      upload.telemetry = { peakMemory, maxLoopLag };
-      upload.stagedQuestions = stagedQuestions;
+      await Upload.updateOne(
+        { _id: uploadId },
+        {
+          $set: {
+            processingStage: 'reconstructing',
+            progress,
+            checkpoint,
+            'telemetry.peakMemory': mem,
+            lastHeartbeat: new Date(),
+          },
+          $push: {
+            stageLogs: `[UPLOAD_STAGE] reconstructing - Processed ${Math.min(i + chunkSize, blocks.length)}/${blocks.length} questions - ${new Date().toISOString()}`,
+          },
+        }
+      );
+      const dbDuration = Date.now() - dbStart;
 
-      const progress = 40 + Math.round((Math.min(i + chunkSize, blocks.length) / blocks.length) * 50); // scales progress from 40% to 90%
-      await onStageChange('reconstructing', progress, `Processed ${Math.min(i + chunkSize, blocks.length)}/${blocks.length} questions`);
+      const chunkDuration = Date.now() - chunkStartTime;
+      logger.info(`[UPLOAD_CHUNK] Upload=${uploadId} Chunk=${chunkIndex + 1}/${totalChunks} Questions=${stagedChunk.length} Recon=${reconDuration}ms Classify=${classifyDuration}ms DupCheck=${dupDuration}ms Build=${buildDuration}ms DBwrite=${dbDuration}ms Total=${chunkDuration}ms`);
 
       if (global.gc) {
         try { global.gc(); } catch (e) {}
       }
     }
 
-    // Stage 7: completed
-    upload.status = 'completed';
-    upload.progress = 100;
-    upload.processingStage = 'completed';
-    upload.questionsExtracted = stagedQuestions.length;
-    upload.stagedQuestions = stagedQuestions;
-    upload.extractionWarnings = [
-      ...(extractResult.warnings || []),
-      ...(totalDuplicatesCount > 0 ? ['Some duplicates flagged'] : []),
-    ];
-    upload.processedAt = new Date();
-    upload.stageLogs.push(`[UPLOAD_STAGE] completed - Upload processed successfully - ${new Date().toISOString()}`);
-    await upload.save();
+    // ── Finalize ──────────────────────────────────────
+    const totalDuration = Date.now() - startTime;
+    await Upload.updateOne(
+      { _id: uploadId },
+      {
+        $set: {
+          status: 'completed',
+          progress: 100,
+          processingStage: 'completed',
+          questionsExtracted: blocks.length,
+          processingError: null,
+          processedAt: new Date(),
+          activeProcessing: null,
+          lastHeartbeat: new Date(),
+          classificationDiagnostics: classifiedDiagnostics,
+        },
+        $push: {
+          stageLogs: `[UPLOAD_STAGE] completed - Upload processed successfully (${totalDuration}ms) - ${new Date().toISOString()}`,
+        },
+      }
+    );
+
+    logger.info(`[UPLOAD_SUMMARY] Upload=${uploadId} Questions=${blocks.length} Duplicates=${totalDuplicatesCount} Duration=${totalDuration}ms Status=completed`);
+
   } catch (err) {
-    logger.error('Upload processing failed internal', {
-      uploadId: upload._id.toString(),
+    const totalDuration = Date.now() - startTime;
+    logger.error(`[UPLOAD_SUMMARY] Upload=${uploadId} Duration=${totalDuration}ms Status=failed`, {
+      uploadId: uploadId.toString(),
       error: err.message,
     });
-    upload.status = 'failed';
-    upload.progress = 100;
-    upload.processingError = err.message;
-    upload.processingStage = 'failed';
-    upload.stageLogs.push(`[UPLOAD_STAGE] failed - Error: ${err.message} - ${new Date().toISOString()}`);
-    await upload.save();
+
+    await Upload.updateOne(
+      { _id: uploadId },
+      {
+        $set: {
+          status: 'failed',
+          progress: 100,
+          processingError: err.message,
+          processingStage: 'failed',
+          activeProcessing: null,
+          lastHeartbeat: new Date(),
+        },
+        $push: {
+          stageLogs: `[UPLOAD_STAGE] failed - Error: ${err.message} - ${new Date().toISOString()}`,
+        },
+      }
+    );
+  } finally {
+    // Ensure processing is released even if something panics
+    try { await releaseActiveProcessing(uploadId); } catch (e) {}
   }
 }
 
@@ -338,9 +492,11 @@ export async function startManualImport(html, plain, user, options = {}) {
     classificationVersion: 'v1.0.0',
   });
 
+  const processingId = `${upload._id}-${Date.now()}`;
+
   setTimeout(async () => {
     try {
-      await processManualImportInternal(upload, html, plain, user, options);
+      await processManualImportInternal(upload, html, plain, user, options, processingId);
     } catch (err) {
       logger.error('Background manual import processing failed', {
         uploadId: upload._id.toString(),
@@ -352,40 +508,64 @@ export async function startManualImport(html, plain, user, options = {}) {
   return mapUpload(upload);
 }
 
-async function processManualImportInternal(upload, html, plain, user, options = {}) {
-  const onStageChange = async (stage, progress, logMessage) => {
-    upload.processingStage = stage;
-    upload.progress = progress;
-    if (logMessage) {
-      upload.stageLogs.push(`[UPLOAD_STAGE] ${stage} - ${logMessage} - ${new Date().toISOString()}`);
-    }
-    upload.lastHeartbeat = new Date();
-    await upload.save();
-  };
+async function processManualImportInternal(upload, html, plain, user, options = {}, processingId = null) {
+  const uploadId = upload._id;
+  const startTime = Date.now();
 
-  await onStageChange('uploaded', 5, 'Manual content paste received on server');
+  const processingTag = processingId || `${uploadId}-${Date.now()}`;
+  const claimed = await claimActiveProcessing(uploadId, processingTag);
+  if (!claimed) {
+    logger.warn(`[manual-import] Aborting — another processor is already active for upload ${uploadId}`);
+    return;
+  }
 
   try {
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'uploaded',
+      progress: 5,
+    });
+
     const [catalog, syllabusCatalog] = await Promise.all([
       loadClassificationCatalog(),
       loadSyllabusCatalog().catch(() => null),
     ]);
 
-    // Enrich catalog with syllabus for pipeline consumption
     if (syllabusCatalog) {
       catalog.syllabus = syllabusCatalog;
     }
 
-    const uploadContext = {
-      class: options.class ? Number(options.class) : undefined,
-      subjectId: options.subjectId || options.subject_id || null,
-      examTypeId: options.examTypeId || options.exam_type_id || null,
-      source: 'manual',
-      onStageChange,
-      skipLlm: true
+    const atomicOnStageChange = async (stage, progress, logMessage) => {
+      try {
+        const $set = {
+          processingStage: stage,
+          progress,
+          lastHeartbeat: new Date(),
+        };
+        const update = { $set };
+        if (logMessage) {
+          update.$push = { stageLogs: `[UPLOAD_STAGE] ${stage} - ${logMessage} - ${new Date().toISOString()}` };
+        }
+        await Upload.updateOne({ _id: uploadId }, update);
+      } catch (err) {
+        logger.warn('Atomic onStageChange failed', { uploadId: uploadId.toString(), error: err.message });
+      }
     };
 
-    await onStageChange('parsing', 15, 'Extracting structured blocks from paste');
+    const uploadContext = {
+      class: undefined,
+      source: 'manual',
+      uploadId: uploadId.toString(),
+      batchIndex: 0,
+      skipLlm: false,
+      skipRefinement: true,
+      onStageChange: atomicOnStageChange,
+    };
+
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'parsing',
+      progress: 15,
+    });
+
     const extractResult = await extractionService.processClipboard(
       { html, plain },
       {
@@ -397,130 +577,189 @@ async function processManualImportInternal(upload, html, plain, user, options = 
     const reconstructedQuestions = extractResult.questions || [];
 
     if (!reconstructedQuestions.length) {
-      upload.status = 'failed';
-      upload.progress = 100;
-      upload.processingError = extractResult.warnings?.join('; ') || 'No valid questions reconstructed from paste';
-      upload.processingStage = 'failed';
-      upload.extractionWarnings = extractResult.warnings || [];
-      await upload.save();
+      await Upload.updateOne(
+        { _id: uploadId },
+        {
+          $set: {
+            status: 'failed',
+            progress: 100,
+            processingError: extractResult.warnings?.join('; ') || 'No valid questions reconstructed from paste',
+            processingStage: 'failed',
+            activeProcessing: null,
+            lastHeartbeat: new Date(),
+            extractionWarnings: extractResult.warnings || [],
+          },
+        }
+      );
       return;
     }
 
-    await onStageChange('reconstructing', 50, `Reconstructed ${reconstructedQuestions.length} questions through semantic pipeline. Running duplicate checking...`);
+    await atomicStageUpdate(uploadId, {
+      processingStage: 'reconstructing',
+      progress: 50,
+    });
 
-    const stagedQuestions = [];
+    // Run AI classification
+    let classifiedList = [];
+    try {
+      const meta = parseDocumentMetadata(plain || '', catalog, uploadContext, syllabusCatalog);
+      meta.uploadId = uploadId.toString();
+      meta.batchIndex = 0;
+      classifiedList = await classifyQuestionMetadataBatch(reconstructedQuestions, catalog, meta, uploadContext);
+    } catch (err) {
+      logger.warn('[manual-import] Batch classification failed, using fallbacks', { error: err.message });
+      classifiedList = reconstructedQuestions.map(() => ({
+        status: 'needs_review',
+        extractionWarnings: ['AI classification failed'],
+      }));
+    }
+
+    // Parallelize duplicate checks
+    const duplicateResults = await Promise.all(
+      reconstructedQuestions.map((q) =>
+        detectDuplicatesInScopes(Question, q, user).catch(() => ({
+          isDuplicate: false, duplicateOf: null, duplicateScore: 0,
+          duplicateMethod: null, possibleMatches: [],
+        }))
+      )
+    );
+
     let totalDuplicatesCount = 0;
+    const stagedQuestions = [];
 
     for (let j = 0; j < reconstructedQuestions.length; j++) {
       const q = reconstructedQuestions[j];
-      const blockIndex = j;
-      
-      try {
-        const duplicateAnalysis = await detectDuplicatesInScopes(Question, q, user);
-        
-        if (duplicateAnalysis.isDuplicate) {
-          totalDuplicatesCount++;
-        }
-        
-        const imageMetadata = q.imageMetadata || (q.questionImages || []).map((url, order) => ({
-          url,
-          order,
-          caption: null,
-          type: 'diagram',
-        }));
+      const classified = classifiedList[j] || {};
+      const duplicateAnalysis = duplicateResults[j] || {};
 
-        const lowConfidence = 
-          (q.parserConfidence !== undefined && q.parserConfidence < 0.70) ||
-          (q.semanticConfidence !== undefined && q.semanticConfidence < 0.70) ||
-          (q.mathPreservationConfidence !== undefined && q.mathPreservationConfidence < 0.70) ||
-          (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70);
+      if (duplicateAnalysis.isDuplicate) totalDuplicatesCount++;
 
-        const status = (duplicateAnalysis.isDuplicate || lowConfidence) ? 'needs_review' : 'pending';
+      const imageMetadata = q.imageMetadata || (q.questionImages || []).map((url, order) => ({
+        url, order, caption: null, type: 'diagram',
+      }));
 
-        const extractionWarnings = [
-          ...(q.extractionWarnings || []),
-        ];
-        if (lowConfidence) {
-          extractionWarnings.push('Low confidence score detected');
-        }
-        if (duplicateAnalysis.isDuplicate) {
-          extractionWarnings.push(`Probable duplicate found (${duplicateAnalysis.duplicateMethod}, score ${duplicateAnalysis.duplicateScore})`);
-        }
+      const lowConfidence =
+        (q.parserConfidence !== undefined && q.parserConfidence < 0.70) ||
+        (q.semanticConfidence !== undefined && q.semanticConfidence < 0.70) ||
+        (q.mathPreservationConfidence !== undefined && q.mathPreservationConfidence < 0.70) ||
+        (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70) ||
+        (classified.aiConfidence !== undefined && classified.aiConfidence < 70);
 
-        const stagedQuestionObj = {
-          ...q,
-          class: q.class || uploadContext.class || 11,
-          subjectId: q.subjectId || uploadContext.subjectId,
-          examTypeId: q.examTypeId || uploadContext.examTypeId,
-          status,
-          renderingMetadata: {
-            ...(q.renderingMetadata || {}),
-          },
-          questionImages: q.questionImages || [],
-          imageMetadata,
-          diagrams: q.diagrams || [],
-          hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
-          hasTable: Boolean(q.hasTable),
-          questionLatex: q.questionLatex,
-          hasEquation: Boolean(q.hasEquation || q.questionLatex),
-          duplicateOf: duplicateAnalysis.duplicateOf || null,
-          duplicateConfidence: duplicateAnalysis.duplicateScore,
-          duplicateMethod: duplicateAnalysis.duplicateMethod,
-          possibleMatches: duplicateAnalysis.possibleMatches || [],
-          extractionWarnings,
-          aiConfidence: 80,
-          aiMetadata: {},
-          uploadId: upload._id,
-          createdBy: user._id,
-          ownerId: user._id,
-          isPrivate: user.role === 'faculty',
-          visibility: user.role === 'faculty' ? 'private' : 'public',
-          source: 'manual',
-          sourceFile: 'Manual Import',
-          debugInfo: q.debugInfo || null,
-          semanticEnriched: false,
-          
-          isApproved: false,
-          isRejected: false,
-          savedQuestionId: null,
-        };          // Run structural validation on the staged question
-          const validationResult = validateQuestion(stagedQuestionObj);
-          stagedQuestionObj.validationResult = {
-            valid: validationResult.valid,
-            issues: validationResult.issues,
-            confidence: validationResult.confidence,
-          };
-          if (!validationResult.valid) {
-            stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
-            stagedQuestionObj.status = 'needs_review';
-          }
+      const status = (classified.status === 'needs_review' || duplicateAnalysis.isDuplicate || lowConfidence)
+        ? 'needs_review' : 'pending';
 
-          stagedQuestions.push(stagedQuestionObj);
-        } catch (err) {
-          logger.error(`Failed to stage manual question block ${blockIndex + 1}`, { error: err.message });
-        }
+      const extractionWarnings = [
+        ...(classified.extractionWarnings || []),
+        ...(q.extractionWarnings || []),
+      ];
+      if (lowConfidence) extractionWarnings.push('Low confidence score detected');
+      if (duplicateAnalysis.isDuplicate) {
+        extractionWarnings.push(`Probable duplicate found (${duplicateAnalysis.duplicateMethod}, score ${duplicateAnalysis.duplicateScore})`);
       }
 
-    upload.status = 'completed';
-    upload.progress = 100;
-    upload.processingStage = 'completed';
-    upload.questionsExtracted = stagedQuestions.length;
-    upload.stagedQuestions = stagedQuestions;
-    upload.extractionWarnings = totalDuplicatesCount > 0 ? ['Some duplicates flagged'] : [];
-    upload.processedAt = new Date();
-    upload.stageLogs.push(`[UPLOAD_STAGE] completed - Manual Import processed successfully - ${new Date().toISOString()}`);
-    await upload.save();
+      const stagedQuestionObj = {
+        ...q,
+        class: classified.class ?? q.class ?? 11,
+        difficulty: classified.difficulty ?? q.difficulty,
+        tags: [...new Set([...(classified.tags || []), ...(q.tags || [])])],
+        status,
+        renderingMetadata: { ...(q.renderingMetadata || {}) },
+        questionImages: q.questionImages || [],
+        imageMetadata,
+        diagrams: q.diagrams || [],
+        hasDiagram: Boolean(q.hasDiagram || imageMetadata.length),
+        hasTable: Boolean(q.hasTable),
+        questionLatex: q.questionLatex,
+        hasEquation: Boolean(q.hasEquation || q.questionLatex),
+        duplicateOf: duplicateAnalysis.duplicateOf || null,
+        duplicateConfidence: duplicateAnalysis.duplicateScore,
+        duplicateMethod: duplicateAnalysis.duplicateMethod,
+        possibleMatches: duplicateAnalysis.possibleMatches || [],
+        extractionWarnings,
+        aiConfidence: classified.aiConfidence ?? 80,
+        aiMetadata: classified.aiMetadata || {},
+        syllabusMappings: classified.syllabusMappings || null,
+        uploadId: uploadId,
+        createdBy: user._id,
+        ownerId: user._id,
+        isPrivate: user.role === 'faculty',
+        visibility: user.role === 'faculty' ? 'private' : 'public',
+        source: 'manual',
+        sourceFile: 'Manual Import',
+        debugInfo: q.debugInfo || null,
+        semanticEnriched: false,
+        isApproved: false,
+        isRejected: false,
+        savedQuestionId: null,
+      };
+
+      const validationResult = validateQuestion(stagedQuestionObj);
+      stagedQuestionObj.validationResult = {
+        valid: validationResult.valid,
+        issues: validationResult.issues,
+        confidence: validationResult.confidence,
+      };
+      if (!validationResult.valid) {
+        stagedQuestionObj.extractionWarnings.push(...validationResult.issues);
+        stagedQuestionObj.status = 'needs_review';
+      }
+
+      stagedQuestions.push(stagedQuestionObj);
+    }
+
+    // Atomic push all staged questions
+    if (stagedQuestions.length > 0) {
+      await atomicPushStaged(uploadId, stagedQuestions);
+    }
+
+    const totalDuration = Date.now() - startTime;
+    await Upload.updateOne(
+      { _id: uploadId },
+      {
+        $set: {
+          status: 'completed',
+          progress: 100,
+          processingStage: 'completed',
+          questionsExtracted: stagedQuestions.length,
+          processingError: null,
+          processedAt: new Date(),
+          activeProcessing: null,
+          lastHeartbeat: new Date(),
+          extractionWarnings: totalDuplicatesCount > 0 ? ['Some duplicates flagged'] : [],
+        },
+        $push: {
+          stageLogs: `[UPLOAD_STAGE] completed - Manual Import processed successfully (${totalDuration}ms) - ${new Date().toISOString()}`,
+        },
+      }
+    );
+
+    logger.info(`[UPLOAD_SUMMARY] Upload=${uploadId} Questions=${stagedQuestions.length} Duplicates=${totalDuplicatesCount} Duration=${totalDuration}ms Status=completed`);
+
   } catch (err) {
-    logger.error('Manual Import processing failed internal', {
-      uploadId: upload._id.toString(),
+    const totalDuration = Date.now() - startTime;
+    logger.error(`[UPLOAD_SUMMARY] Upload=${uploadId} Duration=${totalDuration}ms Status=failed`, {
+      uploadId: uploadId.toString(),
       error: err.message,
     });
-    upload.status = 'failed';
-    upload.progress = 100;
-    upload.processingError = err.message;
-    upload.processingStage = 'failed';
-    upload.stageLogs.push(`[UPLOAD_STAGE] failed - Error: ${err.message} - ${new Date().toISOString()}`);
-    await upload.save();
+
+    await Upload.updateOne(
+      { _id: uploadId },
+      {
+        $set: {
+          status: 'failed',
+          progress: 100,
+          processingError: err.message,
+          processingStage: 'failed',
+          activeProcessing: null,
+          lastHeartbeat: new Date(),
+        },
+        $push: {
+          stageLogs: `[UPLOAD_STAGE] failed - Error: ${err.message} - ${new Date().toISOString()}`,
+        },
+      }
+    );
+  } finally {
+    try { await releaseActiveProcessing(uploadId); } catch (e) {}
   }
 }
 
@@ -577,7 +816,7 @@ export async function rejectStagedQuestion(uploadId, index, user) {
   }
 
   const q = upload.stagedQuestions[idx];
-  q.isRejected = !q.isRejected; // Toggling enables recovery/restoration!
+  q.isRejected = !q.isRejected;
   if (q.isRejected) {
     q.isApproved = false;
   }
@@ -597,16 +836,16 @@ export async function rejectStagedQuestion(uploadId, index, user) {
 export async function commitStagedQuestions(uploadId, indices, user) {
   const upload = await Upload.findById(uploadId);
   if (!docMetaChecked(upload)) throw new AppError('Upload not found', 404, 'NOT_FOUND');
-  
+
   function docMetaChecked(u) { return !!u; }
-  
+
   if (user.role !== 'super_admin' && upload.uploadedBy.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
   const questionIds = [...(upload.extractedQuestionIds || [])];
   let systemBankId = null;
-  
+
   if (user.role === 'super_admin') {
     try {
       const { QuestionBank } = await import('../models/QuestionBank.js');
@@ -632,13 +871,9 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     if (numIdx < 0 || numIdx >= upload.stagedQuestions.length) continue;
 
     const q = upload.stagedQuestions[numIdx];
-    if (q.isApproved) continue; // skip already approved
+    if (q.isApproved) continue;
 
-    // Create a real Question document
     const created = await Question.create({
-      subjectId: q.subjectId || null,
-      chapterId: q.chapterId || null,
-      examTypeId: q.examTypeId || null,
       questionText: q.questionText,
       questionType: q.questionType,
       questionLatex: q.questionLatex || null,
@@ -663,14 +898,14 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       tags: q.tags || [],
       aiConfidence: q.aiConfidence || 0,
       aiMetadata: q.aiMetadata || {},
-      status: q.status || 'pending',
+      status: 'approved',
       extractionWarnings: q.extractionWarnings || [],
       duplicateOf: q.duplicateOf || null,
       source: q.source || 'upload',
       sourceFile: q.sourceFile || upload.originalName,
       uploadId: upload._id,
       createdBy: user._id,
-      ownerId: upload.uploadedBy, // Preserves the original uploader as owner
+      ownerId: upload.uploadedBy,
       isPrivate: user.role === 'faculty',
       visibility: user.role === 'faculty' ? 'private' : 'public',
       bankIds: user.role === 'super_admin' && systemBankId ? [systemBankId] : [],
@@ -703,20 +938,28 @@ export async function reprocessUpload(uploadId, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
-  // Prune any existing Questions created for this upload
   await Question.deleteMany({ uploadId: upload._id });
 
-  // Reset staging state
-  upload.stagedQuestions = [];
-  upload.extractedQuestionIds = [];
-  upload.questionsExtracted = 0;
-  upload.questionsApproved = 0;
-  upload.status = 'processing';
-  upload.processingStage = 'parsing';
-  upload.progress = 0;
-  upload.attempts = (upload.attempts || 0) + 1;
-  upload.stageLogs = [`[UPLOAD_STAGE] reprocess - Triggered reprocess - ${new Date().toISOString()}`];
-  await upload.save();
+  const processingId = `${uploadId}-reprocess-${Date.now()}`;
+
+  await Upload.updateOne(
+    { _id: upload._id },
+    {
+      $set: {
+        stagedQuestions: [],
+        extractedQuestionIds: [],
+        questionsExtracted: 0,
+        questionsApproved: 0,
+        status: 'processing',
+        processingStage: 'parsing',
+        progress: 0,
+        attempts: (upload.attempts || 0) + 1,
+      },
+      $push: {
+        stageLogs: `[UPLOAD_STAGE] reprocess - Triggered reprocess - ${new Date().toISOString()}`,
+      },
+    }
+  );
 
   if (upload.fileType === 'manual') {
     setTimeout(async () => {
@@ -726,7 +969,8 @@ export async function reprocessUpload(uploadId, user) {
           upload.originalHtml,
           upload.originalPlain,
           upload.uploadedBy,
-          upload.uploadOptions
+          upload.uploadOptions,
+          processingId
         );
       } catch (err) {
         logger.error('Background reprocess manual failed', { uploadId, error: err.message });
@@ -740,7 +984,7 @@ export async function reprocessUpload(uploadId, user) {
     };
     setTimeout(async () => {
       try {
-        await processUploadInternal(upload, file, upload.uploadedBy, upload.uploadOptions, 0);
+        await processUploadInternal(upload, file, upload.uploadedBy, upload.uploadOptions, 0, processingId);
       } catch (err) {
         logger.error('Background reprocess upload failed', { uploadId, error: err.message });
       }
@@ -762,12 +1006,11 @@ export async function duplicateUploadSession(uploadId, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
-  // Create a duplicate session (reset approved flags)
   const duplicatedQuestions = (upload.stagedQuestions || []).map(q => ({
     ...q,
     isApproved: false,
     isRejected: false,
-    savedQuestionId: null
+    savedQuestionId: null,
   }));
 
   const dup = await Upload.create({
@@ -788,7 +1031,7 @@ export async function duplicateUploadSession(uploadId, user) {
     classificationVersion: upload.classificationVersion || 'v1.0.0',
     originalHtml: upload.originalHtml,
     originalPlain: upload.originalPlain,
-    stageLogs: [`[UPLOAD_STAGE] duplicate - Duplicated from session ${upload._id} - ${new Date().toISOString()}`]
+    stageLogs: [`[UPLOAD_STAGE] duplicate - Duplicated from session ${upload._id} - ${new Date().toISOString()}`],
   });
 
   return mapUploadDetail(dup);
@@ -801,34 +1044,59 @@ export async function duplicateUploadSession(uploadId, user) {
 export async function resumeUpload(uploadId) {
   const upload = await Upload.findById(uploadId).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
-  
+
   if (upload.attempts >= 3) {
     logger.warn('Upload resumption ignored - maximum attempts reached', { uploadId });
-    upload.status = 'failed';
-    upload.processingStage = 'failed';
-    upload.processingError = 'Maximum retry attempts reached';
-    await upload.save();
+    await Upload.updateOne(
+      { _id: uploadId },
+      {
+        $set: {
+          status: 'failed',
+          processingStage: 'failed',
+          processingError: 'Maximum retry attempts reached',
+          activeProcessing: null,
+          lastHeartbeat: new Date(),
+        },
+      }
+    );
     return mapUpload(upload);
   }
 
-  logger.info('Resuming upload from last checkpoint', { 
-    uploadId, 
+  logger.info('Resuming upload from last checkpoint', {
+    uploadId,
     checkpoint: upload.checkpoint,
-    attempts: upload.attempts 
+    attempts: upload.attempts,
   });
 
-  // Prune staging questions that were created after the last checkpoint
+  const processingId = `${uploadId}-resume-${Date.now()}`;
+
+  // Prune staging and set status atomically
   const limitIndex = upload.checkpoint?.nextBlockIndex || 0;
+  await Upload.updateOne(
+    { _id: uploadId },
+    {
+      $set: {
+        status: 'processing',
+        processingStage: 'parsing',
+        attempts: (upload.attempts || 0) + 1,
+        activeProcessing: {
+          processingId,
+          startedAt: new Date(),
+        },
+        lastHeartbeat: new Date(),
+      },
+      $push: {
+        stageLogs: `[UPLOAD_STAGE] resumed - Attempt #${(upload.attempts || 0) + 1} - Resuming from block index ${limitIndex} - ${new Date().toISOString()}`,
+      },
+    }
+  );
+
+  // Prune staged questions that were created after the checkpoint
   if (upload.stagedQuestions && upload.stagedQuestions.length > limitIndex) {
     upload.stagedQuestions = upload.stagedQuestions.slice(0, limitIndex);
+    upload.markModified('stagedQuestions');
+    await upload.save();
   }
-
-  // Reset status to processing and increment attempts
-  upload.status = 'processing';
-  upload.processingStage = 'parsing';
-  upload.attempts = (upload.attempts || 0) + 1;
-  upload.stageLogs.push(`[UPLOAD_STAGE] resumed - Attempt #${upload.attempts} - Resuming from block index ${upload.checkpoint?.nextBlockIndex || 0} - ${new Date().toISOString()}`);
-  await upload.save();
 
   const file = {
     filename: upload.filename,
@@ -841,7 +1109,7 @@ export async function resumeUpload(uploadId) {
 
   setTimeout(async () => {
     try {
-      await processUploadInternal(upload, file, user, options, startIdx);
+      await processUploadInternal(upload, file, user, options, startIdx, processingId);
     } catch (err) {
       logger.error('Resumed background upload processing failed', {
         uploadId: upload._id.toString(),

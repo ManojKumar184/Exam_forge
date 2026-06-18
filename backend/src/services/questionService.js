@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
+// Flat Topic model removed — chapter_name creates entries via SyllabusNode
 import { Question } from '../models/Question.js';
-import { Topic } from '../models/Topic.js';
+import { SyllabusNode } from '../models/SyllabusNode.js';
 import { AppError } from '../utils/AppError.js';
 import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
@@ -41,18 +42,6 @@ function buildListFilter(query, user) {
   } else if (user.role === 'student') {
     conds.status = 'approved';
   }
-
-  const subjectIds = parseListParam(query.subject_ids);
-  if (subjectIds.length) conds.subjectId = { $in: subjectIds };
-  else if (query.subject_id) conds.subjectId = query.subject_id;
-
-  const chapterIds = parseListParam(query.chapter_ids);
-  if (chapterIds.length) conds.chapterId = { $in: chapterIds };
-  else if (query.chapter_id) conds.chapterId = query.chapter_id;
-
-  const examTypeIds = parseListParam(query.exam_type_ids);
-  if (examTypeIds.length) conds.examTypeId = { $in: examTypeIds };
-  else if (query.exam_type_id) conds.examTypeId = query.exam_type_id;
 
   const classes = parseListParam(query.classes).map(Number).filter((n) => n >= 6 && n <= 12);
   if (classes.length) conds.class = { $in: classes };
@@ -201,9 +190,7 @@ export async function listQuestions(query, user) {
 
   const [items, total] = await Promise.all([
     Question.find(filter)
-      .populate('subjectId', 'name code icon color')
-      .populate('chapterId', 'name chapterNumber class')
-      .populate('examTypeId', 'name code')
+      // Populate for flat Subject/Topic/ExamType removed — collections were dropped
       .sort(sort)
       .skip(skip)
       .limit(limit),
@@ -228,9 +215,7 @@ export async function listQuestions(query, user) {
  */
 export async function getQuestionById(id, user) {
   const question = await Question.findById(id)
-    .populate('subjectId', 'name code icon color')
-    .populate('chapterId', 'name chapterNumber class')
-    .populate('examTypeId', 'name code');
+    // Populate for flat Subject/Topic/ExamType removed — collections were dropped
 
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
 
@@ -247,28 +232,6 @@ export async function getQuestionById(id, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function createQuestion(body, user) {
-  if (body.chapter_name && body.chapter_name.trim()) {
-    const trimmedName = body.chapter_name.trim();
-    const subjectId = body.subject_id;
-    const classLevel = body.class || 11;
-    if (subjectId) {
-      let topic = await Topic.findOne({
-        subjectId,
-        class: classLevel,
-        name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-      });
-      if (!topic) {
-        topic = await Topic.create({
-          subjectId,
-          class: classLevel,
-          name: trimmedName,
-          chapterNumber: null
-        });
-      }
-      body.chapter_id = topic._id.toString();
-    }
-  }
-
   const fields = bodyToQuestionFields(body);
   fields.createdBy = user._id;
   fields.ownerId = fields.ownerId || user._id;
@@ -289,11 +252,8 @@ export async function createQuestion(body, user) {
   fields.aiConfidence = ai.aiConfidence;
   fields.aiMetadata = ai.aiMetadata;
   
-  // Inherit class, subject, etc. from classifier if not specified
+  // Inherit class, etc. from classifier if not specified
   if (ai.class && !fields.class) fields.class = ai.class;
-  if (ai.subjectId && !fields.subjectId) fields.subjectId = ai.subjectId;
-  if (ai.chapterId && !fields.chapterId) fields.chapterId = ai.chapterId;
-  if (ai.examTypeId && !fields.examTypeId) fields.examTypeId = ai.examTypeId;
   if (ai.difficulty && !fields.difficulty) fields.difficulty = ai.difficulty;
 
   const lowConfidence = 
@@ -354,7 +314,7 @@ export async function createQuestion(body, user) {
   }
 
   const doc = await Question.create(fields);
-  await doc.populate(['subjectId', 'chapterId', 'examTypeId']);
+  // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(doc);
 }
 
@@ -371,28 +331,6 @@ export async function updateQuestion(id, body, user) {
   if (user.role !== 'super_admin') {
     if (!question.ownerId || question.ownerId.toString() !== user._id.toString()) {
       throw new AppError('You do not own this question', 403, 'FORBIDDEN');
-    }
-  }
-
-  if (body.chapter_name && body.chapter_name.trim()) {
-    const trimmedName = body.chapter_name.trim();
-    const subjectId = body.subject_id || question.subjectId;
-    const classLevel = body.class || question.class || 11;
-    if (subjectId) {
-      let topic = await Topic.findOne({
-        subjectId,
-        class: classLevel,
-        name: { $regex: new RegExp(`^${trimmedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-      });
-      if (!topic) {
-        topic = await Topic.create({
-          subjectId,
-          class: classLevel,
-          name: trimmedName,
-          chapterNumber: null
-        });
-      }
-      body.chapter_id = topic._id.toString();
     }
   }
 
@@ -440,7 +378,7 @@ export async function updateQuestion(id, body, user) {
   ];
 
   await question.save();
-  await question.populate(['subjectId', 'chapterId', 'examTypeId']);
+  // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(question);
 }
 
@@ -469,9 +407,22 @@ export async function deleteQuestion(id, user) {
 export async function approveQuestion(id, user) {
   const existing = await Question.findById(id);
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
-  if (!existing.subjectId || !existing.examTypeId) {
+  
+  // Ownership check for faculty
+  if (user.role !== 'super_admin') {
+    if (!existing.ownerId || existing.ownerId.toString() !== user._id.toString()) {
+      throw new AppError('You can only approve your own questions', 403, 'FORBIDDEN');
+    }
+  }
+  
+  // syllabusMappings required before approving — flat Subject/ExamType collections were dropped
+  const hasSyllabusData = existing.syllabusMappings?.length > 0 &&
+    existing.syllabusMappings[0]?.subjectId &&
+    existing.syllabusMappings[0]?.examPatternId;
+
+  if (!hasSyllabusData) {
     throw new AppError(
-      'Set subject and exam type before approving',
+      'Set syllabus mappings (subject + exam pattern) before approving',
       400,
       'INCOMPLETE_METADATA'
     );
@@ -491,7 +442,7 @@ export async function approveQuestion(id, user) {
   ];
 
   await existing.save();
-  await existing.populate(['subjectId', 'chapterId', 'examTypeId']);
+  // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(existing);
 }
 
@@ -504,6 +455,13 @@ export async function approveQuestion(id, user) {
 export async function rejectQuestion(id, user, notes) {
   const existing = await Question.findById(id);
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
+  
+  // Ownership check for faculty
+  if (user.role !== 'super_admin') {
+    if (!existing.ownerId || existing.ownerId.toString() !== user._id.toString()) {
+      throw new AppError('You can only reject your own questions', 403, 'FORBIDDEN');
+    }
+  }
 
   existing.status = 'rejected';
   existing.reviewedBy = user._id;
@@ -520,7 +478,7 @@ export async function rejectQuestion(id, user, notes) {
   ];
 
   await existing.save();
-  await existing.populate(['subjectId', 'chapterId', 'examTypeId']);
+  // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(existing);
 }
 
@@ -530,11 +488,20 @@ export async function rejectQuestion(id, user, notes) {
  * @returns {Promise<void>}
  */
 export async function bulkApprove(ids, user) {
-  const questions = await Question.find({ _id: { $in: ids } });
+  const filter = { _id: { $in: ids } };
+  if (user.role !== 'super_admin') {
+    filter.ownerId = user._id;
+  }
+  const questions = await Question.find(filter);
+  
+  // Verify all found questions have syllabus mappings before approving
   for (const q of questions) {
-    if (!q.subjectId || !q.examTypeId) {
+    const hasSyllabusData = q.syllabusMappings?.length > 0 &&
+      q.syllabusMappings[0]?.subjectId &&
+      q.syllabusMappings[0]?.examPatternId;
+    if (!hasSyllabusData) {
       throw new AppError(
-        'Set subject and exam type before approving',
+        `Question #${q.serialId || q._id} is missing syllabus mappings (subject + exam pattern)`,
         400,
         'INCOMPLETE_METADATA'
       );
@@ -563,7 +530,11 @@ export async function bulkApprove(ids, user) {
  * @returns {Promise<void>}
  */
 export async function bulkReject(ids, user, notes) {
-  const questions = await Question.find({ _id: { $in: ids } });
+  const filter = { _id: { $in: ids } };
+  if (user.role !== 'super_admin') {
+    filter.ownerId = user._id;
+  }
+  const questions = await Question.find(filter);
   for (const q of questions) {
     q.status = 'rejected';
     q.reviewedBy = user._id;

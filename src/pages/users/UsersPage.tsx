@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDataStore } from '../../stores/dataStore';
-import { Button, Badge, Input, Select, Loading, PageHeader, DataTable } from '../../components/ui';
+import { Button, Badge, Input, Select, PageHeader, DataTable } from '../../components/ui';
 import { Search } from 'lucide-react';
 import type { Profile } from '../../types';
 
@@ -87,18 +87,15 @@ export function UsersPage() {
         />
       </div>
 
-      {isLoading ? (
-        <Loading text="Loading users..." />
-      ) : (
-        <DataTable
-          headers={[
-            { label: 'User' },
-            { label: 'Role & Status' },
-            { label: 'Actions', align: 'right' }
-          ]}
-          isLoading={isLoading}
-          emptyMessage="No users found"
-        >
+      <DataTable
+        headers={[
+          { label: 'User' },
+          { label: 'Role & Status' },
+          { label: 'Actions', align: 'right' }
+        ]}
+        isLoading={isLoading}
+        emptyMessage="No users found"
+      >
           {users.map((user) => (
             <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
               <td className="px-4 py-4">
@@ -161,8 +158,7 @@ export function UsersPage() {
               </td>
             </tr>
           ))}
-        </DataTable>
-      )}
+      </DataTable>
     </div>
   );
 }

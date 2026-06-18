@@ -10,7 +10,7 @@ export async function classifyQuestionMetadata(
   docMeta = {},
   uploadContext = {}
 ) {
-  if (catalog?.subjects?.length) {
+  if (catalog?.subjects?.length || catalog?.syllabus) {
     return runClassificationPipeline(question, catalog, docMeta, uploadContext);
   }
 
@@ -41,7 +41,7 @@ export async function classifyQuestionMetadataBatch(
   docMeta = {},
   uploadContext = {}
 ) {
-  if (catalog?.subjects?.length) {
+  if (catalog?.subjects?.length || catalog?.syllabus) {
     return runClassificationPipelineBatch(questions, catalog, docMeta, uploadContext);
   }
 

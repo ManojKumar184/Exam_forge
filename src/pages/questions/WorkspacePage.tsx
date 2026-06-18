@@ -5,7 +5,7 @@ import { Search, Trash2, Edit, ArrowRight, Lock, Share2 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchQuestionBanksApi, assignQuestionsToBankApi, type QuestionBank } from '../../api/questionBanks';
-import { Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader } from '../../components/ui';
+import { Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader, OnboardingTip } from '../../components/ui';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import { QuestionList } from '../../components/questions/QuestionList';
 
@@ -31,7 +31,7 @@ export function WorkspacePage() {
   const [isPublishing, setIsPublishing] = useState(false);
 
   const [filters, setFilters] = useState({
-    subject_id: '',
+    syllabus_subject_id: '',
     class: '',
     difficulty: '',
     question_type: '',
@@ -53,7 +53,7 @@ export function WorkspacePage() {
     const queryParams: Record<string, any> = {
       scope: 'workspace',
       status: 'pending,needs_review,approved,rejected', // Workspace allows all statuses
-      subject_id: filters.subject_id || undefined,
+      syllabus_subject_id: filters.syllabus_subject_id || undefined,
       class: filters.class || undefined,
       difficulty: filters.difficulty || undefined,
       question_type: filters.question_type || undefined,
@@ -69,7 +69,7 @@ export function WorkspacePage() {
 
   useEffect(() => {
     loadWorkspaceQuestions();
-  }, [selectedOwnerId, filters.subject_id, filters.class, filters.difficulty, filters.question_type]);
+  }, [selectedOwnerId, filters.syllabus_subject_id, filters.class, filters.difficulty, filters.question_type]);
 
   // Handle search with debounce
   useEffect(() => {
@@ -150,9 +150,17 @@ export function WorkspacePage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <PageHeader
-        title="Faculty Workspace"
-        subtitle="Review, edit, and categorize your private questions. Only you can view this space until questions are published to a bank."
+        title="My Workspace"
+        subtitle="Your private question collection. Questions you approve from Import Center appear here. Edit, organize, and publish them when ready."
       />
+
+      {/* Onboarding: Workspace introduction */}
+      <OnboardingTip id="workspace-intro" variant="info" title="Your Private Workspace">
+        This is your personal question bank. Only you can see questions here until you <strong>Publish</strong> them.
+        <br />
+        <strong>Tip:</strong> Questions imported via <strong>Import Center</strong> land here after you approve them.
+        Use the filters above to find specific questions, then edit or publish them to a shared Question Bank.
+      </OnboardingTip>
 
       {/* Top Workspace Filters & Owner Selector */}
       <Card className="p-4 bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
@@ -172,8 +180,8 @@ export function WorkspacePage() {
               { value: '', label: 'All Subjects' },
               ...subjects.map(s => ({ value: s.id, label: s.name })),
             ]}
-            value={filters.subject_id}
-            onChange={e => setFilters(prev => ({ ...prev, subject_id: e.target.value }))}
+            value={filters.syllabus_subject_id}
+            onChange={e => setFilters(prev => ({ ...prev, syllabus_subject_id: e.target.value }))}
           />
 
           <Select
@@ -356,12 +364,12 @@ export function WorkspacePage() {
         onClose={() => setShowPublishModal(false)}
       >
         <div className="space-y-4">
-          <Alert variant="info" title="Publishing rules">
-            Publishing updates visibility to public and links the questions to the selected question bank.
+          <Alert variant="info" title="What does Publish do?">
+            Publishing moves questions from your private workspace into a <strong>Question Bank</strong> so they can be used in papers and tests. Other faculty in your institution will be able to see and use these questions.
             {isFaculty && (
               <p className="mt-1 text-xs">
-                As a faculty member, you can only publish into your own <strong>Faculty Banks</strong> or{' '}
-                <strong>Custom Banks</strong>.
+                You can publish into your own <strong>Faculty Banks</strong> or{' '}
+                <strong>Custom Banks</strong> that you have created.
               </p>
             )}
           </Alert>

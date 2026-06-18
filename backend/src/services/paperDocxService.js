@@ -7,11 +7,12 @@ import { env } from '../config/env.js';
 import { DOMParser } from 'linkedom';
 import { normalizeQuestionType as normalizeQT } from '../utils/questionTypeNormalizer.js';
 import { decodeHtmlEntities, splitContentParts, groupBySection } from '../utils/exportUtils.js';
+import { createBoundedCache } from '../utils/cacheHelpers.js';
 
-// ── Caches for expensive operations ──
-const katexMathmlCache = new Map();
-const imageBufferCache = new Map();
-const fontConfigCache = new Map();
+// ── Bounded caches for expensive operations (prevents memory leaks) ──
+const katexMathmlCache = createBoundedCache(1000);
+const imageBufferCache = createBoundedCache(200);
+const fontConfigCache = createBoundedCache(50);
 
 function getKatexMathml(latex, displayMode) {
   const key = `${displayMode ? 'd:' : 'i:'}${latex}`;
@@ -30,10 +31,14 @@ function getKatexMathml(latex, displayMode) {
 
 function getOMML(latex, displayMode) {
   const mathml = getKatexMathml(latex, displayMode);
-  if (!mathml) return null;
+  if (!mathml) {
+    console.warn(`[docx] KaTeX MathML generation failed for: ${latex.slice(0, 80)}`);
+    return null;
+  }
   try {
     return mml2omml(mathml);
-  } catch {
+  } catch (e) {
+    console.warn(`[docx] OMML conversion failed for: ${latex.slice(0, 80)} — ${e.message}`);
     return null;
   }
 }

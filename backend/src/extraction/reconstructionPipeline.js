@@ -500,10 +500,17 @@ export function validateReconstruction(stem, options) {
   }
 
   const checkBrackets = (t) => {
+    // Strip leading question/option markers (like "Q1)", "A)", "(A)") to prevent false unmatched brackets
+    let cleaned = t.replace(/^Q\d+[\.\)]\s*/i, '')
+                   .replace(/^\(?[A-Z]\)[\.\)]?\s*/i, '');
+    
+    // Strip math blocks delimited by $ or $$ as they often contain math-specific brackets like [a, b) or LaTeX tags
+    cleaned = cleaned.replace(/\$\$[\s\S]*?\$\$/g, '').replace(/\$[^\$]*\$/g, '');
+
     const stack = [];
     const open = ['(', '[', '{'];
     const close = [')', ']', '}'];
-    for (const char of t) {
+    for (const char of cleaned) {
       const oIdx = open.indexOf(char);
       if (oIdx !== -1) stack.push(char);
       const cIdx = close.indexOf(char);
@@ -521,8 +528,15 @@ export function validateReconstruction(stem, options) {
     confidence -= 0.15;
   }
 
-  const countDollars = (stem.match(/\$/g) || []).length + options.reduce((acc, o) => acc + (o.text.match(/\$/g) || []).length, 0);
-  if (countDollars % 2 !== 0) {
+  // Count dollar signs EXCLUDING those inside MATHPLACEHOLDER tokens
+  // MATHPLACEHOLDER tokens often contain escaped $ characters that look like unpaired delimiters
+  const countDollarsInText = (t) => {
+    // Remove MATHPLACEHOLDER tokens before counting $
+    const cleaned = t.replace(/MATHPLACEHOLDER\d+/g, 'PLACEHOLDER');
+    return (cleaned.match(/\$/g) || []).length;
+  };
+  const totalDollars = countDollarsInText(stem) + options.reduce((acc, o) => acc + countDollarsInText(o.text), 0);
+  if (totalDollars % 2 !== 0) {
     warnings.push('Mathematical KaTeX delimiters are unbalanced');
     confidence -= 0.2;
   }
@@ -1729,12 +1743,13 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   let tags = [];
 
   const shouldSkipLlm = pipelineOptions.skipLlm !== false;
+  const shouldSkipRefinement = pipelineOptions.skipRefinement === true;
   
   stages.stage9.title = "Stage 9 — Question Reconstruction & AI Refinement";
   stages.stage9.refined = false;
   stages.stage9.warnings = [];
 
-  if (env.ai.provider === 'huggingface' && !shouldSkipLlm) {
+  if (!shouldSkipLlm && !shouldSkipRefinement) {
     try {
       const llmProvider = getLlmProvider();
       if (llmProvider && typeof llmProvider.refineQuestion === 'function') {
@@ -1770,19 +1785,19 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
           stem = shieldedStemForOllama;
           options = shieldedOptionsForOllama;
           statementGroups = shieldedStatementGroupsForOllama;
-          stages.stage9.warnings.push("Hugging Face semantic refinement unavailable — using deterministic parser.");
+          stages.stage9.warnings.push("LLM semantic refinement unavailable — using deterministic parser.");
         }
       } else {
         stem = shieldedStemForOllama;
         options = shieldedOptionsForOllama;
         statementGroups = shieldedStatementGroupsForOllama;
-        stages.stage9.warnings.push("Hugging Face provider not configured — using deterministic parser.");
+        stages.stage9.warnings.push("LLM provider not configured — using deterministic parser.");
       }
     } catch (err) {
       stem = shieldedStemForOllama;
       options = shieldedOptionsForOllama;
       statementGroups = shieldedStatementGroupsForOllama;
-      stages.stage9.warnings.push("Hugging Face semantic refinement failed — using deterministic parser.");
+      stages.stage9.warnings.push("LLM semantic refinement failed — using deterministic parser.");
     }
   } else {
     stem = shieldedStemForOllama;
@@ -1828,14 +1843,17 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     questionType = 'DESCRIPTIVE';
     contextType = 'CASE_STUDY';
   } else if (options.length >= 2) {
-    if (/one\s+or\s+more\s+correct|multiple\s+correct|more\s+than\s+one\s+correct|select\s+all\s+that\s+apply/i.test(lowerStem)) {
+    // Check for multiple correct indicators in stem AND options
+    const allOptionText = options.map(o => o.text).join(' ');
+    const hasMultiIndicator = /(?:one\s+or\s+more|multiple|more\s+than\s+one)\s+correct|select\s+all|choose\s+the\s+correct\s+options/i.test(lowerStem + ' ' + allOptionText);
+    if (hasMultiIndicator) {
       questionType = 'MCQ_MULTIPLE';
     } else {
       questionType = 'MCQ_SINGLE';
     }
-  } else if (/[iI]nteger|numerical|numeric/i.test(lowerStem)) {
+  } else if (/[iI]nteger|numerical|numeric|value of|ratio of|magnitude of/i.test(lowerStem)) {
     questionType = 'NUMERICAL_INTEGER';
-  } else if (options.length === 0 && (/calculate|find|determine|value of|ratio of|magnitude of|what is|solve|evaluate|____/i.test(lowerStem)) && (/[0-9]|\$|\\/.test(lowerStem))) {
+  } else if (options.length === 0 && (/calculate|find|determine|what is|solve|evaluate|____/i.test(lowerStem)) && (/[0-9]|\$|\\/.test(lowerStem))) {
     questionType = 'NUMERICAL_INTEGER';
   }
 
@@ -1848,11 +1866,11 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
 
   // 3. AI Verification for uncertain cases
   const isUncertain = questionType === 'DESCRIPTIVE' || optionConfidence < 0.70;
-  if (isUncertain && env.ai.provider === 'huggingface' && !shouldSkipLlm) {
+  if (isUncertain && getLlmProvider() && !shouldSkipLlm) {
     try {
       const llmProvider = getLlmProvider();
       if (llmProvider && typeof llmProvider.classify === 'function') {
-        const aiResult = await llmProvider.classify({ questionText: stem, options }, catalog || {});
+        const aiResult = await llmProvider.classify({ questionText: stem, options }, pipelineOptions.catalog || {});
         if (aiResult && aiResult.questionType) {
           questionType = normalizeQuestionType(aiResult.questionType);
           contextType = getContextTypeForType(aiResult.questionType) || contextType;

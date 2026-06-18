@@ -305,7 +305,7 @@ export function AdminDashboard() {
                     <span className="text-slate-600 dark:text-slate-400 text-sm">{subject.name}</span>
                   </div>
                   <Badge size="sm">
-                    {questions.filter(q => q.subject_id === subject.id).length} Q
+                    {questions.filter(q => q.syllabus_mappings?.some(m => m.subjectId === subject.id)).length} Q
                   </Badge>
                 </div>
               ))}

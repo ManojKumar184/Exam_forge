@@ -4,10 +4,11 @@ import path from 'path';
 import fs from 'fs';
 import { decodeHtmlEntities, splitContentParts, groupBySection, getQuestionTypeLabel } from '../utils/exportUtils.js';
 import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
+import { createBoundedCache } from '../utils/cacheHelpers.js';
 
-// ── Caches for expensive operations ──
-const katexHtmlCache = new Map();
-const imageResolveCache = new Map();
+// ── Bounded caches for expensive operations (prevents memory leaks) ──
+const katexHtmlCache = createBoundedCache(1000);
+const imageResolveCache = createBoundedCache(500);
 
 function katexRender(latex, displayMode) {
   const key = `${displayMode ? 'd' : 'i'}:${latex}`;
@@ -287,7 +288,10 @@ export function buildPaperExportHtml(paper, options = {}) {
     watermarkOpacity = Number(options.watermarkOpacity !== undefined ? options.watermarkOpacity : (exportSettings.watermark_opacity !== undefined ? exportSettings.watermark_opacity : 0.04)),
     watermarkSize = Number(options.watermarkSize || exportSettings.watermark_size || 64),
     watermarkRotation = Number(options.watermarkRotation !== undefined ? options.watermarkRotation : (exportSettings.watermark_rotation !== undefined ? exportSettings.watermark_rotation : -25)),
-    exportTypeFormat = options.exportTypeFormat || 'paper_with_solutions',
+    // Validate exportTypeFormat — unrecognized values fall back to full paper with solutions
+    exportTypeFormat = ['paper_only', 'paper_with_answers', 'paper_with_solutions', 'answer_key_only', 'solutions_only'].includes(options.exportTypeFormat)
+      ? options.exportTypeFormat
+      : 'paper_with_solutions',
     logoUrl = options.logoUrl || exportSettings.logo_url || paper.logo_url || paper.logoUrl || null,
   } = options;
 

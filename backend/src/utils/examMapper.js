@@ -82,27 +82,9 @@ export function mapPaper(doc) {
     created_at: d.createdAt?.toISOString?.(),
     updated_at: d.updatedAt?.toISOString?.(),
     published_at: d.publishedAt?.toISOString?.() || null,
-    exam_type: d.examTypeId?.name
-      ? {
-          id: idStr(d.examTypeId._id || d.examTypeId),
-          name: d.examTypeId.name,
-          code: d.examTypeId.code,
-          description: d.examTypeId.description ?? null,
-          is_active: d.examTypeId.isActive !== false,
-          created_at: d.examTypeId.createdAt?.toISOString?.(),
-        }
-      : undefined,
-    subject: d.subjectId?.name
-      ? {
-          id: idStr(d.subjectId._id || d.subjectId),
-          name: d.subjectId.name,
-          code: d.subjectId.code,
-          icon: d.subjectId.icon,
-          color: d.subjectId.color,
-          created_at: d.subjectId.createdAt?.toISOString?.(),
-          updated_at: d.subjectId.updatedAt?.toISOString?.(),
-        }
-      : undefined,
+    // Flat model populate removed (Subject, ExamType collections dropped)
+    exam_type: undefined,
+    subject: undefined,
     questions:
       d.questions?.map((q, index) => ({
         id: `${idStr(d._id)}-${index}`,

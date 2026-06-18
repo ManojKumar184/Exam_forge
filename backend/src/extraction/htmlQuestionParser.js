@@ -50,13 +50,22 @@ export function splitHtmlIntoQuestionSegments(html) {
   if (!html?.trim()) return [];
 
   const hasTags = /\[Question_start\]/i.test(html);
+
+  // Temporarily isolate table tags to prevent splitting inside them
+  const tables = [];
+  const htmlPlaceholder = html.replace(/<table[\s\S]*?<\/table>/gi, (match) => {
+    const placeholder = `<!-- TABLE_PLACEHOLDER_${tables.length} -->`;
+    tables.push(match);
+    return placeholder;
+  });
+
   let parts;
   if (hasTags) {
-    parts = html.split(/\[Question_start\]/i);
+    parts = htmlPlaceholder.split(/\[Question_start\]/i);
     // Keep only parts that have a closing tag
     parts = parts.filter((p) => p.includes('[Question_end]'));
   } else {
-    parts = html.split(
+    parts = htmlPlaceholder.split(
       /(?=<p[^>]*>\s*(?:<strong>)?\s*(?:(?:SECTION|PART)\s+[A-Z0-9]+|(?:Q(?:uestion)?\s*)?\d{1,3}[\).:\-\s]))/i
     );
   }
@@ -70,31 +79,51 @@ export function splitHtmlIntoQuestionSegments(html) {
         // Strip the solution and question_end tags and everything after them
         cleanPart = cleanPart.split(/\[solution\]/i)[0].split(/\[Question_end\]/i)[0];
       }
-      const images = extractImagesFromHtml(cleanPart);
-      const tables = extractTablesFromHtml(cleanPart);
-      const text = stripTags(cleanPart);
+
+      // Restore table content for this segment
+      const restoredHtml = cleanPart.replace(/<!-- TABLE_PLACEHOLDER_(\d+) -->/gi, (_, idx) => {
+        return tables[parseInt(idx, 10)];
+      });
+
+      const images = extractImagesFromHtml(restoredHtml);
+      const segmentTables = extractTablesFromHtml(restoredHtml);
+      const text = stripTags(restoredHtml);
       return {
         index,
-        html: cleanPart,
+        html: restoredHtml,
         text,
         images: images.map((img) => img.url),
         diagrams: [
           ...images,
-          ...tables.map((t) => ({ ...t, url: null })),
+          ...segmentTables.map((t) => ({ ...t, url: null })),
         ],
-        hasTable: tables.length > 0,
+        hasTable: segmentTables.length > 0,
       };
     });
 }
 
+export function normalizeTextForMatching(text) {
+  if (!text) return '';
+  // Strip LaTeX math blocks $...$ or $$...$$
+  const withoutMath = text.replace(/\$\$?[\s\S]*?\$\$?/g, '');
+  return withoutMath
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
 /**
- * Attach images from HTML segments to normalized question blocks by index.
+ * Attach images from HTML segments to normalized question blocks by index or robust match.
  */
 export function attachMediaToQuestions(questions, htmlSegments) {
   if (!htmlSegments?.length) return questions;
 
   return questions.map((q, idx) => {
-    const segment = htmlSegments[idx] || htmlSegments.find((s) => s.text && q.questionText.includes(s.text.slice(0, 40)));
+    const qNorm = normalizeTextForMatching(q.questionText).slice(0, 50);
+    const segment = htmlSegments.find((s) => {
+      const sNorm = normalizeTextForMatching(s.text);
+      return qNorm && sNorm && (sNorm.includes(qNorm) || qNorm.includes(sNorm.slice(0, 50)));
+    }) || htmlSegments[idx];
+
     if (!segment) return q;
 
     const questionImages = [...(q.questionImages || []), ...(segment.images || [])];

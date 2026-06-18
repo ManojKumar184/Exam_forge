@@ -166,14 +166,25 @@ export function PaperGeneratorPage() {
   const availableQuestions = useMemo(() => {
     return questions.filter((q) => {
       if (usedQuestionIds.has(q.id)) return false;
-      if (builderFilters.subjectIds.length && q.subject_id && !builderFilters.subjectIds.includes(q.subject_id)) return false;
-      else if (subjectId && q.subject_id !== subjectId) return false;
+      if (builderFilters.subjectIds.length) {
+        const matchesSubject = q.syllabus_mappings?.some(m => m.subjectId && builderFilters.subjectIds.includes(m.subjectId));
+        if (!matchesSubject) return false;
+      } else if (subjectId) {
+        const matchesSubject = q.syllabus_mappings?.some(m => m.subjectId === subjectId);
+        if (!matchesSubject) return false;
+      }
       if (builderFilters.classLevels.length && !builderFilters.classLevels.includes(q.class)) return false;
       else if (classLevel && q.class !== classLevel) return false;
       if (builderFilters.difficulties.length && !builderFilters.difficulties.includes(q.difficulty)) return false;
       else if (selectedDifficulty && q.difficulty !== selectedDifficulty) return false;
-      if (builderFilters.chapterIds.length && q.chapter_id && !builderFilters.chapterIds.includes(q.chapter_id)) return false;
-      if (builderFilters.examTypeIds.length && q.exam_type_id && !builderFilters.examTypeIds.includes(q.exam_type_id)) return false;
+      if (builderFilters.chapterIds.length) {
+        const matchesChapter = q.syllabus_mappings?.some(m => m.chapterId && builderFilters.chapterIds.includes(m.chapterId));
+        if (!matchesChapter) return false;
+      }
+      if (builderFilters.examTypeIds.length) {
+        const matchesExamType = q.syllabus_mappings?.some(m => m.examPatternId && builderFilters.examTypeIds.includes(m.examPatternId));
+        if (!matchesExamType) return false;
+      }
       if (searchTerm) {
         const term = searchTerm.trim().toLowerCase();
         const idMatch = term.match(/^q-(\d+)$/i);

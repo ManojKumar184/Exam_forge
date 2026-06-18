@@ -8,11 +8,11 @@ const SECTION_RE =
 const JEE_SECTION_HINTS = [
   { re: /\bsection\s+a\b/i, name: 'Section A', examPart: 'mcq' },
   { re: /\bsection\s+b\b/i, name: 'Section B', examPart: 'numerical' },
-  { re: /\bmultiple\s+correct\b|one\s+or\s+more\s+(?:than\s+one\s+)?correct\b/i, name: 'Multiple Correct MCQ', examPart: 'mcq_multiple' },
-  { re: /\bsingle\s+correct\b|one\s+correct\b|\bmultiple\s+choice\b/i, name: 'Single Correct MCQ', examPart: 'mcq' },
-  { re: /\bnumeric\s+value\b|\bnumerical\s+value\b|\binteger\s+type\b/i, name: 'Numerical/Integer', examPart: 'numerical' },
-  { re: /\bmatch\s+the\s+following\b/i, name: 'Match the Following', examPart: 'match' },
-  { re: /\bcomprehension\b|\bpassage\s+based\b/i, name: 'Comprehension', examPart: 'comprehension' },
+  { re: /\bmultiple\s+correct|one\s+or\s+more\s+(?:than\s+one\s+)?correct/i, name: 'Multiple Correct MCQ', examPart: 'mcq_multiple' },
+  { re: /\bsingle\s+correct|one\s+correct|\bmultiple\s+choice/i, name: 'Single Correct MCQ', examPart: 'mcq' },
+  { re: /\bnumeric\s+value|\bnumerical\s+value|\binteger\s+type/i, name: 'Numerical/Integer', examPart: 'numerical' },
+  { re: /\bmatch\s+the\s+following/i, name: 'Match the Following', examPart: 'match' },
+  { re: /\bcomprehension|\bpassage\s+based/i, name: 'Comprehension', examPart: 'comprehension' },
 ];
 
 export function detectSectionHeader(line) {

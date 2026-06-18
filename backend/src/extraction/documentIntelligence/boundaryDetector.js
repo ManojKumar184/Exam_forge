@@ -1,4 +1,5 @@
 import { isOptionLine, parseOptionLine, splitInlineOptionsInLine } from '../optionParser.js';
+import { detectSectionHeader } from '../sectionParser.js';
 
 const QUESTION_LABEL_RE = /^(?:Q(?:uestion)?\s*)?(\d{1,4})\s*[\).:\-\]]\s*|^\(\s*(\d{1,4})\s*\)\s*/i;
 const ANSWER_RE = /^(?:answer|ans|correct\s+option|key)\s*[:\-]/i;
@@ -9,6 +10,8 @@ export function detectQuestionBoundaries(semanticDocument) {
   const segments = [];
   let current = null;
   let passageBlocks = [];
+  let activeSection = 'General';
+  let activeSectionContext = null;
 
   const flush = () => {
     if (!current) return;
@@ -20,6 +23,22 @@ export function detectQuestionBoundaries(semanticDocument) {
   for (const block of semanticDocument.blocks || []) {
     const text = block.text?.trim() || '';
     if (!text && block.type !== 'image') continue;
+
+    // Detect section block
+    const isSectionHeader = block.roleHints?.includes('section') || block.style === 'section';
+    if (isSectionHeader) {
+      flush();
+      activeSection = text;
+      const sectionHeader = detectSectionHeader(text);
+      const isMultiCorrectSection = /(?:one\s+or\s+more|multiple|more\s+than\s+one)\s+correct/i.test(text) ||
+                                    (sectionHeader && sectionHeader.examPart === 'mcq_multiple');
+      if (isMultiCorrectSection) {
+        activeSectionContext = { questionType: 'MCQ_MULTIPLE' };
+      } else {
+        activeSectionContext = null;
+      }
+      continue;
+    }
 
     const role = detectBlockRole(block);
     if (role === 'passage' && !current) {
@@ -39,6 +58,8 @@ export function detectQuestionBoundaries(semanticDocument) {
         explanationBlocks: [],
         mediaBlocks: [],
         confidenceSignals: ['explicit_question_anchor'],
+        section: activeSection,
+        sectionContext: activeSectionContext,
       };
       passageBlocks = [];
       continue;
@@ -55,6 +76,8 @@ export function detectQuestionBoundaries(semanticDocument) {
         explanationBlocks: [],
         mediaBlocks: [],
         confidenceSignals: ['implicit_first_question'],
+        section: activeSection,
+        sectionContext: activeSectionContext,
       };
       passageBlocks = [];
     }
@@ -114,6 +137,7 @@ function splitAnswerAndExplanation(block) {
 export function segmentToLegacyBlock(segment) {
   const optionBlocks = segment.optionBlocks || [];
   return {
+    segmentId: segment.id,
     lines: segment.stemBlocks.map((block) => block.text).filter(Boolean),
     passage: segment.passageBlocks.map((block) => block.text).filter(Boolean).join('\n\n') || null,
     options: optionBlocks.flatMap((block, index) => {
@@ -140,7 +164,8 @@ export function segmentToLegacyBlock(segment) {
     explanation: segment.explanationBlocks.map((block) => block.text.replace(EXPLANATION_RE, '').trim()).filter(Boolean).join('\n\n'),
     answerKey: segment.answerBlocks.map((block) => block.text).join('\n'),
     questionNumber: segment.questionNumber,
-    section: segment.stemBlocks[0]?.section || 'General',
+    section: segment.section || segment.stemBlocks[0]?.section || 'General',
+    sectionContext: segment.sectionContext || null,
     images: [...segment.mediaBlocks.flatMap((block) => block.images || []), ...segment.stemBlocks.flatMap((block) => block.images || [])],
     hasTable: [...segment.stemBlocks, ...segment.optionBlocks].some((block) => block.type === 'table' || block.table),
     renderingMetadata: {
@@ -148,6 +173,9 @@ export function segmentToLegacyBlock(segment) {
       boundaryConfidence: segment.confidence,
     },
     parserConfidence: segment.confidence,
-    tags: segment.questionNumber ? [`qnum:${segment.questionNumber}`] : [],
+    tags: [
+      ...(segment.questionNumber ? [`qnum:${segment.questionNumber}`] : []),
+      ...(segment.sectionContext?.questionType ? [`typeOverride:${segment.sectionContext.questionType}`] : []),
+    ],
   };
 }

@@ -63,14 +63,42 @@ export function matchExamTypeSemantically(questionText, examTypes) {
 
 export function applySemanticCatalogHints(question, catalog, base = {}) {
   const text = question.questionText || '';
-  const subjectHit = matchSubjectSemantically(text, catalog.subjects);
-  const topicHit = matchTopicSemantically(
-    text,
-    catalog.topics,
-    base.subjectId || subjectHit.subject?._id,
-    base.class
-  );
-  const examHit = matchExamTypeSemantically(text, catalog.examTypes);
+  // Flat model catalogs (subjects, topics, examTypes) are now empty since the collections were dropped.
+  // Semantic matching uses the syllabus tree (catalog.syllabus) instead.
+  const syllabusCatalog = catalog?.syllabus;
+  
+  let subjectHit = { subject: null, score: 0 };
+  let topicHit = { topic: null, score: 0 };
+  let examHit = { examType: null, score: 0 };
+  
+  // Try syllabus tree if available
+  if (syllabusCatalog?.subjects?.length) {
+    subjectHit = matchSubjectSemantically(text, syllabusCatalog.subjects);
+  }
+  // Fall back to flat catalog (empty arrays since collections dropped)
+  if (!subjectHit.subject && catalog.subjects?.length) {
+    subjectHit = matchSubjectSemantically(text, catalog.subjects);
+  }
+  
+  if (syllabusCatalog?.chapters?.length) {
+    // Match against syllabus chapters (they serve as topic/chapter candidates)
+    topicHit = matchTopicSemantically(
+      text,
+      syllabusCatalog.chapters,
+      base.subjectId || subjectHit.subject?._id,
+      base.class
+    );
+  }
+  if (!topicHit.topic && catalog.topics?.length) {
+    topicHit = matchTopicSemantically(
+      text,
+      catalog.topics,
+      base.subjectId || subjectHit.subject?._id,
+      base.class
+    );
+  }
+  
+  examHit = matchExamTypeSemantically(text, catalog.examTypes || []);
 
   const scores = [];
   if (subjectHit.subject) scores.push(subjectHit.score);

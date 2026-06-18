@@ -1,0 +1,1313 @@
+[
+  {
+    "text": "Part A (JEE Main)",
+    "isSection": true,
+    "section": "Section A",
+    "numbering": null
+  },
+  {
+    "text": "Topic 1 – Electric charges and coulombs law",
+    "section": "Section A",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "1) Multiple choice questions",
+    "isSection": true,
+    "section": "Single Correct MCQ",
+    "numbering": null
+  },
+  {
+    "text": "Q1)Electric charge is transferred to an irregular metallic disk as shown in figure. If  $σ_1,σ_2,σ_3$ and  $σ_4$ are charge densities at given points then, choose the correct answer from the opions given below:(A)  $σ_1&gt;σ_3;σ_2=σ_4$ (B)  $σ_1&gt;σ_2,σ_3&gt;σ_4$ (C)  $σ_1&gt;σ_3&gt;σ_2=σ_4$ (D)  $σ_1&lt;σ_3&lt;σ_2=σ_4$ (E)  $σ_1=σ_2=σ_3=σ_4$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 8, 2025 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) A, B and C Only(B) A and C only(C) D and E only(D) B and C only",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option Ais correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q2)A small bob of mass 100 mg and charge  $+10μC$ is connected to an insulating string of length 1 m . It is brought near to an infinitely long non-conducting sheet of charge density '  $σ$ ' as shown in figure. If string subtends an angle of  $45^{∘}$ with the sheet at equilibrium the charge density of sheet will be :(Given  $ε_0=8.85×10^{-12}\\frac{F}{m}$ add acceleration due to gravity,  $g=10m/s^{2}$ )",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 2, 2025 (I)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $0.885nC/m^{2}$ (B)  $17.7nC/m^{2}$ (C)  $885nC/m^{2}$ (D)  $1.77nC/m^{2}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q3)A small uncharged conducting sphere is placed in contact with an identical sphere but having  $4×10^{-8}C$ charge and then removed to a distance such that the force of repulsion between them is  $9×10^{-3}N$ . The distance between them is(Take  $\\frac{1}{4πε_0}$ as  $9×10^{9}$ in Sl units)",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan24, 2025 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) 2 cm(B) 3 cm(C) 4 cm(D) 1 cm",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q4)Two identical conducting spheres  $P$ and  $S$ with charge  $Q$ on each, repel each other with a force 16 N . A third identical uncharged conducting sphere  $R$ is successively brought in contact with the two spheres. The new force of repulsion between P and S is :",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 6, 2024 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) 4 N(B) 6 N(C) 1 N(D) 12 N",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q5)Force between two point charges  $q_1$ and  $q_2$ placed in vacuum at '  $r$ ' cm apart is  $F$ . Force between them when placed in a medium having dielectric  $K=5$ at '  $r/5^{'}$ ' cm apart will be:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan. 31, 2024 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $F/25$ (B) 5 F(C)  $F/5$ (D) 25 F",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q6)A  $10μC$ charge is divided into two parts and placed at 1 cm distance so that the repulsive force between them is maximum. The charges of the two parts are :",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 13, 2023 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $9μC,1μC$ (B)  $5μC,5μC$ (C)  $7μC,3μC$ (D)  $8μC,2μC$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q7)If two charges  $q_1$ and  $q_2$ are separated with distance '  $d$ ' and placed in a medium of dielectric constant  $K$ . What will be the equivalent distance between charges in air for the sameelectrostatic force?",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan. 24, 2023 (1)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $d\\sqrt[]{K}$ (B)  $K\\sqrt[]{d}$ (C)  $1.5d\\sqrt[]{K}$ (D)  $2d\\sqrt[]{K}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q8)Two identical metallic spheres A and B when placed at certain distance in air repel eachother with a force of F . Another identical uncharged sphere  $C$ is first placed in contact with A and then in contact with B and finally placed at midpoint between spheres A and B . The force experienced by sphere C will be :",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[July 29, 2022 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $3F/2$ (B)  $3F/4$ (C) F(D) 2 F",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q9)Two identical positive charges  $Q$ each are fixed at a distance of '  $2a$ ' apart from each other. Another point charge  $q_0$ with mass '  $m$ ' is placed at midpoint between two fixed charges. For a small displacement along the line joining the fixed charges, the charge  $q_0$ executes SHM. The time period of oscillation of charge  $q_0$ will be :",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[July 27, 2022 (I)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $\\sqrt[]{\\frac{4π^{2}v_2ma}{4a}}$ (B)  $\\sqrt[]{\\frac{4⋅Q}{4π^{'}x_1mu^{'}}}$ (C)  $\\sqrt[]{\\frac{2π^{2}π⋅ma^{3}}{q_00}}$ (D)  $\\sqrt[]{\\frac{8π^{2},π_0π^{2}}{90}}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q10)A dargeof  $4μC$ is to be divided intotwo parts. The distance between the fwodivided charges is constant. The magnifude of the divided charges so that the force between them is maximum, will be:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[July 27, 2022 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $IμC$ and  $3μC$ (B)  $2μC$ and  $2μC$ (C) 0 and  $4μC$ (D)  $1.5μC$ and  $2.5μC$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q11)Two point charges  $Q$ each are placed at a distance  $d$ apart. A third point charge  $q$ is placed at a distance  $x$ from mid-point on the perpendicular briector. The value of  $x$ at which charge a will experience the muximum Coulomb's force is",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[June 29, 2022 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $1-d$ (B)  $x=\\frac{d}{2}$ (C)  $x=\\frac{d}{\\sqrt[]{2}}$ (D)  $1=\\frac{d}{2\\sqrt[]{2}}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q12)Three identical charged balls each of charge 2 C are suspended from a common point  $P$ by silk threads of 2 m each (as shown in figure). They form an equilateral triangle of side im. The ratio of net force on a charged ball to the force between any two charged balls will be :",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[June 27, 2022 (11)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $1:1$ (B)  $1:4$ (C)  $\\sqrt[]{3}:2$ (D)  $\\sqrt[]{3}:1$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q13)Sixty four conducting drops sachof radius 0.02 m and each carrying a charge of  $5μC$ are combined to form a bigger drop. The ratio of surface density of bigger drop to the smaller drop will be:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[June 26, 2022 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $1:4$ (B)  $4:1$ (C)  $1:8$ (D)  $8:1$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q14)Two identical charged particles each having a mass 10 g and charge  $2.0=10$ C placed on a horizontal table with a separation of  $L$ between then such that they stay in limited equilibrium. If the coefficient of friction between each particle and the table is 0.25 , find the value of $L$ .[Useg = $10ms^{-2}$ ]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[June 24, 2022 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) 12 cm(B) 10 cm(C) 8 cm(D) 5 cm",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q15)Two particles A and B having charges  $20μC$ and  $-5μC$ respectively are held fixed with a separation of 5 cm . At what position a third chargod particle should be placed so that it does not experience a net electric force?",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Aug. 31, 2021 (I)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) At 5 cm from  $20μC$ on the left side of system(B) At 5 cm from  $-5μC$ on the right side(C) At 1.25 cm from  $-5μC$ between two charges(D) At midpoint between two charges",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q16)Two identical tennis balls each having mass ‘m’ and charge ‘q’are suspended from a fixed point by threads of length ‘l’. What is the equilibrium separation when each threadmakes asmall angle ' $θ$ ' with the vertical ?",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[July 27, 2021 (II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $d=\\left( \\frac{q^{2}t}{2πε_0mg} \\right)^{2}$ (B)  $d=\\left( \\frac{9^{2}r}{2πsing ^{2}} \\right)^{1}$ (C)  $d=\\left( \\frac{q^{2}/^{2}}{2πε_0m^{2}g} \\right)^{\\frac{1}{3}}$ (D)  $d=\\left( \\frac{9^{2}γ^{2}}{2πx_0m^{2}k^{2}} \\right)^{'}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q17)A certain charge  $Q$ is divided into two parts  $q$ mid if, How should the charges  $Q$ and  $q$ be divided so that Ge (  $Q$ - q) placed at a certain distance apartexperiencing electrostatic repulsion?",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[July 26 2021(II)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $Q=\\frac{9}{2}$ (B)  $Q=2a$ (C)  $O=4π$ (D)  $9=39$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q18)Three charges + Q.9. Oare placed respectivelyat (Ry)  $d/2$ and d from the origin. on the  $x-2xis$ . If the nutue experienced by  $+Q$ , placed at  $x-0$ , is zero, then value (1) is.",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[9 Jan 2019 (I)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $-0/4$ (B)  $+Q/2$ (C)  $+Q/4$ (D)  $O/2$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q19)Charge is distributed within a sphere of radius it which volume charge density  $p(r)=\\frac{A}{S}e^{-2t/4}$ where  $Λ$ and  $a$ constants. If  $Q$ is the total charge of this that distribution, the radius  $R$ is:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[9 Jan 2019 (I)]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $alog⁡\\left( 1-\\frac{Q}{2πaA} \\right)$ (B)  $\\frac{a}{2}log⁡\\left( \\frac{1}{1-\\frac{0}{2πaA}} \\right)$ (C)  $alog⁡\\left( \\frac{1}{1-\\frac{Q}{2πaA}} \\right)$ (D)  $\\frac{a}{2}log⁡\\left( 1-\\frac{Q}{2raA} \\right)$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q20)Two identical conducting spheres A and B, carry charge. They are separated by a distance much larger their diameter, and the force between them is F Aidentical conducting sphere,  $C$ , is uncharged. Sphere first touched to A, then to B, and then removed. Asar the force between A and B would be equal to",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Online April 16, 2018]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $\\frac{3F}{4}$ (B)  $\\frac{F}{2}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(C) F(D)  $\\frac{34}{8}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q21)Shown in the figure are two point charges  $+Q$ and  $-Q$ inside the cavity of a spherical shell. The charges are kept near the surface of the cavity on opposite sides of the centre of the shell.",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "If  $σ_1$ is the surface charge on the inner surface and charge on it and  $σ_2$ the surface charge on the outer and  $Q_2$ net charge on it then:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Online April 10, 2015]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $σ_1≠0,Q_1=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "$σ_2=0,Q_2=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(B)  $σ_1≠0,Q_1=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "$σ_2≠0,Q_2=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(C) $σ_1=0,Q_1=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "$σ_2=0,Q_2=0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(D)  $σ_1≠0,Q_1≠0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "$σ_2≠0,Q_2≠0$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "2) Numeric value questions",
+    "isSection": true,
+    "section": "Numerical/Integer",
+    "numbering": null
+  },
+  {
+    "text": "Q22)A positive ion  $A$ and a negative ion  $B$ has charges  $6.67=10^{19}C$ and  $9.6×10^{111}C$ , ind masses  $19.2×10^{27}kg$ and  $9=10^{-27}kg$ respectively. At an instant, the ions are separated by a certain distance  $r$ . At that instant the ratio of the magnitudes of electrostatic force to gravitational force is  $P=10^{4}$ , where the value of P is _____.(Take  $\\frac{1}{4πε_0}-9×10^{9}Nm^{2}C^{-1}$ and universal gravitational constant as  $6.67×10^{-11}Nm^{2}kg^{3}$ )",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan 23, 2025 (I)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q23)Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle 0 with cacti other When suspended in water the angle remains the same. If density of the material of the sphere is  $1.5g/cc$ , the dielectric constant of water will be _____.(Take density of water = 1 $g/cc$ )",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Feb, 1, 2024 (II)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q24)Suppose a uniformly charged wall provides a uniform electric field of  $2×10^{4}N/C$ normally: A charged particle of mass 2 g being suspended through a silk thread of length 20 cm and remain stayed at a distance of 10 cm from the wall. Then the charge on the particle will be  $\\frac{1}{\\sqrt[]{x}}μC$ where $x=$ _____. $$ [use  $g=10m/s^{2}$ ]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Feb. 1, 2024 (II)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q25)Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle of  $37^{∘}$ with each other. When suspended in a liquid of density  $0.7g/cm^{3}$ , the angle remains same. If density of material of the sphere is  $1.4g/cm^{3}$ , the dielectric constant of the liquid is _____. $\\left( tan⁡37^{∘}-\\frac{3}{4} \\right)$",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan. 30, 2024 (II)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q26)A thin metallic wire having cross sectional area of  $10^{-4}m^{2}$ is used to make a ring of radius 30 cm . A positive charge of  $2π$ C is uniformly distributed over the ring, while another positive charge of 30 pC is kept at the centre of the ring. The tension in the ring is _____N.provided that the ring does not get deformed (neglect the influence of gravity).(given,  $\\frac{1}{4πϵ_0}=9×10^{9}$ Slunits)",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Jan. 27, 2024 (I)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q27)Three point charges  $q,-2q$ and  $2q$ are placed on  $x$ -axis at a distance  $x=0,x=\\frac{3}{4}R$ and  $x=$ R respectively from origin a shown. If  $q=2×10^{-6}C$ and  $R=2cm$ , the magnitude of  $n$ force experienced by the charge  $-2q$ is  $$ _____N.",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 13, 2023 (II)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q28)As shown in the figure, a configuration of two equal  $p$ charges  $\\left( q_0=+2μC \\right)$ is placed on an inclined plane. Ma each point charge is 20 g . Assume that there is no fric between charge and plane. For the system of two charges to be in equilibrium (at rest) the heighth  $10^{-3}m$ . The value of  $x$ is_____.",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[April 11, 2022 (II)]",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: 101",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "101 is correct answer",
+    "section": "Numerical/Integer",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Part B (JEE Mains)",
+    "isSection": true,
+    "section": "Section B",
+    "numbering": null
+  },
+  {
+    "text": "Topic 1 - Electric Charges and Coulomb's Law",
+    "section": "Section B",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "1 MCQs with One Correct Answer",
+    "isSection": true,
+    "section": "Single Correct MCQ",
+    "numbering": null
+  },
+  {
+    "text": "Q1)Two beads, each with charge  $q$ and mass  $m$ , are on a horizontal, frictionless, non- conducting, circular hoop of radius R . One of the beads is glued to the hoop at some point, while the other one performs small oscillations about its equilibrium position along the hoop. The square of the angular frequency of the small oscillations is given by [  $ε_0$ is the permittivity of free space.]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Adv. 2024]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) $\\frac{q^{2}}{\\left( 4πε_0R^{3}m \\right)}$ (B)  $\\frac{q^{2}}{\\left( 32πε_0R^{3}m \\right)}$ (C)  $\\frac{q^{2}}{\\left( 8πε_0R^{3}m \\right)}$ (D) $\\frac{q^{2}}{\\left( 16πε_0R^{3}m \\right)}$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "6 MCQswith One or More than One CorrectAnswer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q2)Two identical non-conducting solid spheres of same mass and charge are suspendedin air from a common point by two nonconducting, massless strings of same length. At equilibrium, the angle between the strings is  $α$ . The splieres are now immersed in adieketric liquid of density  $800kgm^{-3}$ and dielectric constant 21. If the angle between the strings remains the same affer the immersion, then",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Adv.2020]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A) electric force between the spheres remains unchanged(B) electric force between the spheres reduces(C) mass density of the spheres is  $840kgm^{3}$ (D) the tension in the strings holding the spheres remains unchanged",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A, D",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A&amp; Dis correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Q3)Four charges  $Q_1,Q_2,Q_3$ and  $Q_4$ of same magnitude are fixed along the  $x$ axis at  $x=2a,-a,+a$ and  $+2a$ , reppectively  $A$ positive charge  $q$ is placed on the positive  $y$ axis at a distunce  $b&gt;0$ . Four options of the signs of these charges are given in List-I. The direction of the forces on the charge  $q$ is given in List-II. Match List-I with List-II and select the correct answer using the code given below the lists.",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Adv. 2014]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[TABLE_START]\nList-I | List-II\nP) Q 1 , Q 2 , Q 3 , Q 4 all positive | 1. $+x$\n\nQ) $Q_1,Q_2$ positive: $Q_3,Q_4$ negative | 2. $-x$\nR) $Q_1,Q_4$ positive: $Q_2,Q_3$ negative | 3. $+y$\nS. $Q_1,Q_3$ positive: $Q_2,Q_4$ tregative | 4. $-y$\n[TABLE_END]",
+    "isTable": true,
+    "tableModel": {
+      "rows": [
+        [
+          {
+            "text": "List-I",
+            "html": "<p>List-I</p>",
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "text": "List-II",
+            "html": "<p>List-II</p>",
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ],
+        [
+          {
+            "text": "P) Q 1 , Q 2 , Q 3 , Q 4 all positive",
+            "html": "<p>P) Q<sub>1</sub>, Q<sub>2</sub>, Q<sub>3</sub>, Q<sub>4</sub>all positive</p>",
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "text": "1. $+x$",
+            "html": "<p><strong>1.</strong> $+x$ </p>",
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ],
+        [
+          {
+            "text": "",
+            "html": "<p></p>",
+            "colspan": 2,
+            "rowspan": 1
+          }
+        ],
+        [
+          {
+            "text": "Q) $Q_1,Q_2$ positive: $Q_3,Q_4$ negative",
+            "html": "<p>Q)  $Q_1,Q_2$ positive: $Q_3,Q_4$ negative</p>",
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "text": "2. $-x$",
+            "html": "<p><strong>2. </strong> $-x$ </p>",
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ],
+        [
+          {
+            "text": "R) $Q_1,Q_4$ positive: $Q_2,Q_3$ negative",
+            "html": "<p>R)  $Q_1,Q_4$ positive: $Q_2,Q_3$ negative</p>",
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "text": "3. $+y$",
+            "html": "<p><strong>3. </strong> $+y$ </p>",
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ],
+        [
+          {
+            "text": "S. $Q_1,Q_3$ positive: $Q_2,Q_4$ tregative",
+            "html": "<p>S.  $Q_1,Q_3$ positive: $Q_2,Q_4$ tregative</p>",
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "text": "4. $-y$",
+            "html": "<p><strong>4. </strong> $-y$ </p>",
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ]
+      ]
+    },
+    "section": "Single Correct MCQ"
+  },
+  {
+    "text": "Codes:(A)  $P-3,Q-1,R-4,S-2$ (B)  $P-4,Q-2,R-3,S-1$ (C)  $P-3,Q-1,R-2,S-4$ (D) P $-$ 4,Q $-$ 2,R $-$ 1,S $-$ 3",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A, B, C",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A, B &amp; Cis correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Topic 2 - Electric Field and Field Lines",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "1 MCQ- with One Correct Answer",
+    "isSection": true,
+    "section": "Single Correct MCQ",
+    "numbering": null
+  },
+  {
+    "text": "Q4)Charges  $Q.2Q$ and  $4Q$ are uniformly distributed in three dielectric solid spheres 1,2 and 3 of radii  $R/2,R$ and  $2R$ respectively, as shown in figure. If magnitude of the electric fields at point  $P$ at a distance  $R$ from the centre of sphere  $I,2$ and  $3areE_1,E_2$ and  $E_3$ respectively, then",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "[Adv, 2014]",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "(A)  $E_1&gt;E_2&gt;E_3$ (B)  $E_3&gt;E_1&gt;E_2$ (C)  $E_2&gt;E_1&gt;E_3$ (D)  $E_3&gt;E_2&gt;E_1$",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Answer: A",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Explanation:",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  },
+  {
+    "text": "Option A is correct answer",
+    "section": "Single Correct MCQ",
+    "numbering": null,
+    "style": null
+  }
+]

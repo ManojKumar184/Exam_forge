@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 import { fetchQuestionBanksApi, assignQuestionsToBankApi, removeQuestionsFromBankApi, type QuestionBank } from '../../api/questionBanks';
 import {
-  Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, Alert, PageHeader
+  Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader
 } from '../../components/ui';
 import { Link } from 'react-router-dom';
 import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
@@ -22,8 +22,11 @@ function getConfidenceVariant(confidence: number): 'success' | 'warning' | 'erro
 }
 
 function getQuestionTypeVariant(type: string): 'success' | 'warning' | 'info' | 'default' {
-  if (type === 'mcq') return 'info';
-  if (type === 'numerical') return 'warning';
+  const normalized = type.toLowerCase();
+  if (normalized === 'mcq' || normalized === 'mcq_single' || normalized === 'mcq_multiple' || normalized === 'mcq_multi') return 'info';
+  if (normalized === 'numerical' || normalized === 'numerical_integer' || normalized === 'integer') return 'warning';
+  if (normalized === 'assertion_reason' || normalized === 'match_following') return 'success';
+  if (normalized === 'descriptive') return 'default';
   return 'default';
 }
 
@@ -36,7 +39,7 @@ function getSectionLabel(question: Question): string | null {
 
 function getSubtypeLabel(question: Question): string | null {
   const sub = question.tags?.find((t) =>
-    ['mcq_single', 'mcq_multiple', 'integer_type', 'match_following', 'comprehension'].includes(t)
+    ['mcq_single', 'mcq_multiple', 'numerical_integer', 'integer_type', 'match_following', 'comprehension'].includes(t)
   );
   return sub?.replace(/_/g, ' ') || null;
 }
@@ -44,9 +47,9 @@ function getSubtypeLabel(question: Question): string | null {
 export function QuestionBankPage() {
   const { canApproveQuestions, isAdmin, isFaculty } = useAuth();
   const {
-    subjects, chapters, examTypes, questions, isLoading,
-    fetchSubjects, fetchChapters, fetchExamTypes, fetchQuestions,
-    approveQuestion, deleteQuestion, updateQuestion,
+    subjects, examTypes, questions, isLoading,
+    fetchSubjects, fetchExamTypes, fetchQuestions,
+    approveQuestion, deleteQuestion,
     bulkApproveQuestions, bulkDeleteQuestions, bulkUpdateQuestionsMetadata,
   } = useDataStore();
 
@@ -72,12 +75,9 @@ export function QuestionBankPage() {
   });
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editData, setEditData] = useState<Partial<Question>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBulkMetaModal, setShowBulkMetaModal] = useState(false);
   const [bulkMeta, setBulkMeta] = useState<Partial<Question>>({});
-  const [tagsInput, setTagsInput] = useState('');
 
   useEffect(() => {
     fetchSubjects();
@@ -86,12 +86,6 @@ export function QuestionBankPage() {
     fetchQuestionBanksApi().then(setBanksData => setQuestionBanks(setBanksData)).catch((err) => console.error(err));
     applyFilters();
   }, []);
-
-  useEffect(() => {
-    if (editData.subject_id || filters.subject_id) {
-      fetchChapters((editData.subject_id || filters.subject_id) as string);
-    }
-  }, [filters.subject_id, editData.subject_id]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -134,20 +128,6 @@ export function QuestionBankPage() {
     }
   };
 
-  const handleEdit = async () => {
-    if (selectedQuestion) {
-      const res = await updateQuestion(selectedQuestion.id, editData);
-      if (res?.error) {
-        toast.error(res.error.message || 'Update failed');
-      } else {
-        toast.success('Question updated successfully');
-        setShowEditModal(false);
-        setSelectedQuestion(null);
-        applyFilters();
-      }
-    }
-  };
-
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'easy': return 'success';
@@ -167,7 +147,6 @@ export function QuestionBankPage() {
     }
   };
 
-  const filteredChapters = chapters.filter(c => c.subject_id === filters.subject_id);
   const allSelected = questions.length > 0 && selectedIds.length === questions.length;
 
   const toggleSelectAll = () => {
@@ -198,24 +177,6 @@ export function QuestionBankPage() {
               onChange={(e) => handleFilterChange('search', e.target.value)}
               leftIcon={<Search className="w-3.5 h-3.5" />}
               className="h-8 text-xs py-1"
-            />
-          </div>
-          <div className="w-full sm:w-32 shrink-0">
-            <Select
-              className="h-8 text-xs py-1"
-              placeholder="Subject"
-              options={[{ value: '', label: 'All Subjects' }, ...subjects.map(s => ({ value: s.id, label: s.name }))]}
-              value={filters.subject_id}
-              onChange={(e) => handleFilterChange('subject_id', e.target.value)}
-            />
-          </div>
-          <div className="w-full sm:w-36 shrink-0">
-            <Select
-              className="h-8 text-xs py-1"
-              placeholder="Chapter"
-              options={[{ value: '', label: 'All Chapters' }, ...filteredChapters.map(c => ({ value: c.id, label: c.name }))]}
-              value={filters.chapter_id}
-              onChange={(e) => handleFilterChange('chapter_id', e.target.value)}
             />
           </div>
           <div className="w-full sm:w-24 shrink-0">
@@ -288,7 +249,7 @@ export function QuestionBankPage() {
           <Button onClick={applyFilters} className="h-8 shrink-0 py-1 text-xs" size="sm">Apply</Button>
         </div>
 
-        {/* Syllabus Engine Filters */}
+        {/* Syllabus Tree Filters */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
           <span className="text-xs font-semibold text-slate-500 mr-2">Syllabus:</span>
           <div className="w-full sm:w-36 shrink-0">
@@ -399,9 +360,9 @@ export function QuestionBankPage() {
           <div className="w-full sm:w-36 shrink-0">
             <Select
               className="h-8 text-xs py-1"
-              placeholder="Syllabus Subtopic"
+              placeholder="Topic"
               options={[
-                { value: '', label: 'All Subtopics' },
+                { value: '', label: 'All Topics' },
                 ...(((((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
                   .find(n => n._id === filters.syllabus_class_id)?.children || [])
                   .find(n => n._id === filters.syllabus_subject_id)?.children || [])
@@ -413,6 +374,7 @@ export function QuestionBankPage() {
               onChange={(e) => {
                 setFilters(prev => ({
                   ...prev,
+                  syllabus_subtopic_id: e.target.value,
                 }));
               }}
             />
@@ -434,25 +396,28 @@ export function QuestionBankPage() {
           const subtype = getSubtypeLabel(question);
           const warnings = question.extraction_warnings || [];
           return (
-            <Card key={question.id} className="p-3 sm:p-4 hover:shadow-md transition-shadow overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <Card key={question.id} className="group p-4 sm:p-5 hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800/50 transition-all duration-200 ease-in-out overflow-hidden bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-xl relative">
+              {/* Top accent bar for status */}
+              <div className={`absolute top-0 left-0 right-0 h-0.5 rounded-t-xl ${question.status === 'approved' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : question.status === 'rejected' ? 'bg-gradient-to-r from-red-400 to-red-500' : question.status === 'needs_review' ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-500'}`} />
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                 {isAdmin && (
                   <input
                     type="checkbox"
-                    className="mt-1 rounded border-slate-300 shrink-0"
+                    className="mt-1.5 rounded border-slate-300 dark:border-slate-600 shrink-0 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     checked={isSelected}
                     onChange={onToggle}
                   />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                  {/* Badge Row */}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
                     {question.serial_id && (
-                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
-                        Q-{question.serial_id}
+                      <span className="inline-flex items-center text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/50 shadow-sm">
+                        <span className="mr-1">#</span>{question.serial_id}
                       </span>
                     )}
                     <Badge variant={getStatusColor(question.status)} size="sm">
-                      {question.status}
+                      {question.status === 'needs_review' ? 'Review' : question.status}
                     </Badge>
                     <Badge variant={getQuestionTypeVariant(question.question_type)} size="sm">
                       {question.question_type.toUpperCase()}
@@ -470,106 +435,122 @@ export function QuestionBankPage() {
                     <Badge variant={getDifficultyColor(question.difficulty)} size="sm">
                       {question.difficulty}
                     </Badge>
-                    <Badge size="sm">C{question.class}</Badge>
+                    <Badge size="sm">Class {question.class}</Badge>
                     {question.ai_confidence > 0 && (
-                      <Badge variant={getConfidenceVariant(question.ai_confidence)} size="sm">
+                      <Badge variant={getConfidenceVariant(question.ai_confidence)} size="sm" className="font-mono">
                         AI {question.ai_confidence}%
                       </Badge>
                     )}
                     {warnings.length > 0 && (
                       <span
-                        className="text-xs text-amber-600 dark:text-amber-400 cursor-help underline decoration-dotted"
+                        className="inline-flex items-center text-xs text-amber-600 dark:text-amber-400 cursor-help underline decoration-dotted gap-1 bg-amber-50/50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded"
                         title={warnings.join(' · ')}
                       >
-                        ⚠ {warnings.length} note{warnings.length > 1 ? 's' : ''}
+                        <span>⚠</span> {warnings.length}
                       </span>
                     )}
                   </div>
-                  <div className="text-slate-900 dark:text-white mb-2 max-h-24 overflow-hidden">
+
+                  {/* Question Content */}
+                  <div className="text-slate-900 dark:text-white mb-3 max-h-32 overflow-hidden relative">
                     <QuestionContentPreview question={question} compact />
+                    <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white dark:from-slate-800/90 to-transparent pointer-events-none" />
                   </div>
-                  {question.question_type === 'mcq' && question.options && question.options.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+
+                  {/* Options Grid */}
+                  {['mcq', 'mcq_single', 'mcq_multiple', 'MCQ_SINGLE', 'MCQ_MULTIPLE'].includes(question.question_type) && question.options && question.options.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-3">
                       {(question.options as any[]).slice(0, 4).map((opt, idx) => (
                         <div
                           key={idx}
-                          className={`text-xs sm:text-sm px-2 py-1 rounded truncate ${
+                          className={`text-xs sm:text-sm px-3 py-1.5 rounded-lg border transition-colors ${
                             question.correct_option === idx
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                              ? 'bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40 font-medium'
+                              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                           }`}
                           title={typeof opt === 'string' ? opt : opt.text}
                         >
-                          {String.fromCharCode(65 + idx)}. {typeof opt === 'string' ? opt : opt.text}
+                          <span className="font-semibold mr-1">{String.fromCharCode(65 + idx)}.</span> {typeof opt === 'string' ? opt : opt.text}
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
-                    {question.subject && <span>{question.subject.name}</span>}
-                    {question.chapter && <span>{question.chapter.name}</span>}
+
+                  {/* Subject/Chapter Info + Metadata */}
+                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                    {question.subject && (
+                      <span className="inline-flex items-center text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 rounded">
+                        {question.subject.name}
+                      </span>
+                    )}
+                    {question.chapter && (
+                      <span className="inline-flex items-center text-xs text-slate-500 dark:text-slate-400">
+                        <span className="mx-1 text-slate-300">·</span> {question.chapter.name}
+                      </span>
+                    )}
+                    {question.year && (
+                      <span className="inline-flex items-center text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 rounded">
+                        📅 {question.year}
+                      </span>
+                    )}
+                    {question.marks != null && (
+                      <span className="inline-flex items-center text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 rounded">
+                        {question.marks} marks
+                      </span>
+                    )}
+                    {question.exam_type && (
+                      <span className="inline-flex items-center text-xs text-slate-500 dark:text-slate-400">
+                        <span className="mx-1 text-slate-300">·</span> {question.exam_type.name}
+                      </span>
+                    )}
+                    {/* Question text word count */}
+                    <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                      {((question.question_text || '').length).toLocaleString()} chars
+                    </span>
                   </div>
                 </div>
-                <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
+
+                {/* Action Buttons - right side */}
+                <div className="flex flex-row sm:flex-col flex-wrap gap-1">
+                  <button
                     onClick={() => setSelectedQuestion(question)}
-                    leftIcon={<Eye className="w-4 h-4" />}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:shadow-sm transition-all"
                   >
-                    View
-                  </Button>
+                    <Eye className="w-3.5 h-3.5" /> View
+                  </button>
                   {canApproveQuestions && (question.status === 'pending' || question.status === 'needs_review') && (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
                         onClick={() => handleApprove(question.id)}
-                        leftIcon={<Check className="w-4 h-4" />}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:shadow-sm transition-all"
                       >
-                        Approve
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
                         onClick={() => {
                           setSelectedQuestion(question);
                           setShowRejectModal(true);
                         }}
-                        leftIcon={<X className="w-4 h-4" />}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 hover:shadow-sm transition-all"
                       >
-                        Reject
-                      </Button>
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </button>
                     </>
                   )}
                   {isAdmin && (
                     <>
                       <Link to={`/questions/${question.id}/edit`}>
-                        <Button variant="ghost" size="sm" leftIcon={<Edit className="w-4 h-4" />}>
-                          Edit
-                        </Button>
+                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/40 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:shadow-sm transition-all">
+                          <Edit className="w-3.5 h-3.5" /> Edit
+                        </button>
                       </Link>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedQuestion(question);
-                          setEditData(question);
-                          setTagsInput((question.tags || []).join(', '));
-                          setShowEditModal(true);
-                        }}
-                        leftIcon={<Edit className="w-4 h-4" />}
-                        className="hidden lg:inline-flex"
-                      >
-                        Quick
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
                         onClick={() => handleDelete(question.id)}
-                        leftIcon={<Trash2 className="w-4 h-4 text-red-500" />}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 hover:shadow-sm transition-all"
                         title="Delete question"
-                      />
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                      </button>
                     </>
                   )}
                 </div>
@@ -682,7 +663,7 @@ export function QuestionBankPage() {
       />
 
       {/* View Question Modal — replaces old inline modal */}
-      {selectedQuestion && !showRejectModal && !showEditModal && (
+      {selectedQuestion && !showRejectModal && (
         <QuestionPreviewModal
           question={selectedQuestion}
           onClose={() => setSelectedQuestion(null)}
@@ -797,85 +778,6 @@ export function QuestionBankPage() {
             <Button variant="danger" onClick={handleReject}>
               Reject & Delete
             </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Edit Question"
-        size="lg"
-      >
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          {editData.serial_id && (
-            <div className="text-xs font-bold text-blue-650 dark:text-blue-400 bg-blue-50/70 dark:bg-blue-950/40 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-900/50 inline-block mb-2">
-              Question ID: Q-{editData.serial_id}
-            </div>
-          )}
-          <Textarea
-            label="Question Text"
-            value={editData.question_text || ''}
-            onChange={(e) => setEditData(prev => ({ ...prev, question_text: e.target.value }))}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Class"
-              options={[6, 7, 8, 9, 10, 11, 12].map(c => ({ value: c.toString(), label: `Class ${c}` }))}
-              value={editData.class?.toString() || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, class: parseInt(e.target.value, 10) }))}
-            />
-            <Select
-              label="Difficulty"
-              options={[
-                { value: 'easy', label: 'Easy' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'hard', label: 'Hard' }
-              ]}
-              value={editData.difficulty || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, difficulty: e.target.value as Question['difficulty'] }))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Subject"
-              options={subjects.map(s => ({ value: s.id, label: s.name }))}
-              value={editData.subject_id || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, subject_id: e.target.value, chapter_id: '' }))}
-            />
-            <Select
-              label="Topic / Chapter"
-              options={chapters
-                .filter((c) => c.subject_id === editData.subject_id)
-                .map((c) => ({ value: c.id, label: c.name }))}
-              value={editData.chapter_id || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, chapter_id: e.target.value }))}
-              placeholder="Select chapter"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Exam type"
-              options={examTypes.map((e) => ({ value: e.id, label: e.name }))}
-              value={editData.exam_type_id || ''}
-              onChange={(e) => setEditData(prev => ({ ...prev, exam_type_id: e.target.value }))}
-            />
-          </div>
-          <Input
-            label="Tags (comma-separated)"
-            value={tagsInput}
-            onChange={(e) => {
-              setTagsInput(e.target.value);
-              setEditData((prev) => ({
-                ...prev,
-                tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
-              }));
-            }}
-          />
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="ghost" onClick={() => setShowEditModal(false)}>Cancel</Button>
-            <Button onClick={handleEdit}>Save Changes</Button>
           </div>
         </div>
       </Modal>

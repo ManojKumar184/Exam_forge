@@ -9,9 +9,6 @@ export function mapQuestion(doc) {
   return {
     id: idStr(d._id),
     serial_id: d.serialId ?? null,
-    subject_id: d.subjectId ? idStr(d.subjectId._id || d.subjectId) : null,
-    chapter_id: d.chapterId ? idStr(d.chapterId._id || d.chapterId) : null,
-    exam_type_id: d.examTypeId ? idStr(d.examTypeId._id || d.examTypeId) : null,
     question_text: d.questionText,
     question_type: d.questionType,
     context_type: d.contextType || null,
@@ -82,30 +79,6 @@ export function mapQuestion(doc) {
       topicId: m.topicId ? idStr(m.topicId._id || m.topicId) : null,
     })) : [],
 
-    subject: d.subjectId?.name
-      ? {
-          id: idStr(d.subjectId._id || d.subjectId),
-          name: d.subjectId.name,
-          code: d.subjectId.code,
-          icon: d.subjectId.icon,
-          color: d.subjectId.color,
-        }
-      : undefined,
-    chapter: d.chapterId?.name
-      ? {
-          id: idStr(d.chapterId._id || d.chapterId),
-          name: d.chapterId.name,
-          chapter_number: d.chapterId.chapterNumber,
-          class: d.chapterId.class,
-        }
-      : undefined,
-    exam_type: d.examTypeId?.name
-      ? {
-          id: idStr(d.examTypeId._id || d.examTypeId),
-          name: d.examTypeId.name,
-          code: d.examTypeId.code,
-        }
-      : undefined,
     bank_ids: (d.bankIds || []).map(idStr),
   };
 }
@@ -174,9 +147,6 @@ export function mapUploadDetail(doc) {
 
 export function bodyToQuestionFields(body) {
   const map = {
-    subject_id: 'subjectId',
-    chapter_id: 'chapterId',
-    exam_type_id: 'examTypeId',
     question_text: 'questionText',
     question_type: 'questionType',
     context_type: 'contextType',
@@ -250,7 +220,7 @@ export function bodyToQuestionFields(body) {
   };
 
   const out = {};
-  const objectIdFields = ['subjectId', 'chapterId', 'examTypeId', 'uploadId', 'createdBy', 'reviewedBy', 'duplicateOf', 'ownerId'];
+  const objectIdFields = ['uploadId', 'createdBy', 'reviewedBy', 'duplicateOf', 'ownerId'];
   for (const [snake, camel] of Object.entries(map)) {
     let val = undefined;
     if (body[snake] !== undefined) val = body[snake];

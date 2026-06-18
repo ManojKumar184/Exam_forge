@@ -1,12 +1,12 @@
 import { env } from '../config/env.js';
 import { RulesProvider } from './providers/rulesProvider.js';
-import { HuggingFaceProvider } from './providers/huggingFaceProvider.js';
+import { SpaceProvider } from './providers/spaceProvider.js';
 
 const rules = new RulesProvider();
-const huggingface = new HuggingFaceProvider();
+const space = new SpaceProvider();
 
 const LLM_PROVIDERS = {
-  huggingface,
+  space,
 };
 
 export function getRulesProvider() {
@@ -14,7 +14,7 @@ export function getRulesProvider() {
 }
 
 /**
- * Optional LLM provider from AI_PROVIDER env (huggingface|openai|gemini|none).
+ * Get the configured LLM provider from AI_PROVIDER env (space|none).
  */
 export function getLlmProvider() {
   const key = (env.ai.provider || 'none').toLowerCase();
