@@ -110,7 +110,7 @@ async function main() {
   
   // STEP 1: Upload
   console.log('\n--- STEP 1: Upload ---');
-  const filePath = '../Physics_cleaned_dataset.docx';
+  const filePath = './Physics_cleaned_dataset.docx';
   const fs = await import('fs');
   console.log(`File: ${filePath} (${fs.statSync(filePath).size} bytes)`);
   

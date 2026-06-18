@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
 const mongoose = require('mongoose');
 
 const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/examforge';
@@ -7,12 +8,12 @@ async function trace() {
   await mongoose.connect(MONGODB_URI);
   console.log('Connected to MongoDB\n');
 
-  const { loadClassificationCatalog, parseDocumentMetadata } = require('./src/extraction/metadataClassifier.js');
-  const { loadSyllabusCatalog } = require('./src/ai/syllabusCatalog.js');
-  const { applySemanticCatalogHints } = require('./src/ai/semanticTagging.js');
-  const { mergeClassification } = require('./src/ai/classificationPipeline.js');
-  const { getRulesProvider } = require('./src/ai/providerRegistry.js');
-  const Upload = require('./src/models/Upload.js').Upload;
+  const { loadClassificationCatalog, parseDocumentMetadata } = require('../backend/src/extraction/metadataClassifier.js');
+  const { loadSyllabusCatalog } = require('../backend/src/ai/syllabusCatalog.js');
+  const { applySemanticCatalogHints } = require('../backend/src/ai/semanticTagging.js');
+  const { mergeClassification } = require('../backend/src/ai/classificationPipeline.js');
+  const { getRulesProvider } = require('../backend/src/ai/providerRegistry.js');
+  const Upload = require('../backend/src/models/Upload.js').Upload;
 
   const catalog = await loadClassificationCatalog();
   const syllabusCatalog = await loadSyllabusCatalog().catch(() => null);

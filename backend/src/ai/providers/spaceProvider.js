@@ -351,10 +351,10 @@ export class SpaceProvider extends BaseAIProvider {
    */
   async _withRetry(fn, label = '') {
     let lastError = null;
-    const isColdStart = this._coldStartDetected;
-    const effectiveTimeout = isColdStart ? this.coldStartTimeoutMs : this.timeoutMs;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      const isColdStart = this._coldStartDetected;
+      const effectiveTimeout = isColdStart ? this.coldStartTimeoutMs : this.timeoutMs;
       try {
         const result = await fn(effectiveTimeout);
         // On success: mark warm, return result
@@ -477,6 +477,7 @@ export class SpaceProvider extends BaseAIProvider {
    * Classify multiple questions in a single Space API call.
    */
   async classifyBatch(questions, catalog, docMeta = {}) {
+    if (env.ai.disableBatch) return null;
     if (!this.isConfigured() || !questions?.length) return null;
 
     const uploadId = docMeta?.uploadId || '?';

@@ -2,14 +2,14 @@ import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { ExamTemplate } from './src/models/ExamTemplate.js';
-import { ExportPreset } from './src/models/ExportPreset.js';
-import { InstitutionProfile } from './src/models/InstitutionProfile.js';
-import { buildPaperExportHtml } from './src/generators/paperExportHtml.js';
-import { buildPaperExportDocx } from './src/services/paperDocxService.js';
+import { ExamTemplate } from '../backend/src/models/ExamTemplate.js';
+import { ExportPreset } from '../backend/src/models/ExportPreset.js';
+import { InstitutionProfile } from '../backend/src/models/InstitutionProfile.js';
+import { buildPaperExportHtml } from '../backend/src/generators/paperExportHtml.js';
+import { buildPaperExportDocx } from '../backend/src/services/paperDocxService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '..', 'backend', '.env') });
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
 
 async function run() {

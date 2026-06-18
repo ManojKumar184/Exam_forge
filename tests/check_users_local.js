@@ -2,10 +2,10 @@
 // Automated role-separation verification using Puppeteer.
 // Run with: node verify_roles_e2e.js (requires dev server at http://localhost:5173)
 
-const puppeteer = require('c:/Users/manoj555/Desktop/Exam_forge/node_modules/puppeteer');
-const mongoose = require('c:/Users/manoj555/Desktop/Exam_forge/backend/node_modules/mongoose');
+const puppeteer = require('../frontend/node_modules/puppeteer');
+const mongoose = require('../backend/node_modules/mongoose');
 const path = require('path');
-require('c:/Users/manoj555/Desktop/Exam_forge/backend/node_modules/dotenv').config({ path: path.join(__dirname, '.env') });
+require('../backend/node_modules/dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
 
 (async () => {

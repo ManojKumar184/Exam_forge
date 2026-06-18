@@ -20,6 +20,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 5000,
   mongodbUri: process.env.MONGODB_URI || '',
+  nvidiaApiKey: process.env.NVIDIA_API_KEY || '',
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET || '',
     refreshSecret: process.env.JWT_REFRESH_SECRET || '',
@@ -32,7 +33,7 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR || path.join(backendRoot, 'uploads'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 25,
   ai: {
-    provider: process.env.AI_PROVIDER || 'space',
+    provider: process.env.AI_PROVIDER || 'nvidia',
     spaceRequestTimeoutMs: Number(process.env.SPACE_REQUEST_TIMEOUT_MS) || 45000,
     spaceColdStartTimeoutMs: Number(process.env.SPACE_COLD_START_TIMEOUT_MS) || 120000,
     requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30000,
@@ -48,6 +49,14 @@ export const env = {
     batchMaxSize: Number(process.env.AI_BATCH_MAX_SIZE) || 25,
     // Concurrency: max parallel AI calls when per-question fallback
     maxConcurrentAiCalls: Number(process.env.AI_MAX_CONCURRENT_CALLS) || 3,
+    // Disable batch classification completely and use parallel single questions
+    disableBatch: process.env.AI_DISABLE_BATCH === 'true',
+    // New config for document‑level workflow
+    enableDocClassifyWorkflow: process.env.ENABLE_DOC_CLASSIFY_WORKFLOW === 'true',
+    docClassifyBatchMin: Number(process.env.DOC_CLASSIFY_BATCH_MIN) || 10,
+    docClassifyBatchMax: Number(process.env.DOC_CLASSIFY_BATCH_MAX) || 50,
+    fastNvidiaModels: (process.env.FAST_NVIDIA_MODELS?.split(',') || ['deepseek-coder-v2.5','qwen-2.5-7b-instruct','gemma-2b-it','mistral-7b-instruct-v0.2','mixtral-8x7b-instruct']).map(m=>m.trim()),
+    ultraModel: 'nvidia/nemotron-3-ultra-550b-a55b',
   },
   ocr: {
     enabled: process.env.OCR_ENABLED !== 'false',

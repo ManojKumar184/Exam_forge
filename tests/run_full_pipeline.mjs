@@ -1,17 +1,19 @@
-import { extractDocxQuestions } from './backend/src/extraction/extractDocxQuestions.js';
-import { normalizeQuestions } from './backend/src/extraction/normalizeQuestions.js';
-import { classifyQuestionMetadataBatch } from './backend/src/ai/classifyQuestion.js';
-import { loadClassificationCatalog } from './backend/src/extraction/metadataClassifier.js';
-import { loadSyllabusCatalog } from './backend/src/ai/syllabusCatalog.js';
+import { extractDocxQuestions } from '../backend/src/extraction/extractDocxQuestions.js';
+import { normalizeQuestions } from '../backend/src/extraction/normalizeQuestions.js';
+import { classifyQuestionMetadataBatch } from '../backend/src/ai/classifyQuestion.js';
+import { loadClassificationCatalog } from '../backend/src/extraction/metadataClassifier.js';
+import { loadSyllabusCatalog } from '../backend/src/ai/syllabusCatalog.js';
 import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 
-const projectRoot = process.cwd();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, '..');
 dotenv.config({ path: path.join(projectRoot, 'backend', '.env') });
-const docxPath = path.join(projectRoot, 'Physics_cleaned_dataset.docx');
-const imageDir = path.join(projectRoot, 'backend/uploads/images/pipeline_test');
+const docxPath = path.join(__dirname, 'Physics_cleaned_dataset.docx');
+const imageDir = path.join(projectRoot, 'backend', 'uploads', 'images', 'pipeline_test');
 try { fs.mkdirSync(imageDir, { recursive: true }); } catch(e) {}
 
 async function main() {

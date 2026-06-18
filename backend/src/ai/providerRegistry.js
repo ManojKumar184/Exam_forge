@@ -1,12 +1,15 @@
 import { env } from '../config/env.js';
 import { RulesProvider } from './providers/rulesProvider.js';
 import { SpaceProvider } from './providers/spaceProvider.js';
+import { NvidiaProvider } from './providers/nvidiaProvider.js';
 
 const rules = new RulesProvider();
 const space = new SpaceProvider();
+const nvidia = new NvidiaProvider();
 
 const LLM_PROVIDERS = {
   space,
+  nvidia,
 };
 
 export function getRulesProvider() {
