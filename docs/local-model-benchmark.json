@@ -1,0 +1,309 @@
+{
+  "benchmark": "examforge-local-normalization/v1",
+  "corpusPath": "backend/src/extraction/documentIntelligence/fixtures/local-normalization-benchmark.json",
+  "notes": "Hand-authored synthetic evidence with exact expected output; small smoke corpus, not statistically representative.",
+  "reports": [
+    {
+      "model": "qwen2.5:0.5b-instruct-q4_0",
+      "artifactBytes": 352168325,
+      "quantization": "Q4_0",
+      "corpusSize": 8,
+      "scores": {
+        "type": 0.375,
+        "stem": 0,
+        "options": 0.25,
+        "answer": 0.25,
+        "schemaValid": 0.75,
+        "evidenceIdsValid": 0.75,
+        "sourceCoverage": 0.25
+      },
+      "exactCasePassRate": 0,
+      "averageLatencyMs": 11708,
+      "p95LatencyMs": 24869,
+      "questionsPerMinute": 5.12,
+      "peakRamBytes": null,
+      "unavailableMetrics": [
+        "peakRamBytes",
+        "VRAM",
+        "imageAssociation",
+        "equationPreservation",
+        "tableStructureAccuracy",
+        "chunkBoundaryContinuation",
+        "largeDocumentThroughput"
+      ],
+      "items": [
+        {
+          "id": "mcq-simple",
+          "type": true,
+          "stem": false,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 10458,
+          "promptTokens": 309,
+          "outputTokens": 154,
+          "validationIssues": []
+        },
+        {
+          "id": "mcq-irregular-format",
+          "type": true,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 10726,
+          "promptTokens": 284,
+          "outputTokens": 161,
+          "validationIssues": []
+        },
+        {
+          "id": "true-false",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 7375,
+          "promptTokens": 237,
+          "outputTokens": 97,
+          "validationIssues": [
+            "MCQ_SINGLE requires at least two options"
+          ]
+        },
+        {
+          "id": "fill-blank",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 24869,
+          "promptTokens": 233,
+          "outputTokens": 400,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "numerical",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 9521,
+          "promptTokens": 234,
+          "outputTokens": 132,
+          "validationIssues": []
+        },
+        {
+          "id": "integer-numerical",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 12411,
+          "promptTokens": 236,
+          "outputTokens": 134,
+          "validationIssues": []
+        },
+        {
+          "id": "match-following",
+          "type": true,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 9282,
+          "promptTokens": 258,
+          "outputTokens": 125,
+          "validationIssues": []
+        },
+        {
+          "id": "assertion-reason",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 9018,
+          "promptTokens": 367,
+          "outputTokens": 123,
+          "validationIssues": []
+        }
+      ]
+    },
+    {
+      "model": "smollm2:360m-instruct-q4_0",
+      "artifactBytes": 229131313,
+      "quantization": "Q4_0",
+      "corpusSize": 8,
+      "scores": {
+        "type": 0.125,
+        "stem": 0,
+        "options": 0.5,
+        "answer": 0,
+        "schemaValid": 0.25,
+        "evidenceIdsValid": 0.25,
+        "sourceCoverage": 0.125
+      },
+      "exactCasePassRate": 0,
+      "averageLatencyMs": 18820,
+      "p95LatencyMs": 28503,
+      "questionsPerMinute": 3.19,
+      "peakRamBytes": null,
+      "unavailableMetrics": [
+        "peakRamBytes",
+        "VRAM",
+        "imageAssociation",
+        "equationPreservation",
+        "tableStructureAccuracy",
+        "chunkBoundaryContinuation",
+        "largeDocumentThroughput"
+      ],
+      "items": [
+        {
+          "id": "mcq-simple",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 19796,
+          "promptTokens": 362,
+          "outputTokens": 181,
+          "validationIssues": []
+        },
+        {
+          "id": "mcq-irregular-format",
+          "type": true,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 10535,
+          "promptTokens": 331,
+          "outputTokens": 145,
+          "validationIssues": []
+        },
+        {
+          "id": "true-false",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 22849,
+          "promptTokens": 281,
+          "outputTokens": 400,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "fill-blank",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 24892,
+          "promptTokens": 277,
+          "outputTokens": 400,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "numerical",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 10478,
+          "promptTokens": 278,
+          "outputTokens": 166,
+          "validationIssues": [
+            "MCQ_MULTIPLE requires at least two options"
+          ]
+        },
+        {
+          "id": "integer-numerical",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 23334,
+          "promptTokens": 280,
+          "outputTokens": 400,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "match-following",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 10171,
+          "promptTokens": 303,
+          "outputTokens": 149,
+          "validationIssues": [
+            "Array must contain at least 1 element(s)"
+          ]
+        },
+        {
+          "id": "assertion-reason",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 28503,
+          "promptTokens": 415,
+          "outputTokens": 400,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        }
+      ]
+    }
+  ]
+}\n

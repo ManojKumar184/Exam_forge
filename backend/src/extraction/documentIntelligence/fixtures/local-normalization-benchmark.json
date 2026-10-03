@@ -1,0 +1,42 @@
+[
+  {
+    "id": "mcq-simple",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"1. Which planet is known as the Red Planet?"},{"id":"b2","order":1,"type":"list_item","text":"A. Venus"},{"id":"b3","order":2,"type":"list_item","text":"B. Jupiter"},{"id":"b4","order":3,"type":"list_item","text":"C. Mars"},{"id":"b5","order":4,"type":"list_item","text":"D. Mercury"},{"id":"b6","order":5,"type":"paragraph","text":"Answer: C"}],
+    "expected": {"type":"MCQ_SINGLE","stem":"Which planet is known as the Red Planet?","options":["Venus","Jupiter","Mars","Mercury"],"answer":"C"}
+  },
+  {
+    "id": "mcq-irregular-format",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"Q. Select the prime number"},{"id":"b2","order":1,"type":"paragraph","text":"(a) 21   (b) 29"},{"id":"b3","order":2,"type":"paragraph","text":"(c) 35 (d) 39"},{"id":"b4","order":3,"type":"paragraph","text":"Key: b"}],
+    "expected": {"type":"MCQ_SINGLE","stem":"Select the prime number","options":["21","29","35","39"],"answer":"B"}
+  },
+  {
+    "id": "true-false",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"3. True or false: Water boils at 100 degrees Celsius at sea level."},{"id":"b2","order":1,"type":"paragraph","text":"Answer: True"}],
+    "expected": {"type":"TRUE_FALSE","stem":"Water boils at 100 degrees Celsius at sea level.","options":["True","False"],"answer":"TRUE"}
+  },
+  {
+    "id": "fill-blank",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"4. Fill in the blank: The chemical symbol for oxygen is ____."},{"id":"b2","order":1,"type":"paragraph","text":"Answer: O"}],
+    "expected": {"type":"FILL_BLANK","stem":"The chemical symbol for oxygen is ____.","options":[],"answer":"O"}
+  },
+  {
+    "id": "numerical",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"5. Calculate 12 divided by 3. Give a numerical answer."},{"id":"b2","order":1,"type":"paragraph","text":"Answer: 4"}],
+    "expected": {"type":"NUMERICAL","stem":"Calculate 12 divided by 3. Give a numerical answer.","options":[],"answer":"4"}
+  },
+  {
+    "id": "integer-numerical",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"6. How many sides does a hexagon have? Answer as an integer."},{"id":"b2","order":1,"type":"paragraph","text":"Answer: 6"}],
+    "expected": {"type":"NUMERICAL_INTEGER","stem":"How many sides does a hexagon have? Answer as an integer.","options":[],"answer":"6"}
+  },
+  {
+    "id": "match-following",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"7. Match each quantity to its unit."},{"id":"b2","order":1,"type":"table","text":"Length | metre; Mass | kilogram"},{"id":"b3","order":2,"type":"paragraph","text":"Answer: Length-metre, Mass-kilogram"}],
+    "expected": {"type":"MATCH_FOLLOWING","stem":"Match each quantity to its unit.","options":[],"answer":"Length-metre, Mass-kilogram"}
+  },
+  {
+    "id": "assertion-reason",
+    "blocks": [{"id":"b1","order":0,"type":"paragraph","text":"8. Assertion (A): Plants need light for photosynthesis."},{"id":"b2","order":1,"type":"paragraph","text":"Reason (R): Chlorophyll absorbs light energy."},{"id":"b3","order":2,"type":"paragraph","text":"A. Both A and R are true and R explains A"},{"id":"b4","order":3,"type":"paragraph","text":"B. Both A and R are true but R does not explain A"},{"id":"b5","order":4,"type":"paragraph","text":"C. A is true and R is false"},{"id":"b6","order":5,"type":"paragraph","text":"D. A is false and R is true"},{"id":"b7","order":6,"type":"paragraph","text":"Answer: A"}],
+    "expected": {"type":"ASSERTION_REASON","stem":"Assertion (A): Plants need light for photosynthesis. Reason (R): Chlorophyll absorbs light energy.","options":["Both A and R are true and R explains A","Both A and R are true but R does not explain A","A is true and R is false","A is false and R is true"],"answer":"A"}
+  }
+]

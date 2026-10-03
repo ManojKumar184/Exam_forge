@@ -9,6 +9,7 @@
     "seed": "node src/utils/seed.js",
     "migrate:production": "node src/migrations/runProductionMigrations.js",
     "migrate:question-marks": "node src/migrations/runQuestionMarksMigration.js",
+    "benchmark:local-ai": "node src/scripts/benchmarkLocalNormalization.js",
     "test": "node --test src/middleware/tenantContext.test.js src/integration/tenantIsolation.integration.test.js src/integration/institutionMigration.integration.test.js src/integration/productionBlockers.integration.test.js src/extraction/documentIntelligence/coreV1Classification.test.js src/extraction/documentIntelligence/coreV1DocxFlow.test.js src/extraction/documentIntelligence/normalizationContract.test.js src/extraction/docxStructured.test.js src/utils/canonicalQuestionContent.test.js src/migrations/productionMigrationPlan.test.js src/services/paperStructuredExport.test.js src/services/paperSelectionCoreV1.test.js src/services/onlineExamCoreV1.test.js src/services/errorReporter.test.js"
   },
   "dependencies": {

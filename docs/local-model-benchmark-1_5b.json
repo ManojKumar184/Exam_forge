@@ -1,0 +1,229 @@
+{
+  "benchmark": "examforge-local-normalization/v1",
+  "corpusPath": "backend/src/extraction/documentIntelligence/fixtures/local-normalization-benchmark.json",
+  "notes": "Hand-authored synthetic evidence with exact expected output; small smoke corpus, not statistically representative.",
+  "reports": [
+    {
+      "model": "qwen2.5:1.5b-instruct-q4_K_M",
+      "artifactBytes": 986061892,
+      "quantization": "Q4_K_M",
+      "corpusSize": 8,
+      "scores": {
+        "type": 0.5,
+        "stem": 0,
+        "options": 0.75,
+        "answer": 0.5,
+        "schemaValid": 0.5,
+        "evidenceIdsValid": 0.5,
+        "sourceCoverage": 0.5
+      },
+      "exactCasePassRate": 0,
+      "averageLatencyMs": 48847,
+      "p95LatencyMs": 84071,
+      "questionsPerMinute": 1.23,
+      "peakRamBytes": null,
+      "sampledRunnerWorkingSetMaxBytes": 1323270144,
+      "sampledMemoryScope": "sum of llama-server working set sampled before/after each inference; not a peak guarantee",
+      "unavailableMetrics": [
+        "peakRamBytes",
+        "VRAM",
+        "imageAssociation",
+        "equationPreservation",
+        "tableStructureAccuracy",
+        "chunkBoundaryContinuation",
+        "largeDocumentThroughput"
+      ],
+      "items": [
+        {
+          "id": "mcq-simple",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 84071,
+          "promptTokens": 309,
+          "outputTokens": 400,
+          "prediction": null,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "mcq-irregular-format",
+          "type": true,
+          "stem": false,
+          "options": true,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 41504,
+          "promptTokens": 284,
+          "outputTokens": 251,
+          "prediction": {
+            "type": "MCQ_SINGLE",
+            "stem": "Q. Select the prime number (a) 21 (b) 29 (c) 35 (d) 39 Key: b",
+            "options": [
+              "21",
+              "29",
+              "35",
+              "39"
+            ],
+            "answer": "b",
+            "sourceEvidence": [
+              "b1",
+              "b2",
+              "b3",
+              "b4"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "true-false",
+          "type": true,
+          "stem": false,
+          "options": true,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 21031,
+          "promptTokens": 237,
+          "outputTokens": 112,
+          "prediction": {
+            "type": "TRUE_FALSE",
+            "stem": "Answer: True",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answer": "True",
+            "sourceEvidence": [
+              "b2",
+              "b1"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "fill-blank",
+          "type": true,
+          "stem": false,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 30563,
+          "promptTokens": 233,
+          "outputTokens": 159,
+          "prediction": {
+            "type": "FILL_BLANK",
+            "stem": "4. Fill in the blank: The chemical symbol for oxygen is ____. Answer: O",
+            "options": [
+              "O",
+              "H",
+              "N",
+              "P"
+            ],
+            "answer": "O",
+            "sourceEvidence": [
+              "b1",
+              "b2"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "numerical",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 55762,
+          "promptTokens": 234,
+          "outputTokens": 400,
+          "prediction": null,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "integer-numerical",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 57821,
+          "promptTokens": 236,
+          "outputTokens": 400,
+          "prediction": null,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "match-following",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 60141,
+          "promptTokens": 258,
+          "outputTokens": 400,
+          "prediction": null,
+          "validationIssues": [
+            "Expected object, received null"
+          ]
+        },
+        {
+          "id": "assertion-reason",
+          "type": true,
+          "stem": false,
+          "options": true,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 39883,
+          "promptTokens": 367,
+          "outputTokens": 206,
+          "prediction": {
+            "type": "ASSERTION_REASON",
+            "stem": "8. Assertion (A): Plants need light for photosynthesis. Reason (R): Chlorophyll absorbs light energy.",
+            "options": [
+              "Both A and R are true and R explains A",
+              "Both A and R are true but R does not explain A",
+              "A is true and R is false",
+              "A is false and R is true"
+            ],
+            "answer": "A",
+            "sourceEvidence": [
+              "b1",
+              "b2",
+              "b3",
+              "b4",
+              "b5",
+              "b6",
+              "b7"
+            ]
+          },
+          "validationIssues": []
+        }
+      ]
+    }
+  ]
+}\n
