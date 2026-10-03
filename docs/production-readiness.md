@@ -45,6 +45,8 @@ The editor now keeps a canonical content object as the source for stem, option, 
 
 The local `@xenova/transformers` dependency is not currently used to load a normalization model, and no checked-in model weights were found. Ingestion continues to use deterministic extraction/classification and human review; there is no supported local generative normalization model yet. The current benchmark report is historical and is not a validated before/after ground-truth result.
 
+`semantic-document/v1` is the existing source-evidence representation. A Zod normalization contract now validates that evidence block IDs are unique, normalized output uses only objective Core v1 types, each question cites existing source evidence, MCQs have options, and `UNCLASSIFIED` remains in review. This contract is groundwork only: the current ingestion path does not call a local model or persist model-produced NormalizedQuestionIR, so the AI-first objective is not implemented. No model was benchmarked in this environment because no local inference runtime or model weights were available. A measured model evaluation and integration are launch blockers; no accuracy or throughput results are claimed.
+
 ## Backup and recovery responsibilities
 
 These are infrastructure responsibilities, not implemented application guarantees:

@@ -12,6 +12,7 @@ export { normalizeQuestions, splitTextIntoBlocks } from './normalizeQuestions.js
 export { documentIntelligencePipeline } from './documentIntelligence/ingestionPipeline.js';
 export { detectSource } from './documentIntelligence/sourceDetection.js';
 export { createSemanticDocument, semanticDocumentFromLegacyBlocks } from './documentIntelligence/semanticDocumentModel.js';
+export { rawDocumentIRSchema, normalizedQuestionIRSchema, normalizedQuestionBatchSchema, validateRawDocumentIR, validateNormalizedQuestionBatch } from './documentIntelligence/normalizationContract.js';
 export { validateDocxTemplate, isTemplateDocument } from './templateValidator.js';
 export { detectAnswer, detectAnswerInLine } from './answerDetector.js';
 export { detectExplanation, isExplanationLine } from './explanationDetector.js';
