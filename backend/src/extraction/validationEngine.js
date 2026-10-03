@@ -50,6 +50,10 @@ const VALIDATION_RULES = {
     requiresNumericAnswer: true,
     description: 'Numerical/Integer — must have a numeric answer',
   },
+  NUMERICAL: {
+    requiresNumericAnswer: true,
+    description: 'Numerical — must have a numeric answer',
+  },
   ASSERTION_REASON: {
     requiresAssertionReason: true,
     requiresOptions: true,
@@ -69,7 +73,6 @@ const VALIDATION_RULES = {
 // Legacy alias rules (map to canonical during validation)
 const LEGACY_RULE_ALIASES = {
   MCQ_MULTI: 'MCQ_MULTIPLE',
-  NUMERICAL: 'NUMERICAL_INTEGER',
   INTEGER: 'NUMERICAL_INTEGER',
   MATCH_COLUMNS: 'MATCH_FOLLOWING',
   SHORT_ANSWER: 'DESCRIPTIVE',
@@ -89,20 +92,14 @@ function normalizeTypeForValidation(type) {
     MCQ_SINGLE: 'MCQ_SINGLE',
     MCQ_MULTI: 'MCQ_MULTIPLE',
     MCQ_MULTIPLE: 'MCQ_MULTIPLE',
-    NUMERICAL: 'NUMERICAL_INTEGER',
+    NUMERICAL: 'NUMERICAL',
     INTEGER: 'NUMERICAL_INTEGER',
     NUMERICAL_INTEGER: 'NUMERICAL_INTEGER',
     ASSERTION_REASON: 'ASSERTION_REASON',
     MATCH_COLUMNS: 'MATCH_FOLLOWING',
     MATCH_FOLLOWING: 'MATCH_FOLLOWING',
-    COMPREHENSION: 'DESCRIPTIVE',
-    PARAGRAPH_BASED: 'DESCRIPTIVE',
-    STATEMENT_SET: 'DESCRIPTIVE',
-    MATRIX_MATCH: 'MCQ_SINGLE',
     TRUE_FALSE: 'TRUE_FALSE',
     FILL_BLANK: 'FILL_BLANK',
-    NESTED_OPTION_MCQ: 'MCQ_SINGLE',
-    CASE_STUDY: 'DESCRIPTIVE',
     DESCRIPTIVE: 'DESCRIPTIVE',
     SHORT_ANSWER: 'DESCRIPTIVE',
     LONG_ANSWER: 'DESCRIPTIVE',
@@ -177,7 +174,7 @@ export function validateQuestion(question) {
   const type = normalizeTypeForValidation(question.questionType);
   const rules = VALIDATION_RULES[type];
 
-  if (!rules || !['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON'].includes(type)) {
+  if (!rules || !['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON'].includes(type)) {
       return {
         valid: false,
         issues: [`Unsupported or unclassified objective question type: ${question.questionType || 'missing'}`],

@@ -12,7 +12,7 @@ import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
 export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
-  'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+  'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
 ]);
 
 const QUESTION_CREATE_FIELDS = new Set([
@@ -26,8 +26,49 @@ const QUESTION_CREATE_FIELDS = new Set([
 const QUESTION_UPDATE_FIELDS = new Set([...QUESTION_CREATE_FIELDS, 'isPrivate', 'visibility']);
 
 export function validateQuestionForApproval(question) {
-  if (!CORE_OBJECTIVE_QUESTION_TYPES.has(normalizeQuestionType(question.questionType))) {
+  const type = normalizeQuestionType(question.questionType);
+  if (!CORE_OBJECTIVE_QUESTION_TYPES.has(type)) {
     throw new AppError('Classify and correct this question as a supported objective type before approval', 400, 'UNSUPPORTED_QUESTION_TYPE');
+  }
+  const content = question.canonicalContent;
+  const stem = content?.stem || [];
+  const hasStem = stem.some((block) => block?.type === 'text' ? Boolean(block.text?.trim()) : block?.type === 'equation' || block?.type === 'image' || block?.type === 'table');
+  if (!hasStem && !question.questionText?.trim() && !question.questionLatex && !question.questionImages?.length) {
+    throw new AppError('Question content is required before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  const options = content?.options?.length ? content.options : (question.options || []);
+  const answer = content?.answer ?? question.correctAnswers ?? question.correctOption ?? question.numericalAnswer ?? question.answerText ?? question.answerKey;
+  if (['MCQ_SINGLE', 'MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type) && options.length < 2) {
+    throw new AppError('At least two options are required before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  const singleAnswer = question.correctOption ?? answer;
+  if (type === 'MCQ_SINGLE' && (singleAnswer == null || singleAnswer === '' || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
+    throw new AppError('Select a valid correct option before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (type === 'MCQ_MULTIPLE' && !(Array.isArray(question.correctAnswers ?? answer) && (question.correctAnswers ?? answer).length)) {
+    throw new AppError('Select one or more correct options before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (['MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type)) {
+    const refs = question.correctAnswers ?? (Array.isArray(answer) ? answer : []);
+    const validRef = (ref) => {
+      if (Number.isInteger(Number(ref)) && String(ref).trim() !== '') return Number(ref) >= 0 && Number(ref) < options.length;
+      const label = String(ref).trim().toUpperCase();
+      return options.some((option, index) => String(option.label || String.fromCharCode(65 + index)).toUpperCase() === label);
+    };
+    if (refs.some((ref) => !validRef(ref))) throw new AppError('Correct answers must reference existing options', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (type === 'ASSERTION_REASON' && (singleAnswer == null || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
+    throw new AppError('Select a valid assertion/reason answer before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  const numericalAnswer = question.numericalAnswer ?? answer;
+  if (['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type) && (numericalAnswer == null || numericalAnswer === '' || !Number.isFinite(Number(numericalAnswer)))) {
+    throw new AppError('Enter a valid numerical answer before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (['TRUE_FALSE', 'FILL_BLANK'].includes(type) && (answer == null || String(answer).trim() === '')) {
+    throw new AppError('Provide the correct answer before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (type === 'MATCH_FOLLOWING' && (answer == null || (Array.isArray(answer) && answer.length === 0) || String(answer).trim() === '')) {
+    throw new AppError('Provide the correct matching answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   const hasSyllabusData = question.syllabusMappings?.length > 0 &&
     question.syllabusMappings[0]?.subjectId && question.syllabusMappings[0]?.examPatternId;

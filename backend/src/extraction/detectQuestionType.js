@@ -25,12 +25,12 @@ const CANONICAL_TYPE_MAP = {
   'mcq_single': 'MCQ_SINGLE',
   'mcq_multiple': 'MCQ_MULTIPLE',
   'integer': 'NUMERICAL_INTEGER',
-  'numerical': 'NUMERICAL_INTEGER',
+  'numerical': 'NUMERICAL',
   'integer_type': 'NUMERICAL_INTEGER',
   'numerical_integer': 'NUMERICAL_INTEGER',
   'match_following': 'MATCH_FOLLOWING',
   'assertion_reason': 'ASSERTION_REASON',
-  'comprehension': 'COMPREHENSION',
+  'comprehension': 'UNCLASSIFIED',
   'descriptive': 'UNCLASSIFIED',
   'short_answer': 'UNCLASSIFIED',
   'long_answer': 'UNCLASSIFIED',
@@ -88,7 +88,7 @@ export function detectQuestionType(block) {
     return { questionType: 'MCQ_SINGLE', tags, subtype: 'mcq_single' };
   }
 
-  // Merge NUMERICAL and INTEGER into NUMERICAL_INTEGER
+  // Keep integer and general numerical response types distinct.
   if (INTEGER_RE.test(lower) || /^\s*\d+\s*$/.test(lineText.trim())) {
     tags.push('numerical_integer');
     return { questionType: 'NUMERICAL_INTEGER', tags, subtype: 'numerical_integer' };
@@ -98,8 +98,8 @@ export function detectQuestionType(block) {
     NUMERICAL_RE.test(lower) ||
     /\b\d+(\.\d+)?\s*(cm|m|kg|g|mol|j|n|v|a|w|hz|s)\b/i.test(fullText)
   ) {
-    tags.push('numerical_integer');
-    return { questionType: 'NUMERICAL_INTEGER', tags, subtype: 'numerical_integer' };
+    tags.push('numerical');
+    return { questionType: 'NUMERICAL', tags, subtype: 'numerical' };
   }
 
   if (/\([a-fA-F]\)/.test(fullText) && countOptionMarkers(fullText) === 1) {
@@ -107,7 +107,7 @@ export function detectQuestionType(block) {
     return { questionType: 'MCQ_SINGLE', tags, subtype: 'mcq_incomplete' };
   }
 
-  return { questionType: 'DESCRIPTIVE', tags, subtype: 'descriptive' };
+  return { questionType: 'UNCLASSIFIED', tags, subtype: 'unclassified' };
 }
 
 export function detectQuestionTypeNormalized(block) {

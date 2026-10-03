@@ -35,7 +35,7 @@ The database URI should point to a production MongoDB deployment with authentica
 
 ## Migration behavior
 
-At startup, the additive `migrateInstitutions()` backfill creates a legacy institution for each existing non-super-admin account and creates a membership/default institution. It associates that user's existing questions, banks, papers, uploads, exams, and attempts without deleting them. It deliberately does **not** trust the old free-form `schoolInstitute` string as proof that different accounts belong to the same tenant. Old shared school accounts therefore require institution-admin invitation/reassociation before sharing data. Take a verified database backup and test this backfill on a restored copy before production deployment. The migration is idempotent but is currently run synchronously at application startup; a separately controlled migration command is preferable for large production datasets.
+The server no longer runs schema/data backfills or seeders on startup. Before starting a deployment, run `npm run migrate:production --prefix backend` against the intended database. It records each completed migration in `app_migrations`, skips completed steps, and fails startup with the missing migration IDs if the command was not run. The command includes institution, template, question-bank, syllabus, workspace ownership, sequence, and question-marks setup. Back up and rehearse it on a restored database before production use. The marks step is run explicitly by this command; server startup does not claim migration completion on its behalf.
 
 ## Canonical question content
 

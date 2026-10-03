@@ -18,7 +18,7 @@ const questionSchema = new mongoose.Schema(
       enum: [
         // Canonical types
         'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
-        'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'DESCRIPTIVE',
+        'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'DESCRIPTIVE',
         // Legacy backward-compatible aliases (case-insensitive variants)
         'mcq', 'descriptive', 'numerical',
         'MCQ_MULTI', 'INTEGER', 'NUMERICAL',

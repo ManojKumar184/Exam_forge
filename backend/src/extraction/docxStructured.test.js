@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import JSZip from 'jszip';
-import { parseDocxXmlStructure } from './docxAdvancedParser.js';
+import { parseDocxXmlStructure, validateDocxArchiveEntries } from './docxAdvancedParser.js';
 import { extractDocxQuestions } from './extractDocxQuestions.js';
 import { extractSeparateAnswerKey, mapSeparateAnswerKey } from './documentIntelligence/answerDetectionEngine.js';
 
@@ -12,6 +12,12 @@ const fixtures = path.resolve('src/extraction/fixtures');
 
 test('DOCX parser rejects oversized archives before parsing document XML', async () => {
   await assert.rejects(parseDocxXmlStructure(Buffer.alloc(50 * 1024 * 1024 + 1)), /supported size limit/);
+});
+
+test('DOCX archive limits reject oversized entries, traversal paths, and symlinks', () => {
+  assert.throws(() => validateDocxArchiveEntries([{ name: 'word/document.xml', _data: { uncompressedSize: 33 * 1024 * 1024 } }]), /individual size limit/);
+  assert.throws(() => validateDocxArchiveEntries([{ name: 'word/../../outside.xml', _data: { uncompressedSize: 1 } }]), /unsafe entry path/);
+  assert.throws(() => validateDocxArchiveEntries([{ name: 'word/link', unixPermissions: 0o120777, _data: { uncompressedSize: 1 } }]), /symbolic link/);
 });
 
 test('actual DOCX fixture preserves OMML inside structured table cells and normalizes it', async () => {

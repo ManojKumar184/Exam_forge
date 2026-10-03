@@ -210,19 +210,14 @@ export const predefinedTemplates = [
 ];
 
 export async function seedPredefinedTemplates() {
-  try {
-    for (const t of predefinedTemplates) {
-      const existing = await ExamTemplate.findOne({ code: t.code, isSystem: true });
-      if (!existing) {
-        await ExamTemplate.create(t);
-        console.log(`Seeded system template: ${t.name}`);
-      } else {
-        // Optionally update it to keep system templates up-to-date
-        Object.assign(existing, t);
-        await existing.save();
-      }
+  for (const t of predefinedTemplates) {
+    const existing = await ExamTemplate.findOne({ code: t.code, isSystem: true });
+    if (!existing) {
+      await ExamTemplate.create(t);
+      console.log(`Seeded system template: ${t.name}`);
+    } else {
+      Object.assign(existing, t);
+      await existing.save();
     }
-  } catch (err) {
-    console.error('Failed to seed predefined templates:', err);
   }
 }

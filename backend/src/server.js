@@ -13,21 +13,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'node:crypto';
+import mongoose from 'mongoose';
 import { env, isProduction, validateEnv, logEnvSummary } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { startBackgroundJobs } from './jobs/index.js';
 import apiRoutes from './routes/index.js';
-import { Question } from './models/Question.js';
-import { Counter } from './models/Counter.js';
-import { SyllabusNode } from './models/SyllabusNode.js';
-import { seedSyllabus } from './seedSyllabus.js';
-import { migrateSyllabus } from './migrateSyllabus.js';
-import { migrateQuestionBanks } from './migrateQuestionBanks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { seedPredefinedTemplates } from './config/predefinedTemplates.js';
-import { migrateInstitutions } from './migrateInstitutions.js';
 import { csrfProtection } from './middleware/csrfProtection.js';
 import { createPrivateUploadRouter } from './middleware/privateUploadRouter.js';
+import { REQUIRED_PRODUCTION_MIGRATIONS, findMissingMigrations } from './migrations/productionMigrationPlan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,23 +37,11 @@ async function bootstrap() {
   fs.mkdirSync(path.join(env.uploadDir, 'images'), { recursive: true });
 
   await connectDatabase();
-  const tenantMigration = await migrateInstitutions();
-  logger.info('Institution tenancy backfill completed', tenantMigration);
-  await seedPredefinedTemplates();
-  await migrateQuestionBanks();
-  await initializeQuestionSequenceIds();
-  await migrateWorkspaceQuestions();
-
-  // Seed syllabus if collection is empty
-  try {
-    const count = await SyllabusNode.countDocuments();
-    if (count === 0) {
-      console.log('[server] Syllabus collection is empty. Seeding standard curricula...');
-      await seedSyllabus();
-      await migrateSyllabus();
-    }
-  } catch (err) {
-    console.error('[server] Failed to run syllabus seeder:', err.message);
+  const migrationRecords = await mongoose.connection.db.collection('app_migrations')
+    .find({ _id: { $in: REQUIRED_PRODUCTION_MIGRATIONS }, status: 'completed' }).toArray();
+  const missingMigrations = findMissingMigrations(REQUIRED_PRODUCTION_MIGRATIONS, migrationRecords);
+  if (missingMigrations.length) {
+    throw new Error(`Database setup is incomplete. Run "npm run migrate:production --prefix backend" before starting the API. Missing: ${missingMigrations.join(', ')}`);
   }
 
   stopBackgroundJobs = startBackgroundJobs();
@@ -131,88 +113,6 @@ async function bootstrap() {
   });
 
   setupGracefulShutdown();
-}
-
-async function initializeQuestionSequenceIds() {
-  try {
-    const questionsWithoutSeq = await Question.find({
-      $or: [
-        { serialId: { $exists: false } },
-        { serialId: null }
-      ]
-    }).sort({ createdAt: 1 });
-    if (questionsWithoutSeq.length > 0) {
-      console.log(`[migration] Found ${questionsWithoutSeq.length} questions without serialId. Migrating...`);
-      
-      let nextSeq = 1000;
-      const counterDoc = await Counter.findOne({ _id: 'questions' });
-      if (counterDoc) {
-        nextSeq = counterDoc.seq + 1;
-      }
-      
-      for (const q of questionsWithoutSeq) {
-        q.serialId = nextSeq;
-        await q.save();
-        nextSeq++;
-      }
-      
-      await Counter.findOneAndUpdate(
-        { _id: 'questions' },
-        { seq: nextSeq - 1 },
-        { upsert: true }
-      );
-      
-      console.log(`[migration] Successfully migrated questions. Next sequential ID will be Q-${nextSeq}`);
-    }
-  } catch (err) {
-    console.error('[migration] Error migrating question sequence IDs:', err.message);
-  }
-}
-
-async function migrateWorkspaceQuestions() {
-  try {
-    const { QuestionBank } = await import('./models/QuestionBank.js');
-    const systemBank = await QuestionBank.findOne({ type: 'system', name: 'System Global Bank' });
-    
-    let sysBankQuery = {};
-    if (systemBank) {
-      sysBankQuery = { bankIds: systemBank._id };
-    } else {
-      sysBankQuery = { bankIds: { $exists: true, $not: { $size: 0 } } };
-    }
-
-    const res1 = await Question.updateMany(
-      {
-        ...sysBankQuery,
-        $or: [
-          { isPrivate: { $ne: false } },
-          { visibility: { $ne: 'public' } }
-        ]
-      },
-      {
-        $set: { isPrivate: false, visibility: 'public' }
-      }
-    );
-    if (res1.modifiedCount > 0) {
-      console.log(`[migration] Updated ${res1.modifiedCount} system global questions to public visibility`);
-    }
-
-    const questionsWithoutOwner = await Question.find({ ownerId: null, createdBy: { $ne: null } });
-    if (questionsWithoutOwner.length > 0) {
-      console.log(`[migration] Found ${questionsWithoutOwner.length} questions without ownerId. Migrating...`);
-      for (const q of questionsWithoutOwner) {
-        q.ownerId = q.createdBy;
-        if (!q.bankIds || q.bankIds.length === 0) {
-          q.isPrivate = true;
-          q.visibility = 'private';
-        }
-        await q.save();
-      }
-      console.log(`[migration] Successfully migrated ownership of ${questionsWithoutOwner.length} questions`);
-    }
-  } catch (err) {
-    console.error('[migration] Error running workspace questions migration:', err.message);
-  }
 }
 
 function setupGracefulShutdown() {

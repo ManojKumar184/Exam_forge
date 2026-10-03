@@ -2,14 +2,14 @@
  * Question Type Normalizer — centralized canonical type mapping.
  *
  * Core objective types stored for new workflow records:
- *   MCQ_SINGLE, MCQ_MULTIPLE, TRUE_FALSE, FILL_BLANK, NUMERICAL_INTEGER,
+ *   MCQ_SINGLE, MCQ_MULTIPLE, TRUE_FALSE, FILL_BLANK, NUMERICAL, NUMERICAL_INTEGER,
  *   MATCH_FOLLOWING, ASSERTION_REASON, UNCLASSIFIED
  *
  * Legacy → Canonical mappings:
  *   mcq → MCQ_SINGLE
  *   MCQ_MULTI → MCQ_MULTIPLE
  *   INTEGER → NUMERICAL_INTEGER
- *   NUMERICAL → NUMERICAL_INTEGER
+ *   NUMERICAL → NUMERICAL
  *   MATCH_COLUMNS → MATCH_FOLLOWING
  *   SHORT_ANSWER → DESCRIPTIVE
  *   LONG_ANSWER → DESCRIPTIVE
@@ -31,6 +31,7 @@ export const ALL_QUESTION_TYPES = [
   'TRUE_FALSE',
   'FILL_BLANK',
   'NUMERICAL_INTEGER',
+  'NUMERICAL',
   'MATCH_FOLLOWING',
   'ASSERTION_REASON',
   'UNCLASSIFIED',
@@ -74,7 +75,8 @@ const LEGACY_TO_CANONICAL = {
   'mcq_multi': 'MCQ_MULTIPLE',
   'integer': 'NUMERICAL_INTEGER',
   'integer_type': 'NUMERICAL_INTEGER',
-  'numerical': 'NUMERICAL_INTEGER',
+  'numerical': 'NUMERICAL',
+  'numerical_type': 'NUMERICAL',
   'numerical_integer': 'NUMERICAL_INTEGER',
   'match_following': 'MATCH_FOLLOWING',
   'match_columns': 'MATCH_FOLLOWING',
@@ -82,13 +84,7 @@ const LEGACY_TO_CANONICAL = {
   'descriptive': 'DESCRIPTIVE',
   'short_answer': 'DESCRIPTIVE',
   'long_answer': 'DESCRIPTIVE',
-  'comprehension': 'DESCRIPTIVE',
-  'case_study': 'DESCRIPTIVE',
-  'matrix_match': 'DESCRIPTIVE',
-  // Other legacy complex types retain compatibility mappings below.
-  'nested_option_mcq': 'MCQ_SINGLE',
-  'paragraph_based': 'DESCRIPTIVE',
-  'statement_set': 'DESCRIPTIVE',
+  // Complex and unsupported forms are left unclassified for review.
 };
 
 /**
@@ -116,7 +112,7 @@ export function isCanonicalType(type) {
   if (!type) return false;
   const upper = type.toUpperCase().trim();
   const canonicalSet = new Set([
-    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER',
+    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL', 'NUMERICAL_INTEGER',
     'MATCH_FOLLOWING', 'ASSERTION_REASON',
   ]);
   return canonicalSet.has(upper);
@@ -133,7 +129,7 @@ export function getQuestionCategory(type) {
   }
   if (canonical === 'TRUE_FALSE') return 'mcq';
   if (canonical === 'FILL_BLANK') return 'fill_blank';
-  if (canonical === 'NUMERICAL_INTEGER') {
+  if (canonical === 'NUMERICAL_INTEGER' || canonical === 'NUMERICAL') {
     return 'numerical';
   }
   return 'descriptive';
@@ -164,6 +160,7 @@ export function formatQuestionType(type) {
     'MCQ_SINGLE': 'MCQ (Single)',
     'MCQ_MULTIPLE': 'MCQ (Multiple)',
     'NUMERICAL_INTEGER': 'Numerical',
+    'NUMERICAL': 'Numerical',
     'MATCH_FOLLOWING': 'Match the Following',
     'ASSERTION_REASON': 'Assertion/Reason',
     'TRUE_FALSE': 'True / False',

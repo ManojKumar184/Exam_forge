@@ -47,7 +47,7 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
     rawType = 'MCQ_SINGLE';
     rawSubtype = 'mcq_single';
   } else if (optionCount === 0 &&
-             (/numeric|integer|numerical/i.test(legacyBlock.section || '') ||
+             (/integer/i.test(legacyBlock.section || '') ||
               legacyBlock.sectionContext?.questionType === 'NUMERICAL_INTEGER')) {
     rawType = 'NUMERICAL_INTEGER';
     rawSubtype = 'integer';
@@ -55,7 +55,7 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
     rawType = 'NUMERICAL_INTEGER';
     rawSubtype = 'integer';
   } else if (/numerical|decimal|round\s+off/.test(lower)) {
-    rawType = 'NUMERICAL_INTEGER';
+    rawType = 'NUMERICAL';
     rawSubtype = 'numerical';
   } else {
     const fallback = detectQuestionType(legacyBlock);
@@ -67,7 +67,7 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
 
   const supportedTypes = new Set([
     'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
-    'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+    'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
   ]);
   const isSupported = supportedTypes.has(rawType);
 

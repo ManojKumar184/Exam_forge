@@ -16,6 +16,26 @@ const parser = new XMLParser({
 const MAX_DOCX_BYTES = 50 * 1024 * 1024;
 const MAX_DOCX_ENTRIES = 10_000;
 const MAX_DOCX_EXPANDED_BYTES = 128 * 1024 * 1024;
+const MAX_DOCX_ENTRY_BYTES = 32 * 1024 * 1024;
+
+export function validateDocxArchiveEntries(entries) {
+  const files = entries.filter((entry) => !entry.dir);
+  if (files.length > MAX_DOCX_ENTRIES) throw new Error('DOCX archive contains too many entries');
+  let expandedBytes = 0;
+  for (const entry of files) {
+    const name = String(entry.name || '').replaceAll('\\', '/');
+    if (!name || name.startsWith('/') || name.includes('\0') || name.split('/').some((part) => part === '..')) {
+      throw new Error('DOCX archive contains an unsafe entry path');
+    }
+    const permissions = Number(entry.unixPermissions) || 0;
+    if ((permissions & 0o170000) === 0o120000) throw new Error('DOCX archive contains a symbolic link');
+    const size = Number(entry._data?.uncompressedSize) || 0;
+    if (size > MAX_DOCX_ENTRY_BYTES) throw new Error('DOCX archive entry exceeds the individual size limit');
+    expandedBytes += size;
+    if (expandedBytes > MAX_DOCX_EXPANDED_BYTES) throw new Error('DOCX archive exceeds the expanded size limit');
+  }
+  return true;
+}
 
 function asArray(v) {
   if (!v) return [];
@@ -460,10 +480,7 @@ export async function parseDocxXmlStructure(buffer) {
     throw new Error('DOCX file exceeds the supported size limit');
   }
   const zip = await JSZip.loadAsync(buffer);
-  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (entries.length > MAX_DOCX_ENTRIES) throw new Error('DOCX archive contains too many entries');
-  const expandedBytes = entries.reduce((total, entry) => total + (entry._data?.uncompressedSize || 0), 0);
-  if (expandedBytes > MAX_DOCX_EXPANDED_BYTES) throw new Error('DOCX archive exceeds the expanded size limit');
+  validateDocxArchiveEntries(Object.values(zip.files));
   const docXml = await zip.file('word/document.xml')?.async('string');
   if (!docXml) return { paragraphs: [], tables: [], rawText: '' };
 
