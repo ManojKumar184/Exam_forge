@@ -26,15 +26,13 @@ import { migrateQuestionBanks } from './migrateQuestionBanks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { seedPredefinedTemplates } from './config/predefinedTemplates.js';
 import { migrateInstitutions } from './migrateInstitutions.js';
-import { authenticate } from './middleware/authenticate.js';
-import { resolveTenantContext, requireInstitutionContext } from './middleware/tenantContext.js';
-import { Upload } from './models/Upload.js';
-import { AppError } from './utils/AppError.js';
 import { csrfProtection } from './middleware/csrfProtection.js';
+import { createPrivateUploadRouter } from './middleware/privateUploadRouter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let httpServer = null;
+let stopBackgroundJobs = () => {};
 
 async function bootstrap() {
   validateEnv();
@@ -64,7 +62,7 @@ async function bootstrap() {
     console.error('[server] Failed to run syllabus seeder:', err.message);
   }
 
-  startBackgroundJobs();
+  stopBackgroundJobs = startBackgroundJobs();
 
   const app = express();
   app.set('trust proxy', 1);
@@ -112,34 +110,7 @@ async function bootstrap() {
 
   app.use(globalApiLimiter);
 
-  app.use('/uploads', authenticate, resolveTenantContext, requireInstitutionContext, async (req, _res, next) => {
-    try {
-      const relativeUrl = `/uploads${req.path}`;
-      const institutionId = req.institutionId;
-      const upload = await Upload.findOne({ institutionId, filePath: relativeUrl }).select('_id uploadedBy').lean();
-      if (upload) {
-        const permitted = req.user.role === 'super_admin' || req.membership?.role === 'INSTITUTION_ADMIN' || upload.uploadedBy?.toString() === req.user._id.toString();
-        if (permitted) return next();
-      }
-      const refQuery = { $or: [
-        { questionImages: relativeUrl },
-        { 'imageMetadata.url': relativeUrl },
-        { 'contentBlocks.assetUrl': relativeUrl },
-        { 'contentBlocks.originalAssetUrl': relativeUrl },
-        { 'contentBlocks.previewAssetUrls': relativeUrl },
-        { 'diagrams.url': relativeUrl },
-      ] };
-      const question = await Question.findOne({
-        $and: [
-          { $or: [{ institutionId }, { institutionId: null, visibility: 'public' }] },
-          refQuery,
-          { $or: [{ ownerId: req.user._id }, { visibility: 'public', status: 'approved' }, { institutionId, isPrivate: false, status: 'approved' }] },
-        ],
-      }).select('_id').lean();
-      if (!question) return next(new AppError('File not found', 404, 'NOT_FOUND'));
-      next();
-    } catch (error) { next(error); }
-  }, express.static(env.uploadDir, { fallthrough: false, dotfiles: 'deny', index: false }));
+  app.use('/uploads', createPrivateUploadRouter(env.uploadDir));
 
   app.get('/', (_req, res) => {
     res.json({ service: 'examforge-api', status: 'ok' });
@@ -254,6 +225,7 @@ function setupGracefulShutdown() {
       await new Promise((resolve) => httpServer.close(resolve));
       console.log('[server] HTTP server closed');
     }
+    stopBackgroundJobs();
     try {
       await disconnectDatabase();
     } catch (err) {

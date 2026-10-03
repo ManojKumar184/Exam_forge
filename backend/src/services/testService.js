@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { OnlineTest } from '../models/OnlineTest.js';
 import { Paper } from '../models/Paper.js';
 import { TestAttempt } from '../models/TestAttempt.js';
@@ -365,18 +366,28 @@ export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
 }
 
 export async function submitAttempt(testId, user, { auto = false } = {}) {
-  const attempt = await TestAttempt.findOne({
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  const claimId = crypto.randomUUID();
+  const attempt = await TestAttempt.findOneAndUpdate({
     testId,
     userId: user._id,
-    institutionId: user.activeInstitutionId || user.defaultInstitutionId,
-    status: 'in_progress',
-  });
+    institutionId,
+    $or: [
+      { status: 'in_progress' },
+      { status: 'submitting', submissionStartedAt: { $lt: new Date(Date.now() - 60_000) } },
+    ],
+  }, {
+    $set: { status: 'submitting', submissionStartedAt: new Date(), submissionClaimId: claimId },
+  }, { new: true });
   if (!attempt) {
-    const alreadySubmitted = await TestAttempt.findOne({ testId, userId: user._id, institutionId: user.activeInstitutionId || user.defaultInstitutionId, status: { $in: ['submitted', 'auto_submitted'] } }).sort({ submittedAt: -1 });
+    const alreadySubmitted = await TestAttempt.findOne({ testId, userId: user._id, institutionId, status: { $in: ['submitted', 'auto_submitted'] } }).sort({ submittedAt: -1 });
     if (alreadySubmitted) return mapTestAttempt(alreadySubmitted);
+    const submissionInProgress = await TestAttempt.exists({ testId, userId: user._id, institutionId, status: 'submitting' });
+    if (submissionInProgress) throw new AppError('Submission is already being processed', 409, 'SUBMISSION_IN_PROGRESS');
     throw new AppError('Active attempt not found', 404, 'ATTEMPT_NOT_FOUND');
   }
 
+  try {
   const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
@@ -445,11 +456,32 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
   attempt.percentage = maxScore > 0 ? Number(((score / maxScore) * 100).toFixed(2)) : 0;
   attempt.gradingStatus = computeGradingStatus(attempt, questionMap);
   recomputeAttemptTotals(attempt, questionMap);
-  await attempt.save();
+  const finalized = await TestAttempt.findOneAndUpdate({ _id: attempt._id, status: 'submitting', submissionClaimId: claimId }, {
+    $set: {
+      status: attempt.status,
+      submittedAt: attempt.submittedAt,
+      correctAnswers: attempt.correctAnswers,
+      wrongAnswers: attempt.wrongAnswers,
+      skippedAnswers: attempt.skippedAnswers,
+      score: attempt.score,
+      maxScore: attempt.maxScore,
+      percentage: attempt.percentage,
+      gradingStatus: attempt.gradingStatus,
+      answers: attempt.answers,
+      submissionClaimId: null,
+    },
+  }, { new: true, runValidators: true });
+  if (!finalized) throw new AppError('Submission could not be finalized. Please retry.', 409, 'SUBMISSION_CLAIM_LOST');
 
   await recomputeLeaderboard(test._id);
-  await attempt.populate('testId');
-  return mapTestAttempt(attempt);
+  await finalized.populate('testId');
+  return mapTestAttempt(finalized);
+  } catch (error) {
+    await TestAttempt.updateOne({ _id: attempt._id, status: 'submitting', submissionClaimId: claimId }, {
+      $set: { status: 'in_progress', submissionStartedAt: null, submissionClaimId: null },
+    }).catch(() => {});
+    throw error;
+  }
 }
 
 export async function getAttemptHistory(user, testId = null) {

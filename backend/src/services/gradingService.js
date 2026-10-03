@@ -7,7 +7,7 @@ import { getQuestionCategory as getNormalizedCategory } from '../utils/questionT
 
 function assertFacultyOwnsTest(test, user) {
   if (user.role === 'super_admin') return;
-  if (user.role === 'faculty' && test.createdBy.toString() === user._id.toString()) return;
+  if (user.role === 'faculty' && (test.createdBy.toString() === user._id.toString() || user.membershipRole === 'INSTITUTION_ADMIN')) return;
   throw new AppError('Forbidden', 403, 'FORBIDDEN');
 }
 

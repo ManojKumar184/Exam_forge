@@ -8,13 +8,13 @@ export async function startEnrichmentWorker() {
   const { getLlmProvider } = await import('../ai/providerRegistry.js');
   if (!getLlmProvider()) {
     logger.info('[enrichment-worker] No supported LLM provider is configured for enrichment worker.');
-    return;
+    return () => {};
   }
 
   logger.info('[enrichment-worker] Enrichment worker started.');
   
   // Poll loop every 10 seconds
-  setInterval(async () => {
+  const timer = setInterval(async () => {
     if (isRunning) return;
     isRunning = true;
     try {
@@ -25,6 +25,8 @@ export async function startEnrichmentWorker() {
       isRunning = false;
     }
   }, 10000);
+  timer.unref?.();
+  return () => clearInterval(timer);
 }
 
 async function pollAndEnrich() {

@@ -33,6 +33,16 @@ export const env = {
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD,
   uploadDir: process.env.UPLOAD_DIR || path.join(backendRoot, 'uploads'),
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB) || 25,
+  email: {
+    provider: process.env.EMAIL_PROVIDER || (process.env.NODE_ENV === 'production' ? 'none' : 'development'),
+    apiKey: process.env.EMAIL_API_KEY || '',
+    from: process.env.EMAIL_FROM || '',
+  },
+  errorReporting: {
+    provider: process.env.ERROR_REPORTING_PROVIDER || 'none',
+    endpoint: process.env.ERROR_REPORTING_ENDPOINT || '',
+    apiKey: process.env.ERROR_REPORTING_API_KEY || '',
+  },
   ai: {
     provider: process.env.AI_PROVIDER || 'nvidia',
     spaceRequestTimeoutMs: Number(process.env.SPACE_REQUEST_TIMEOUT_MS) || 45000,
@@ -87,6 +97,13 @@ export function validateEnv() {
     if (accessSeconds > 15 * 60) throw new Error('JWT_ACCESS_EXPIRES_IN must be 15 minutes or shorter in production');
   }
   if (isProduction && env.corsOrigins.some((origin) => !origin.startsWith('https://'))) throw new Error('Production CORS_ORIGINS must contain HTTPS origins only');
+  if (env.errorReporting.provider === 'http') {
+    if (!env.errorReporting.endpoint.startsWith('https://') || !env.errorReporting.apiKey) {
+      throw new Error('HTTP error reporting requires an HTTPS ERROR_REPORTING_ENDPOINT and ERROR_REPORTING_API_KEY.');
+    }
+  } else if (!['none', 'http'].includes(env.errorReporting.provider)) {
+    throw new Error('ERROR_REPORTING_PROVIDER must be none or http.');
+  }
   if (isProduction) {
     const secureMongoUri = env.mongodbUri.startsWith('mongodb+srv://') || (env.mongodbUri.startsWith('mongodb://') && /(?:\?|&)tls=true(?:&|$)/i.test(env.mongodbUri));
     const credentialsPresent = /^mongodb(?:\+srv)?:\/\/[^/@:]+:[^/@]+@/i.test(env.mongodbUri);

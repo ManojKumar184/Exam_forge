@@ -1,0 +1,1911 @@
+================================================================================
+               EXAMFORGE INGESTION PIPELINE 13-STAGE VERIFICATION REPORT        
+================================================================================
+Date: 2026-06-24T11:21:44.098Z
+Source Document: Physics_cleaned_dataset.docx
+Total Questions Extracted: 32
+================================================================================
+
+--------------------------------------------------------------------------------
+QUESTION #1 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Electric charge is transferred to an irregular metallic disk as shown in figure. If  $σ_1,σ_2,σ_3$ and  $σ_4$ are charge densities at given points the..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option Ais correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":366}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 7
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 366 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #2 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A small bob of mass 100 mg and charge  $+10μC$ is connected to an insulating string of length 1 m . It is brought near to an infinitely long non-condu..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":428}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 428 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #3 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A small uncharged conducting sphere is placed in contact with an identical sphere but having  $4×10^{-8}C$ charge and then removed to a distance such ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":312}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 312 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #4 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical conducting spheres  $P$ and  $S$ with charge  $Q$ on each, repel each other with a force 16 N . A third identical uncharged conducting s..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":289}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 289 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #5 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Force between two point charges  $q_1$ and  $q_2$ placed in vacuum at '  $r$ ' cm apart is  $F$ . Force between them when placed in a medium having di..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":225}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 225 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #6 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A  $10μC$ charge is divided into two parts and placed at 1 cm distance so that the repulsive force between them is maximum. The charges of the two par..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":183}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 183 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #7 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "If two charges  $q_1$ and  $q_2$ are separated with distance '  $d$ ' and placed in a medium of dielectric constant  $K$ . What will be the equivalent..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":238}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 238 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #8 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical metallic spheres A and B when placed at certain distance in air repel eachother with a force of F . Another identical uncharged sphere  ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":339}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 339 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #9 (Serial ID: N/A) - Status: NEEDS_REVIEW
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical positive charges  $Q$ each are fixed at a distance of '  $2a$ ' apart from each other. Another point charge  $q_0$ with mass '  $m$ ' is..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":376}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 376 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 4
+      -> Details: Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #10 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A dargeof  $4μC$ is to be divided intotwo parts. The distance between the fwodivided charges is constant. The magnifude of the divided charges so that..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":219}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 219 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #11 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two point charges  $Q$ each are placed at a distance  $d$ apart. A third point charge  $q$ is placed at a distance  $x$ from mid-point on the perpendi..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":273}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 273 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 2
+      -> Details: Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #12 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Three identical charged balls each of charge 2 C are suspended from a common point  $P$ by silk threads of 2 m each (as shown in figure). They form an..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":302}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 302 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #13 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Sixty four conducting drops sachof radius 0.02 m and each carrying a charge of  $5μC$ are combined to form a bigger drop. The ratio of surface density..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":219}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 219 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #14 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical charged particles each having a mass 10 g and charge  $2.0=10$ C placed on a horizontal table with a separation of  $L$ between then suc..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":337}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 5
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 337 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #15 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two particles A and B having charges  $20μC$ and  $-5μC$ respectively are held fixed with a separation of 5 cm . At what position a third chargod part..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":248}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 2
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 248 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #16 (Serial ID: N/A) - Status: NEEDS_REVIEW
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical tennis balls each having mass ‘m’ and charge ‘q’are suspended from a fixed point by threads of length ‘l’. What is the equilibrium separ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":243}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 0
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 243 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 4
+      -> Details: Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #17 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A certain charge  $Q$ is divided into two parts  $q$ mid if, How should the charges  $Q$ and  $q$ be divided so that Ge (  $Q$ - q) placed at a certai..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":226}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 226 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #18 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Three charges + Q.9. Oare placed respectivelyat (Ry)  $d/2$ and d from the origin. on the  $x-2xis$ . If the nutue experienced by  $+Q$ , placed at  $..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":205}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 5
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 205 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #19 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Charge is distributed within a sphere of radius it which volume charge density  $p(r)=\frac{A}{S}e^{-2t/4}$ where  $Λ$ and  $a$ constants. If  $Q$ is ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":234}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 234 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 2
+      -> Details: Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #20 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical conducting spheres A and B, carry charge. They are separated by a distance much larger their diameter, and the force between them is F A..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":332}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 1
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 332 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #21 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Shown in the figure are two point charges  $+Q$ and  $-Q$ inside the cavity of a spherical shell. The charges are kept near the surface of the cavity ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":426}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 9
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 426 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #22 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A positive ion  $A$ and a negative ion  $B$ has charges  $6.67=10^{19}C$ and  $9.6×10^{111}C$ , ind masses  $19.2×10^{27}kg$ and  $9=10^{-27}kg$ respe..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":502}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 11
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 483 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #23 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle 0 with cacti other When suspended in water the angl..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":333}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 313 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #24 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Suppose a uniformly charged wall provides a uniform electric field of  $2×10^{4}N/C$ normally: A charged particle of mass 2 g being suspended through ..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":368}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 6
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 348 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 1
+      -> Details: Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #25 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical charged spheres are suspended by strings of equal lengths. The strings make an angle of  $37^{∘}$ with each other. When suspended in a l..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":377}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 5
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 356 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #26 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "A thin metallic wire having cross sectional area of  $10^{-4}m^{2}$ is used to make a ring of radius 30 cm . A positive charge of  $2π$ C is uniformly..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":434}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 414 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #27 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Three point charges  $q,-2q$ and  $2q$ are placed on  $x$ -axis at a distance  $x=0,x=\frac{3}{4}R$ and  $x=$ R respectively from origin a shown. If  ..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":281}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 11
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 259 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #28 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "As shown in the figure, a configuration of two equal  $p$ charges  $\left( q_0=+2μC \right)$ is placed on an inclined plane. Ma each point charge is 2..."
+Final Options Count: 0
+Correct Option Index: N/A
+SaaS Correct Answers: []
+Explanation: "101 is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":350}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 5
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 1
+    - Detected options count: 0
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: NUMERICAL_INTEGER
+    - Evidence: Stem Length: 328 chars; Options Count: 0; Option Confidence: 1; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #29 (Serial ID: N/A) - Status: NEEDS_REVIEW
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two beads, each with charge  $q$ and mass  $m$ , are on a horizontal, frictionless, non- conducting, circular hoop of radius R . One of the beads is g..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":410}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 4
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 410 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 4
+      -> Details: Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces; Malformed fraction: missing numerator or denominator braces
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #30 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Two identical non-conducting solid spheres of same mass and charge are suspendedin air from a common point by two nonconducting, massless strings of s..."
+Final Options Count: 4
+Correct Option Index: N/A
+SaaS Correct Answers: [A, D]
+Explanation: "Option A&amp; Dis correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":412}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 3
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 412 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #31 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Four charges  $Q_1,Q_2,Q_3$ and  $Q_4$ of same magnitude are fixed along the  $x$ axis at  $x=2a,-a,+a$ and  $+2a$ , reppectively  $A$ positive charge..."
+Final Options Count: 4
+Correct Option Index: N/A
+SaaS Correct Answers: [A, B, C]
+Explanation: "Option A, B &amp; Cis correct answer
+
+Topic 2 - Electric Field and Field Lines..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":818}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 21
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 1
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 1
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 1
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MATCH_FOLLOWING
+    - Evidence: Stem Length: 468 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+--------------------------------------------------------------------------------
+QUESTION #32 (Serial ID: N/A) - Status: PENDING
+--------------------------------------------------------------------------------
+Final Stem Preview: "Charges  $Q.2Q$ and  $4Q$ are uniformly distributed in three dielectric solid spheres 1,2 and 3 of radii  $R/2,R$ and  $2R$ respectively, as shown in ..."
+Final Options Count: 4
+Correct Option Index: 0
+SaaS Correct Answers: [A]
+Explanation: "Option A is correct answer..."
+Warnings: [Semantic refinement skipped — using deterministic parser.]
+
+  [STAGE 0] Stage 0 — Clipboard / DOCX Ingest
+    - MIME Types: text/plain
+    - Payload Sizes: {"text/plain":323}
+    - Source Detection: plain_text (OMML: false, Images: false)
+
+  [STAGE 1] Stage 1 — Word Nuclear Cleaner
+    - Word clean markup size: 0 chars
+    - Removed Tags: None
+    - Math nodes detected: None
+
+  [STAGE 2] Stage 2 — Structural HTML Normalization
+    - Normalization log actions: None
+
+  [STAGE 3] Stage 3 — Figure/Image Isolation
+    - Isolated figures count: 0
+
+  [STAGE 4] Stage 4 — Semantic Math Shielding
+    - Math equations shielded: 9
+
+  [STAGE 5] Stage 5 — DOM Block Extraction
+    - Extracted DOM blocks: 5
+
+  [STAGE 6] Stage 6 — Option Detection via Reverse Scan
+    - Option detection confidence: 0.98
+    - Detected options count: 4
+
+  [STAGE 7] Stage 7 — Statement Detection
+    - Extracted statement groups: 0
+
+  [STAGE 8] Stage 8 — Table Reconstruction
+    - Tables isolated count: 0
+
+  [STAGE 9] Stage 9 — Question Reconstruction & AI Refinement
+    - Ollama refinement status: Refined=false, Warnings: Semantic refinement skipped — using deterministic parser.
+
+  [STAGE 10] Stage 10 — Question Type Classification (canonical)
+    - Classified Question Type: MCQ_SINGLE
+    - Evidence: Stem Length: 323 chars; Options Count: 4; Option Confidence: 0.98; Uncertain Case: false
+
+  [STAGE 11] Stage 11 — Metadata Classification & Confidence Scoring
+    - Class: 11, Difficulty: medium, Status: needs_review
+
+  [STAGE 12] Stage 12 — KaTeX Verification
+    - Malformed math expressions: 0
+
+  [STAGE 13] Stage 13 — Database-ready Semantic Object Generation
+    - Database object successfully generated: YES
+
+
+================================================================================
+                               PIPELINE SUMMARY                                 
+================================================================================
+Total Questions Processed: 32
+Valid (No Review Needed): 29 (90.6%)
+Needs Review (Warnings/Errors): 3 (9.4%)
+================================================================================

@@ -38,6 +38,7 @@ const uploadSchema = new mongoose.Schema(
       default: 'uploaded',
     },
     attempts: { type: Number, default: 0 },
+    nextAttemptAt: { type: Date, default: null },
     lastHeartbeat: { type: Date, default: Date.now },
     stageLogs: {
       type: [String],
@@ -104,6 +105,7 @@ uploadSchema.index({ status: 1, 'activeProcessing.startedAt': 1 });
 uploadSchema.index({ uploadedBy: 1, createdAt: -1 });
 uploadSchema.index({ institutionId: 1, status: 1, createdAt: -1 });
 uploadSchema.index({ status: 1, processingStage: 1 });
+uploadSchema.index({ status: 1, nextAttemptAt: 1, createdAt: 1 });
 
 export const Upload = mongoose.model('Upload', uploadSchema);
 

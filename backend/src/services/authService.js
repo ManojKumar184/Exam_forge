@@ -230,7 +230,7 @@ export async function resetPassword({ token, password }) {
   return { message: 'Password updated successfully' };
 }
 
-async function issueTokenPair(user) {
+export async function issueTokenPair(user) {
   const accessToken = signAccessToken(user._id.toString());
   const refreshToken = signRefreshToken(user._id.toString());
   const expiresAt = new Date(Date.now() + parseExpiryToMs(env.jwt.refreshExpiresIn));

@@ -57,7 +57,7 @@ export async function attempts(req, res) {
 }
 
 export async function leaderboard(req, res) {
-  const data = await testService.getLeaderboard(req.params.id);
+  const data = await testService.getLeaderboard(req.params.id, req.user);
   res.json({ success: true, data });
 }
 
@@ -87,7 +87,7 @@ export async function gradeAttempt(req, res) {
 
 export async function testAnalytics(req, res) {
   const facultyId = req.user.role === 'faculty' ? req.user._id : null;
-  const data = await analyticsService.getTestPerformanceAnalytics(req.params.id, facultyId);
+  const data = await analyticsService.getTestPerformanceAnalytics(req.params.id, facultyId, req.institutionId);
   if (!data) {
     return res.status(404).json({ success: false, message: 'Test not found' });
   }

@@ -1,0 +1,26 @@
+{
+  "sessionId": "3850b802-2740-4579-ae0b-469fc2e41dff",
+  "totalQuestions": 1,
+  "totalLatencyMs": 4057,
+  "avgLatencyPerBatch": 4057,
+  "results": [
+    {
+      "start": 0,
+      "end": 1,
+      "classifications": [
+        {
+          "class": 12,
+          "difficulty": "medium",
+          "questionType": "MCQ_SINGLE",
+          "confidence": 0.85,
+          "hints": {
+            "subject": "Physics",
+            "topic": "Electrostatics",
+            "examType": null
+          }
+        }
+      ],
+      "duration": 4057
+    }
+  ]
+}

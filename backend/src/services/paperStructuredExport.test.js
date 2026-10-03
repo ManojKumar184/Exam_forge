@@ -22,7 +22,7 @@ test('canonical paper structured content exports to DOCX and printable HTML with
     await fs.writeFile(path.join(imageDir, 'diagram.png'), await imageAsset.async('nodebuffer'));
 
     const question = {
-      question_text: 'Find the value.',
+      question_text: 'Find the value.<img src="javascript:alert(1)" onerror="alert(2)"><script>alert(3)</script>',
       question_type: 'MCQ_SINGLE',
       correct_option: 1,
       correct_answers: ['B'],
@@ -48,6 +48,7 @@ test('canonical paper structured content exports to DOCX and printable HTML with
     assert.match(html, /publication-table/);
     assert.match(html, /−1/);
     assert.match(html, /B/);
+    assert.doesNotMatch(html, /onerror\s*=|<script\b|src=["']javascript:/i, 'untrusted question markup is removed or escaped before export');
     const pdfBuffer = await generatePdfFromHtml(html, { showPageNumber: false });
     assert.equal(pdfBuffer.subarray(0, 4).toString(), '%PDF');
     assert.ok(pdfBuffer.length > 1000);

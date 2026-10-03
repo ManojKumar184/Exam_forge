@@ -32,9 +32,11 @@ const testAttemptSchema = new mongoose.Schema(
     timeSpentSeconds: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ['in_progress', 'submitted', 'auto_submitted', 'abandoned'],
+      enum: ['in_progress', 'submitting', 'submitted', 'auto_submitted', 'abandoned'],
       default: 'in_progress',
     },
+    submissionStartedAt: { type: Date, default: null },
+    submissionClaimId: { type: String, default: null, select: false },
     score: { type: Number, default: 0 },
     maxScore: { type: Number, default: 0 },
     percentage: { type: Number, default: 0 },

@@ -19,6 +19,8 @@ import { LeaderboardPage } from './pages/leaderboard/LeaderboardPage';
 import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { InstitutionProfilePage } from './pages/settings/InstitutionProfilePage';
+import { AcceptInvitationPage } from './pages/auth/AcceptInvitationPage';
+import { InstitutionMembersPage } from './pages/settings/InstitutionMembersPage';
 import { UsersPage } from './pages/users/UsersPage';
 import { apiClient, getActiveInstitutionId, setActiveInstitutionId } from './api/client';
 
@@ -134,6 +136,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
 
       {/* Protected Routes */}
       <Route
@@ -359,6 +362,7 @@ function AppRoutes() {
       >
         <Route index element={<SettingsPage />} />
         <Route path="institution" element={<InstitutionProfilePage />} />
+        <Route path="members" element={<InstitutionMembersPage />} />
       </Route>
 
       <Route

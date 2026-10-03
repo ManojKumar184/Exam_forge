@@ -10,9 +10,17 @@ import { AppError } from '../utils/AppError.js';
 import { recordAudit } from '../services/auditLogService.js';
 import { Plan } from '../models/Plan.js';
 import { Subscription } from '../models/Subscription.js';
+import { InstitutionInvitation } from '../models/InstitutionInvitation.js';
+import { createInvitation } from '../services/invitationService.js';
 
 const router = Router();
 router.use(authenticate);
+
+function requireInstitutionAdmin(req) {
+  if (req.user.role !== 'super_admin' && req.membership?.role !== 'INSTITUTION_ADMIN') {
+    throw new AppError('Institution administrator access required', 403, 'FORBIDDEN');
+  }
+}
 
 router.get('/mine', asyncHandler(async (req, res) => {
   const memberships = await Membership.find({ userId: req.user._id, status: 'ACTIVE' })
@@ -60,6 +68,74 @@ router.patch('/active', resolveTenantContext, asyncHandler(async (req, res) => {
   const institution = await Institution.findByIdAndUpdate(req.institution._id, { $set: patch }, { new: true });
   await recordAudit({ req, action: 'institution_updated', resource: 'institution', resourceId: institution._id });
   res.json({ success: true, data: institution });
+}));
+
+router.get('/members', resolveTenantContext, asyncHandler(async (req, res) => {
+  if (!req.institutionId) throw new AppError('Select an institution first.', 400, 'INSTITUTION_CONTEXT_REQUIRED');
+  requireInstitutionAdmin(req);
+  const members = await Membership.find({ institutionId: req.institutionId, status: { $in: ['ACTIVE', 'SUSPENDED'] } })
+    .populate('userId', 'email fullName role isActive createdAt').sort({ createdAt: 1 }).lean();
+  res.json({ success: true, data: members });
+}));
+
+router.get('/invitations', resolveTenantContext, asyncHandler(async (req, res) => {
+  if (!req.institutionId) throw new AppError('Select an institution first.', 400, 'INSTITUTION_CONTEXT_REQUIRED');
+  requireInstitutionAdmin(req);
+  const invitations = await InstitutionInvitation.find({ institutionId: req.institutionId })
+    .select('email role status invitedBy expiresAt acceptedAt createdAt').sort({ createdAt: -1 }).lean();
+  res.json({ success: true, data: invitations });
+}));
+
+router.post('/invitations', resolveTenantContext, asyncHandler(async (req, res) => {
+  if (!req.institutionId) throw new AppError('Select an institution first.', 400, 'INSTITUTION_CONTEXT_REQUIRED');
+  requireInstitutionAdmin(req);
+  const parsed = z.object({ email: z.string().email().max(254), role: z.enum(['FACULTY', 'STUDENT']) }).safeParse(req.body);
+  if (!parsed.success) throw new AppError('Valid email and role are required.', 400, 'VALIDATION_ERROR');
+  const result = await createInvitation({ ...parsed.data, institutionId: req.institutionId, invitedBy: req.user._id });
+  await recordAudit({ req, action: 'member_invited', resource: 'institution_invitation', resourceId: result.invitation._id, metadata: { email: parsed.data.email, role: parsed.data.role } });
+  res.status(201).json({ success: true, data: { invitation: result.invitation, ...(result.previewUrl ? { developmentUrl: result.previewUrl } : {}) } });
+}));
+
+router.delete('/invitations/:id', resolveTenantContext, asyncHandler(async (req, res) => {
+  if (!req.institutionId) throw new AppError('Select an institution first.', 400, 'INSTITUTION_CONTEXT_REQUIRED');
+  requireInstitutionAdmin(req);
+  const invitation = await InstitutionInvitation.findOneAndUpdate(
+    { _id: req.params.id, institutionId: req.institutionId, status: 'PENDING' },
+    { $set: { status: 'REVOKED' } }, { new: true },
+  );
+  if (!invitation) throw new AppError('Pending invitation not found.', 404, 'NOT_FOUND');
+  await recordAudit({ req, action: 'invitation_revoked', resource: 'institution_invitation', resourceId: invitation._id });
+  res.json({ success: true });
+}));
+
+router.patch('/members/:userId', resolveTenantContext, asyncHandler(async (req, res) => {
+  if (!req.institutionId) throw new AppError('Select an institution first.', 400, 'INSTITUTION_CONTEXT_REQUIRED');
+  requireInstitutionAdmin(req);
+  const parsed = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED']).optional(), role: z.enum(['FACULTY', 'STUDENT']).optional() }).refine((value) => Object.keys(value).length > 0).safeParse(req.body);
+  if (!parsed.success) throw new AppError('Provide a valid member status or role.', 400, 'VALIDATION_ERROR');
+  if (String(req.user._id) === req.params.userId) throw new AppError('Administrators cannot change their own membership.', 400, 'SELF_MEMBERSHIP_CHANGE');
+  const membership = await Membership.findOne({ userId: req.params.userId, institutionId: req.institutionId, status: { $in: ['ACTIVE', 'SUSPENDED'] } });
+  if (!membership) throw new AppError('Member not found.', 404, 'NOT_FOUND');
+  if (membership.role === 'INSTITUTION_ADMIN' && (parsed.data.status === 'SUSPENDED' || parsed.data.role)) {
+    const otherAdmins = await Membership.countDocuments({ institutionId: req.institutionId, role: 'INSTITUTION_ADMIN', status: 'ACTIVE', userId: { $ne: membership.userId } });
+    if (!otherAdmins) throw new AppError('The last institution administrator cannot be demoted or suspended.', 409, 'LAST_INSTITUTION_ADMIN');
+  }
+  if (parsed.data.role) {
+    const targetUser = await User.findById(membership.userId).select('role');
+    if (!targetUser) throw new AppError('Member account not found.', 404, 'NOT_FOUND');
+    if (targetUser.role !== parsed.data.role.toLowerCase()) {
+      const otherMemberships = await Membership.countDocuments({ userId: targetUser._id, institutionId: { $ne: req.institutionId }, status: 'ACTIVE' });
+      if (otherMemberships) throw new AppError('This account has memberships in other institutions; its global role cannot be changed here.', 409, 'MULTI_TENANT_ROLE_CHANGE');
+      targetUser.role = parsed.data.role.toLowerCase();
+      targetUser.approvalStatus = 'approved';
+      await targetUser.save();
+    }
+    membership.role = parsed.data.role;
+  }
+  if (parsed.data.status) membership.status = parsed.data.status;
+  await membership.save();
+  await recordAudit({ req, action: 'member_updated', resource: 'membership', resourceId: membership._id, metadata: parsed.data });
+  res.json({ success: true, data: membership });
 }));
 
 export default router;

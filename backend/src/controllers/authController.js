@@ -1,6 +1,7 @@
 import * as authService from '../services/authService.js';
 import { toAuthUser, toProfile } from '../utils/userMapper.js';
 import { csrfTokenFor } from '../utils/tokens.js';
+import { acceptInvitation } from '../services/invitationService.js';
 
 export async function register(req, res) {
   const result = await authService.registerUser(req.body);
@@ -88,6 +89,15 @@ export async function forgotPassword(req, res) {
 export async function resetPassword(req, res) {
   const result = await authService.resetPassword(req.body);
   res.json({ success: true, data: result });
+}
+
+export async function acceptInstitutionInvitation(req, res) {
+  const accepted = await acceptInvitation(req.body);
+  const session = await authService.issueTokenPair(accepted.user);
+  setRefreshCookie(res, session.refreshToken);
+  setAccessCookie(res, session.accessToken);
+  setCsrfHeader(res, session.accessToken);
+  res.json({ success: true, data: { user: toAuthUser(session.user), profile: toProfile(session.user), institutionId: accepted.institutionId, role: accepted.role } });
 }
 
 function cookieOptions() {

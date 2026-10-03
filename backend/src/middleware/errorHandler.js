@@ -1,5 +1,6 @@
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
+import { reportError } from '../services/errorReporter.js';
 
 export function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
@@ -10,13 +11,16 @@ export function errorHandler(err, req, res, next) {
   if (statusCode >= 500) {
     logger.error('Request error', {
       code,
-      message: err.message,
-      path: req.originalUrl,
+      errorName: err.name,
+      path: req.originalUrl?.split('?')[0],
       method: req.method,
       requestId: req.id,
       userId: req.user?._id?.toString(),
       institutionId: req.institutionId?.toString(),
     });
+  }
+  if (statusCode >= 500 || statusCode === 401 || statusCode === 403) {
+    void reportError(err, { code, requestId: req.id, route: req.originalUrl, method: req.method, statusCode });
   }
 
   const message = statusCode >= 500 && process.env.NODE_ENV === 'production'

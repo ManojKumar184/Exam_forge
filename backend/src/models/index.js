@@ -14,6 +14,7 @@ export { ExportPreset } from './ExportPreset.js';
 export { InstitutionProfile } from './InstitutionProfile.js';
 export { Institution } from './Institution.js';
 export { Membership } from './Membership.js';
+export { InstitutionInvitation } from './InstitutionInvitation.js';
 export { Plan } from './Plan.js';
 export { Subscription } from './Subscription.js';
 export { UsageCounter } from './UsageCounter.js';

@@ -54,6 +54,7 @@ async function claimActiveProcessing(uploadId, processingId) {
       _id: uploadId,
       $or: [
         { activeProcessing: null },
+        { 'activeProcessing.processingId': processingId },
         // Allow re-claim if the previous processing was started > 3 min ago (zombie)
         { 'activeProcessing.startedAt': { $lt: new Date(Date.now() - 180000) } },
       ],
@@ -100,8 +101,8 @@ export async function startAsyncUpload(file, user, options = {}) {
     filePath: relativePath,
     fileType,
     fileSize: file.size,
-    status: 'processing',
-    processingStage: 'parsing',
+    status: 'pending',
+    processingStage: 'uploaded',
     progress: 0,
     uploadedBy: user._id,
     institutionId: user.activeInstitutionId || user.defaultInstitutionId,
@@ -111,21 +112,23 @@ export async function startAsyncUpload(file, user, options = {}) {
   });
   if (institutionId) await recordUsage(institutionId, 'uploadsPerMonth');
 
-  const processingId = `${upload._id}-${Date.now()}`;
-
-  // Start background process
-  setTimeout(async () => {
-    try {
-      await processUploadInternal(upload, file, user, options, 0, processingId);
-    } catch (err) {
-      logger.error('Background upload processing failed', {
-        uploadId: upload._id.toString(),
-        error: err.message,
-      });
-    }
-  }, 0);
-
   return mapUpload(upload);
+}
+
+export async function processQueuedUpload(upload, processingId) {
+  if (upload.fileType === 'manual') {
+    await processManualImportInternal(upload, upload.originalHtml, upload.originalPlain, upload.uploadedBy, upload.uploadOptions || {}, processingId);
+    return;
+  }
+  const file = {
+    filename: upload.filename,
+    originalname: upload.originalName,
+    mimetype: upload.fileType === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : upload.fileType === 'pdf' ? 'application/pdf' : 'application/octet-stream',
+    size: upload.fileSize || 0,
+  };
+  await processUploadInternal(upload, file, upload.uploadedBy, upload.uploadOptions || {}, upload.checkpoint?.nextBlockIndex || 0, processingId);
 }
 
 async function processUploadInternal(upload, file, user, options = {}, startIdx = 0, processingId = null) {
@@ -492,8 +495,8 @@ export async function startManualImport(html, plain, user, options = {}) {
     originalName: 'Manual Import',
     filePath: 'manual',
     fileType: 'manual',
-    status: 'processing',
-    processingStage: 'parsing',
+    status: 'pending',
+    processingStage: 'uploaded',
     progress: 0,
     uploadedBy: user._id,
     institutionId: user.activeInstitutionId || user.defaultInstitutionId,
@@ -504,19 +507,6 @@ export async function startManualImport(html, plain, user, options = {}) {
     classificationVersion: 'v1.0.0',
   });
   if (institutionId) await recordUsage(institutionId, 'uploadsPerMonth');
-
-  const processingId = `${upload._id}-${Date.now()}`;
-
-  setTimeout(async () => {
-    try {
-      await processManualImportInternal(upload, html, plain, user, options, processingId);
-    } catch (err) {
-      logger.error('Background manual import processing failed', {
-        uploadId: upload._id.toString(),
-        error: err.message,
-      });
-    }
-  }, 0);
 
   return mapUpload(upload);
 }
@@ -996,8 +986,6 @@ export async function reprocessUpload(uploadId, user) {
 
   await Question.deleteMany({ uploadId: upload._id });
 
-  const processingId = `${uploadId}-reprocess-${Date.now()}`;
-
   await Upload.updateOne(
     { _id: upload._id },
     {
@@ -1006,10 +994,12 @@ export async function reprocessUpload(uploadId, user) {
         extractedQuestionIds: [],
         questionsExtracted: 0,
         questionsApproved: 0,
-        status: 'processing',
-        processingStage: 'parsing',
+        status: 'pending',
+        nextAttemptAt: null,
+        processingStage: 'uploaded',
+        activeProcessing: null,
         progress: 0,
-        attempts: (upload.attempts || 0) + 1,
+        attempts: upload.attempts || 0,
       },
       $push: {
         stageLogs: `[UPLOAD_STAGE] reprocess - Triggered reprocess - ${new Date().toISOString()}`,
@@ -1017,35 +1007,12 @@ export async function reprocessUpload(uploadId, user) {
     }
   );
 
-  if (upload.fileType === 'manual') {
-    setTimeout(async () => {
-      try {
-        await processManualImportInternal(
-          upload,
-          upload.originalHtml,
-          upload.originalPlain,
-          upload.uploadedBy,
-          upload.uploadOptions,
-          processingId
-        );
-      } catch (err) {
-        logger.error('Background reprocess manual failed', { uploadId, error: err.message });
-      }
-    }, 0);
-  } else {
-    const file = {
-      filename: upload.filename,
-      originalname: upload.originalName,
-      size: upload.fileSize,
-    };
-    setTimeout(async () => {
-      try {
-        await processUploadInternal(upload, file, upload.uploadedBy, upload.uploadOptions, 0, processingId);
-      } catch (err) {
-        logger.error('Background reprocess upload failed', { uploadId, error: err.message });
-      }
-    }, 0);
-  }
+  upload.status = 'pending';
+  upload.processingStage = 'uploaded';
+  upload.activeProcessing = null;
+  upload.progress = 0;
+  upload.stagedQuestions = [];
+  upload.extractedQuestionIds = [];
 
   return mapUpload(upload);
 }
@@ -1125,21 +1092,17 @@ export async function resumeUpload(uploadId) {
     attempts: upload.attempts,
   });
 
-  const processingId = `${uploadId}-resume-${Date.now()}`;
-
   // Prune staging and set status atomically
   const limitIndex = upload.checkpoint?.nextBlockIndex || 0;
   await Upload.updateOne(
     { _id: uploadId },
     {
       $set: {
-        status: 'processing',
+      status: 'pending',
+      nextAttemptAt: null,
         processingStage: 'parsing',
-        attempts: (upload.attempts || 0) + 1,
-        activeProcessing: {
-          processingId,
-          startedAt: new Date(),
-        },
+        attempts: upload.attempts || 0,
+      activeProcessing: null,
         lastHeartbeat: new Date(),
       },
       $push: {
@@ -1148,32 +1111,16 @@ export async function resumeUpload(uploadId) {
     }
   );
 
+  upload.status = 'pending';
+  upload.processingStage = 'parsing';
+  upload.activeProcessing = null;
+
   // Prune staged questions that were created after the checkpoint
   if (upload.stagedQuestions && upload.stagedQuestions.length > limitIndex) {
     upload.stagedQuestions = upload.stagedQuestions.slice(0, limitIndex);
     upload.markModified('stagedQuestions');
     await upload.save();
   }
-
-  const file = {
-    filename: upload.filename,
-    originalname: upload.originalName,
-    size: upload.fileSize,
-  };
-  const user = upload.uploadedBy;
-  const options = upload.uploadOptions || {};
-  const startIdx = upload.checkpoint?.nextBlockIndex || 0;
-
-  setTimeout(async () => {
-    try {
-      await processUploadInternal(upload, file, user, options, startIdx, processingId);
-    } catch (err) {
-      logger.error('Resumed background upload processing failed', {
-        uploadId: upload._id.toString(),
-        error: err.message,
-      });
-    }
-  }, 0);
 
   return mapUpload(upload);
 }

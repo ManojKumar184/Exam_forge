@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/authenticate.js';
@@ -17,6 +18,7 @@ const router = Router();
 router.use(authLimiter);
 
 router.post('/register', validate(registerSchema), asyncHandler(authController.register));
+router.post('/accept-invitation', validate(z.object({ token: z.string().min(32).max(256), fullName: z.string().min(2).max(120).optional(), password: registerSchema.shape.password.optional() })), asyncHandler(authController.acceptInstitutionInvitation));
 router.post('/login', validate(loginSchema), asyncHandler(authController.login));
 router.post('/refresh', asyncHandler(authController.refresh));
 router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(authController.forgotPassword));

@@ -11,13 +11,15 @@ const AI_STALL_TIMEOUT_MS = 180000; // 3 minutes for AI inference stalls
 export function startIngestionWatchdog() {
   logger.info('[watchdog] Ingestion watchdog started.');
   
-  setInterval(async () => {
+  const timer = setInterval(async () => {
     try {
       await checkStalledUploads();
     } catch (err) {
       logger.error('[watchdog] Error checking stalled uploads', { error: err.message });
     }
   }, WATCHDOG_INTERVAL_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
 }
 
 async function checkStalledUploads() {
