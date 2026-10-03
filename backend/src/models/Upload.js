@@ -45,6 +45,7 @@ const uploadSchema = new mongoose.Schema(
     },
     extractionWarnings: { type: [String], default: [] },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     progress: { type: Number, default: 0 },
     processedAt: { type: Date, default: null },
     extractedQuestionIds: {
@@ -101,6 +102,7 @@ const uploadSchema = new mongoose.Schema(
 uploadSchema.index({ status: 1, 'activeProcessing.startedAt': 1 });
 
 uploadSchema.index({ uploadedBy: 1, createdAt: -1 });
+uploadSchema.index({ institutionId: 1, status: 1, createdAt: -1 });
 uploadSchema.index({ status: 1, processingStage: 1 });
 
 export const Upload = mongoose.model('Upload', uploadSchema);

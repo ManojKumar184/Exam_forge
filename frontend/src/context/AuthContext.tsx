@@ -15,7 +15,7 @@ import {
   apiResetPassword,
   apiUpdateProfile,
 } from '../api/auth';
-import { clearTokens, getRefreshToken, setTokens } from '../api/client';
+import { clearTokens, setTokens } from '../api/client';
 import { getApiErrorMessage } from '../api/client';
 import { apiConfig } from '../config/api';
 import type { Profile, UserRole } from '../types';
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       const data = await apiLogin(email, password);
-      setTokens(data.accessToken, data.refreshToken);
+      setTokens(data.accessToken || '', data.refreshToken || '');
       applySession({ user: data.user, profile: data.profile });
       return { error: null };
     } catch (error) {
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.pendingApproval) {
           return { error: null, pendingApproval: true };
         }
-        setTokens(data.accessToken, data.refreshToken);
+        setTokens(data.accessToken || '', data.refreshToken || '');
         applySession({ user: data.user, profile: data.profile });
         return { error: null };
       } catch (error) {
@@ -136,8 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     try {
-      const refreshToken = getRefreshToken();
-      await apiLogout(refreshToken);
+      await apiLogout();
     } catch {
       // clear local session even if API fails
     } finally {

@@ -6,18 +6,18 @@ export async function adminAnalytics(req, res) {
 }
 
 export async function facultyAnalytics(req, res) {
-  const data = await analyticsService.getFacultyAnalytics(req.user._id);
+  const data = await analyticsService.getFacultyAnalytics(req.user._id, req.institutionId);
   res.json({ success: true, data });
 }
 
 export async function studentAnalytics(req, res) {
-  const data = await analyticsService.getStudentAnalytics(req.user._id);
+  const data = await analyticsService.getStudentAnalytics(req.user._id, req.institutionId);
   res.json({ success: true, data });
 }
 
 export async function testPerformance(req, res) {
   const facultyId = req.user.role === 'faculty' ? req.user._id : null;
-  const data = await analyticsService.getTestPerformanceAnalytics(req.params.testId, facultyId);
+  const data = await analyticsService.getTestPerformanceAnalytics(req.params.testId, facultyId, req.institutionId);
   if (!data) {
     return res.status(404).json({ success: false, message: 'Test not found' });
   }

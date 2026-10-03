@@ -12,6 +12,10 @@ import { env } from '../config/env.js';
 const SALT_ROUNDS = 12;
 const MAX_REFRESH_TOKENS = 5;
 
+function hashRefreshToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 function parseExpiryToMs(expiry) {
   const match = /^(\d+)([smhd])$/.exec(expiry);
   if (!match) return 7 * 24 * 60 * 60 * 1000;
@@ -117,12 +121,13 @@ export async function refreshSession(refreshToken) {
     throw new AppError('User not found', 401, 'USER_NOT_FOUND');
   }
 
-  const stored = user.refreshTokens.find((t) => t.token === refreshToken);
+  const storedHash = hashRefreshToken(refreshToken);
+  const stored = user.refreshTokens.find((t) => t.token === storedHash || t.token === refreshToken);
   if (!stored || stored.expiresAt < new Date()) {
     throw new AppError('Refresh token expired', 401, 'REFRESH_EXPIRED');
   }
 
-  user.refreshTokens = user.refreshTokens.filter((t) => t.token !== refreshToken);
+  user.refreshTokens = user.refreshTokens.filter((t) => t.token !== stored.token);
   await user.save();
 
   return issueTokenPair(user);
@@ -138,7 +143,8 @@ export async function logoutUser(userId, refreshToken) {
   if (!user) return;
 
   if (refreshToken) {
-    user.refreshTokens = user.refreshTokens.filter((t) => t.token !== refreshToken);
+    const tokenHash = hashRefreshToken(refreshToken);
+    user.refreshTokens = user.refreshTokens.filter((t) => t.token !== tokenHash && t.token !== refreshToken);
   } else {
     user.refreshTokens = [];
   }
@@ -230,7 +236,7 @@ async function issueTokenPair(user) {
   const expiresAt = new Date(Date.now() + parseExpiryToMs(env.jwt.refreshExpiresIn));
 
   const userWithTokens = await User.findById(user._id).select('+refreshTokens');
-  userWithTokens.refreshTokens.push({ token: refreshToken, expiresAt });
+  userWithTokens.refreshTokens.push({ token: hashRefreshToken(refreshToken), expiresAt });
   if (userWithTokens.refreshTokens.length > MAX_REFRESH_TOKENS) {
     userWithTokens.refreshTokens = userWithTokens.refreshTokens.slice(-MAX_REFRESH_TOKENS);
   }

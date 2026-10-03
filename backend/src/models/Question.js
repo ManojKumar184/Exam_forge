@@ -17,8 +17,8 @@ const questionSchema = new mongoose.Schema(
       type: String,
       enum: [
         // Canonical types
-        'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER',
-        'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE',
+        'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
+        'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'DESCRIPTIVE',
         // Legacy backward-compatible aliases (case-insensitive variants)
         'mcq', 'descriptive', 'numerical',
         'MCQ_MULTI', 'INTEGER', 'NUMERICAL',
@@ -82,6 +82,7 @@ const questionSchema = new mongoose.Schema(
     hasEquation: { type: Boolean, default: false },
     hasTable: { type: Boolean, default: false },
     renderingMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    contentBlocks: { type: [mongoose.Schema.Types.Mixed], default: [] },
     tags: { type: [String], default: [] },
     aiConfidence: { type: Number, default: 0 },
     aiMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -134,6 +135,7 @@ const questionSchema = new mongoose.Schema(
       default: [],
     },
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     isPrivate: { type: Boolean, default: true },
     visibility: {
       type: String,
@@ -158,6 +160,8 @@ questionSchema.index({ "syllabusMappings.chapterId": 1 });
 questionSchema.index({ "syllabusMappings.topicId": 1 });
 questionSchema.index({ bankIds: 1 });
 questionSchema.index({ ownerId: 1 });
+questionSchema.index({ institutionId: 1, status: 1, questionType: 1, class: 1 });
+questionSchema.index({ institutionId: 1, bankIds: 1 });
 questionSchema.index({ isPrivate: 1 });
 questionSchema.index({ visibility: 1 });
 

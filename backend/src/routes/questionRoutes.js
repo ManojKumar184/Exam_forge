@@ -13,10 +13,11 @@ import {
   reconstructQuestionSchema,
 } from '../validators/questionValidators.js';
 import * as questionController from '../controllers/questionController.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', validateQuery(listQuestionsSchema), asyncHandler(questionController.list));
 router.get('/meta/count', validateQuery(listQuestionsSchema), asyncHandler(questionController.count));

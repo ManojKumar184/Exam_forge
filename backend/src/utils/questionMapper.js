@@ -37,6 +37,7 @@ export function mapQuestion(doc) {
     has_equation: d.hasEquation,
     has_table: d.hasTable ?? false,
     rendering_metadata: d.renderingMetadata || {},
+    content_blocks: d.contentBlocks || [],
     tags: d.tags || [],
     ai_confidence: d.aiConfidence ?? 0,
     ai_metadata: d.aiMetadata || {},
@@ -183,6 +184,8 @@ export function bodyToQuestionFields(body) {
     isPrivate: 'isPrivate',
     visibility: 'visibility',
     rendering_metadata: 'renderingMetadata',
+    content_blocks: 'contentBlocks',
+    contentBlocks: 'contentBlocks',
     debug_info: 'debugInfo',
     debugInfo: 'debugInfo',
     

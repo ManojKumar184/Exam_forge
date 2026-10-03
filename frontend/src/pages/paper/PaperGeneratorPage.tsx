@@ -87,7 +87,6 @@ export function PaperGeneratorPage() {
     syllabusSubjectId: '',
     syllabusChapterId: '',
     syllabusTopicId: '',
-    syllabusSubtopicId: '',
     bankId: '',
     bankIds: [],
   });
@@ -764,7 +763,7 @@ export function PaperGeneratorPage() {
                 <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 100, medium: 0, hard: 0 })}>100% Easy</Button>
                 <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 0, medium: 100, hard: 0 })}>100% Medium</Button>
                 <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 0, medium: 0, hard: 100 })}>100% Hard</Button>
-                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 30, medium: 50, hard: 20 })}>JEE standard (30/50/20)</Button>
+                <Button size="sm" variant="ghost" onClick={() => setDifficultyDistribution({ easy: 30, medium: 50, hard: 20 })}>Balanced (30/50/20)</Button>
               </div>
             </div>
 

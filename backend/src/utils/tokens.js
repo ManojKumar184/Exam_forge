@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import crypto from 'node:crypto';
 
 export function signAccessToken(userId) {
   return jwt.sign({ sub: userId }, env.jwt.accessSecret, {
@@ -23,4 +24,8 @@ export function verifyRefreshToken(token) {
     throw new Error('Invalid refresh token');
   }
   return payload;
+}
+
+export function csrfTokenFor(accessToken) {
+  return crypto.createHmac('sha256', env.jwt.accessSecret).update(`csrf:${accessToken}`).digest('hex');
 }

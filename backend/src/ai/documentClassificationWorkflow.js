@@ -1,28 +1,32 @@
 // backend/src/ai/documentClassificationWorkflow.js
 
-import { env } from '../../config/env.js';
-import { logger } from '../../utils/logger.js';
+import { env } from '../config/env.js';
+import { logger } from '../utils/logger.js';
 import { sessionMap, DocumentSession } from './documentSession.js';
 import { NvidiaProvider } from './providers/nvidiaProvider.js';
 import { SpaceProvider } from './providers/spaceProvider.js';
 import { extractJSON } from './providers/shared.js';
-import { writeFile, readFile } from 'fs/promises';
+import { writeFile, readFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { metricsLogger } from '../utils/metrics.js';
+import { loadSyllabusCatalog } from './syllabusCatalog.js';
+import { extractionService, normalizeQuestions } from '../extraction/index.js';
+
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const nvidiaProvider = new NvidiaProvider();
 const spaceProvider = new SpaceProvider(); // fallback if needed
 
-/** Helper to load syllabus tree – placeholder implementation */
+/** Helper to load syllabus tree from DB */
 async function loadSyllabusTree() {
-  // Assume syllabus JSON exists at backend/data/syllabus.json
-  const filePath = path.resolve(__dirname, '../../data/syllabus.json');
   try {
-    const raw = await readFile(filePath, 'utf-8');
-    return JSON.parse(raw);
+    return await loadSyllabusCatalog();
   } catch (err) {
-    logger.warn(`[workflow] Could not load syllabus tree: ${err.message}`);
+    logger.warn(`[workflow] Could not load syllabus tree from DB: ${err.message}`);
     return {};
   }
 }
@@ -46,9 +50,11 @@ export const documentClassificationWorkflow = {
       const syllabusTree = await loadSyllabusTree();
       const metadata = extractMetadataFromFile(file);
 
-      // For simplicity, assume we have a parser that returns an array of question objects.
-      // Here we mock it as empty – real implementation would invoke existing parser.
-      const questions = [];
+      // Parse uploaded document to questions list using extractionService and normalizeQuestions
+      const fileType = file.originalname.endsWith('.docx') ? 'docx' : 'pdf';
+      const extractResult = await extractionService.processFile(file.path, fileType);
+      const blocks = extractResult.blocks || [];
+      const questions = await normalizeQuestions(blocks, { returnRawBlocks: false });
 
       const sessionId = uuidv4();
       const session = new DocumentSession({
@@ -56,6 +62,8 @@ export const documentClassificationWorkflow = {
         syllabusTree,
         metadata,
         questions,
+        userId: req.user._id,
+        institutionId: req.institutionId,
       });
       sessionMap.set(sessionId, session);
 
@@ -76,7 +84,7 @@ export const documentClassificationWorkflow = {
       const { sessionId } = req.params;
       const { start, end } = req.body;
       const session = sessionMap.get(sessionId);
-      if (!session) return res.status(404).json({ error: 'Session not found' });
+      if (!session || session.userId !== req.user._id.toString() || session.institutionId !== req.institutionId?.toString()) return res.status(404).json({ error: 'Session not found' });
 
       const batch = session.questions.slice(start, end);
       if (!batch.length) return res.status(400).json({ error: 'Empty batch' });
@@ -116,7 +124,7 @@ export const documentClassificationWorkflow = {
     try {
       const { sessionId } = req.params;
       const session = sessionMap.get(sessionId);
-      if (!session) return res.status(404).json({ error: 'Session not found' });
+      if (!session || session.userId !== req.user._id.toString() || session.institutionId !== req.institutionId?.toString()) return res.status(404).json({ error: 'Session not found' });
 
       // Aggregate metrics
       const totalQuestions = session.results.reduce((sum, r) => sum + (r.end - r.start), 0);
@@ -132,6 +140,7 @@ export const documentClassificationWorkflow = {
 
       // Optionally write a JSON report file
       const reportPath = path.resolve(__dirname, `../../reports/${sessionId}_classification_report.json`);
+      await mkdir(path.dirname(reportPath), { recursive: true });
       await writeFile(reportPath, JSON.stringify(summary, null, 2), 'utf-8');
 
       logger.info(`[workflow] Finalized session ${sessionId}, report written to ${reportPath}`);

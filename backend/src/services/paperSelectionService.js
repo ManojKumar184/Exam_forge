@@ -23,6 +23,12 @@ function shuffle(arr) {
 
 export function buildQuestionFilter(config) {
   const filter = { status: 'approved' };
+  if (config.institutionId) {
+    filter.$or = [{ institutionId: config.institutionId }, { institutionId: null, visibility: 'public' }];
+  }
+  if (config.coreVersion !== 'legacy') {
+    filter.questionType = { $in: ['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'mcq', 'MCQ_MULTI', 'numerical', 'NUMERICAL', 'INTEGER', 'MATCH_COLUMNS'] };
+  }
 
   const classes = parseIdList(config.classes || config.class_list).map(Number).filter((n) => n >= 6);
   if (classes.length) filter.class = { $in: classes };
@@ -33,7 +39,13 @@ export function buildQuestionFilter(config) {
   else if (config.difficulty) filter.difficulty = config.difficulty;
 
   const questionTypes = parseIdList(config.question_types || config.questionTypes);
-  if (questionTypes.length === 1) filter.questionType = questionTypes[0];
+  if (questionTypes.length === 1) {
+    const canonical = normalizeQuestionType(questionTypes[0]);
+    if (config.coreVersion !== 'legacy' && canonical === 'DESCRIPTIVE') {
+      throw new AppError('Descriptive questions are not supported in Core v1 paper generation.', 400, 'UNSUPPORTED_QUESTION_TYPE');
+    }
+    filter.questionType = canonical !== 'UNCLASSIFIED' ? canonical : questionTypes[0];
+  }
 
   if (config.syllabus_exam_pattern_id || config.syllabusExamPatternId) {
     filter['syllabusMappings.examPatternId'] = config.syllabus_exam_pattern_id || config.syllabusExamPatternId;
@@ -203,7 +215,7 @@ export async function selectQuestionsForPaper(config) {
   const isJeeMain = resolvedExamTypes.some(e => e.code === 'JEE_MAIN');
   const isNeet = resolvedExamTypes.some(e => e.code === 'NEET');
 
-  if (isJeeMain) {
+  if (config.coreVersion === 'legacy' && isJeeMain) {
     // JEE Main: no descriptive questions
     filter.questionType = { $nin: ['descriptive', 'DESCRIPTIVE', 'SHORT_ANSWER', 'LONG_ANSWER'] };
     for (const spec of config.sections || []) {
@@ -212,7 +224,7 @@ export async function selectQuestionsForPaper(config) {
         throw new AppError('JEE Main does not allow descriptive sections.', 400, 'INVALID_SECTION_TYPE');
       }
     }
-  } else if (isNeet) {
+  } else if (config.coreVersion === 'legacy' && isNeet) {
     // NEET: MCQ only
     filter.questionType = { $in: ['mcq', 'MCQ_SINGLE', 'MCQ'] };
     for (const spec of config.sections || []) {
@@ -248,12 +260,16 @@ export async function selectQuestionsForPaper(config) {
     let sectionPool = pool;
     const types = spec.question_types || (spec.question_type ? [spec.question_type] : []);
     if (types.length) {
-      // Map types to categories (MCQ_SINGLE -> mcq, NUMERICAL_INTEGER -> numerical, etc.)
-      const targetCategories = types.map(t => getQuestionCategory(t));
-      sectionPool = pool.filter((q) => {
-        const category = getQuestionCategory(q.questionType);
-        return targetCategories.includes(category);
-      });
+      const targetTypes = new Set(types.map(normalizeQuestionType).filter((type) => type !== 'UNCLASSIFIED'));
+      if (config.coreVersion !== 'legacy' && types.some((type) => normalizeQuestionType(type) === 'DESCRIPTIVE')) {
+        throw new AppError('Descriptive questions are not supported in Core v1 paper generation.', 400, 'UNSUPPORTED_QUESTION_TYPE');
+      }
+      if (targetTypes.size) {
+        sectionPool = pool.filter((q) => targetTypes.has(normalizeQuestionType(q.questionType)));
+      } else {
+        const targetCategories = types.map((type) => getQuestionCategory(type));
+        sectionPool = pool.filter((q) => targetCategories.includes(getQuestionCategory(q.questionType)));
+      }
     }
 
     if (sectionPool.length < count) {
@@ -271,6 +287,8 @@ export async function selectQuestionsForPaper(config) {
       sectionDifficulty
     );
 
+    assertSufficientQuestionAvailability(spec.name || spec.id || 'Section', count, picked.length);
+
 
 
     resultSections.push({
@@ -280,6 +298,7 @@ export async function selectQuestionsForPaper(config) {
       questions: picked.map((q, orderIndex) => ({
         ...mapQuestion(q),
         custom_marks: Number(spec.marksPerQuestion || spec.marks_per_question || q.marks || 4),
+        custom_negative_marks: Number(spec.negativeMarksPerQuestion || spec.negative_marks_per_question || 0),
         section_id: spec.id || spec.sectionId,
         order_index: orderIndex,
       })),
@@ -305,6 +324,12 @@ export async function selectQuestionsForPaper(config) {
     pool_stats: poolStats,
     validation,
   };
+}
+
+export function assertSufficientQuestionAvailability(groupName, requested, available) {
+  if (available < requested) {
+    throw new AppError(`Only ${available} approved questions are available for the selected filters in ${groupName}; ${requested} requested.`, 400, 'INSUFFICIENT_QUESTIONS');
+  }
 }
 
 export function validatePaperCounts(sectionSpecs, resultSections, config = {}) {

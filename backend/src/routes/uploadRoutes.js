@@ -5,12 +5,13 @@ import { authorize } from '../middleware/authorize.js';
 import { uploadMiddleware } from '../config/multer.js';
 import * as uploadController from '../controllers/uploadController.js';
 import { uploadLimiter } from '../middleware/rateLimits.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
 router.use(uploadLimiter);
 
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', authorize('super_admin', 'faculty'), asyncHandler(uploadController.list));
 router.get('/:id', authorize('super_admin', 'faculty'), asyncHandler(uploadController.getOne));
@@ -44,6 +45,12 @@ router.post(
   '/:id/commit',
   authorize('super_admin', 'faculty'),
   asyncHandler(uploadController.commitStagedQuestions)
+);
+
+router.post(
+  '/:id/bulk-reject',
+  authorize('super_admin', 'faculty'),
+  asyncHandler(uploadController.bulkRejectStagedQuestions)
 );
 
 router.post(

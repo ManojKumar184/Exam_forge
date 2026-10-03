@@ -3,23 +3,40 @@ import { apiConfig } from '../config/api';
 
 const ACCESS_KEY = 'examforge_access_token';
 const REFRESH_KEY = 'examforge_refresh_token';
+let csrfToken: string | null = null;
+const INSTITUTION_KEY = 'examforge_active_institution';
+
+if (typeof window !== 'undefined') {
+  // Remove legacy bearer tokens from earlier releases now that auth uses cookies.
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+export function getActiveInstitutionId(): string | null {
+  return localStorage.getItem(INSTITUTION_KEY);
+}
+
+export function setActiveInstitutionId(id: string) {
+  localStorage.setItem(INSTITUTION_KEY, id);
+}
 
 export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_KEY);
+  return null;
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_KEY);
+  return null;
 }
 
 export function setTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem(ACCESS_KEY, accessToken);
-  localStorage.setItem(REFRESH_KEY, refreshToken);
+  void accessToken;
+  void refreshToken;
 }
 
 export function clearTokens() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  csrfToken = null;
 }
 
 export const apiClient = axios.create({
@@ -30,9 +47,10 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const institutionId = getActiveInstitutionId();
+  if (institutionId) config.headers.set('X-Institution-Id', institutionId);
+  if (csrfToken && !['get', 'head', 'options'].includes((config.method || 'get').toLowerCase())) {
+    config.headers.set('X-CSRF-Token', csrfToken);
   }
   return config;
 });
@@ -40,29 +58,34 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken || !apiConfig.isConfigured) return null;
+  if (!apiConfig.isConfigured) return null;
 
   try {
-    const { data } = await axios.post(
+    const response = await axios.post(
       `${apiConfig.baseUrl}/api/auth/refresh`,
-      { refreshToken },
+      {},
       { withCredentials: true }
     );
-    const { accessToken, refreshToken: newRefresh } = data.data;
-    setTokens(accessToken, newRefresh);
-    return accessToken;
+    csrfToken = response.headers?.['x-csrf-token'] || null;
+    return 'cookie-session';
   } catch {
     clearTokens();
     return null;
   }
 }
 
+apiClient.interceptors.response.use((response) => {
+  const token = response.headers?.['x-csrf-token'];
+  if (typeof token === 'string') csrfToken = token;
+  return response;
+});
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && original && !original._retry) {
+    const requestUrl = String(original?.url || '');
+    if (error.response?.status === 401 && original && !original._retry && !requestUrl.includes('/auth/')) {
       original._retry = true;
       if (!refreshPromise) {
         refreshPromise = refreshAccessToken().finally(() => {
@@ -71,7 +94,6 @@ apiClient.interceptors.response.use(
       }
       const newToken = await refreshPromise;
       if (newToken) {
-        original.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(original);
       }
     }

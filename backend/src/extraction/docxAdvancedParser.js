@@ -1,5 +1,7 @@
 import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
+import katex from 'katex';
+import path from 'path';
 import { preprocessDocumentText } from './columnReadingOrder.js';
 import { detectSectionHeader } from './sectionParser.js';
 import { parseXml, translateOmmlNode } from './mathConverter.js';
@@ -30,6 +32,155 @@ function firstChild(node, tag) {
 
 function attrValue(node, name) {
   return node?.attrs?.[name] || node?.attrs?.[`w:${name}`] || null;
+}
+
+function xmlLocalName(name) {
+  return String(name || '').split(':').pop().toLowerCase();
+}
+
+function findXmlElementRanges(xml, wantedNames, parentName = null) {
+  const wanted = new Set(wantedNames.map(xmlLocalName));
+  const stack = [];
+  const found = [];
+  const tokenRe = /<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<![^>]*>|<\/?[\w:.-]+\b[^>]*>/g;
+  let token;
+  while ((token = tokenRe.exec(xml))) {
+    const raw = token[0];
+    if (raw.startsWith('<!--') || raw.startsWith('<?') || raw.startsWith('<!')) continue;
+    const close = /^<\//.test(raw);
+    const selfClosing = /\/\s*>$/.test(raw);
+    const name = raw.match(/^<\/?([\w:.-]+)/)?.[1];
+    if (!name) continue;
+    const local = xmlLocalName(name);
+    if (!close) {
+      const parent = stack.at(-1) || null;
+      if (selfClosing) {
+        if (wanted.has(local) && (!parentName || parent?.local === parentName)) {
+          found.push({ local, start: token.index, end: tokenRe.lastIndex, xml: raw, parent: parent?.local || null });
+        }
+      } else {
+        stack.push({ name, local, start: token.index, parent: parent?.local || null });
+      }
+      continue;
+    }
+    let idx = stack.length - 1;
+    while (idx >= 0 && stack[idx].name !== name) idx -= 1;
+    if (idx < 0) continue;
+    const [node] = stack.splice(idx, 1);
+    if (wanted.has(node.local) && (!parentName || node.parent === parentName)) {
+      found.push({ local: node.local, start: node.start, end: tokenRe.lastIndex, xml: xml.slice(node.start, tokenRe.lastIndex), parent: node.parent });
+    }
+  }
+  return found.sort((a, b) => a.start - b.start);
+}
+
+function relationshipEntries(xml = '') {
+  const entries = new Map();
+  for (const match of xml.matchAll(/<Relationship\b([^>]*)\/?\s*>/gi)) {
+    const attrs = Object.fromEntries([...match[1].matchAll(/([\w:.-]+)\s*=\s*["']([^"']*)["']/g)].map((m) => [xmlLocalName(m[1]), m[2]]));
+    if (attrs.id && attrs.target) entries.set(attrs.id, attrs);
+  }
+  return entries;
+}
+
+function relationshipPartPath(target) {
+  if (!target || /^[a-z]+:/i.test(target)) return null;
+  const normalized = target.startsWith('/')
+    ? path.posix.normalize(target.slice(1))
+    : path.posix.normalize(path.posix.join('word', target));
+  if (!normalized.startsWith('word/') || normalized.includes('/../')) return null;
+  return normalized;
+}
+
+function relationshipIds(xml = '') {
+  return [...new Set([...xml.matchAll(/\b(?:r:embed|r:id|r:link)\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]))];
+}
+
+function plainTextFromFragment(xml) {
+  return extractParagraphTextFromNodes(parseXml(xml) || []);
+}
+
+function normalizeEquationLatex(latex) {
+  const symbols = {
+    '⁡': '', 'π': '\\pi ', 'θ': '\\theta ', 'α': '\\alpha ', 'β': '\\beta ',
+    'γ': '\\gamma ', 'Δ': '\\Delta ', 'δ': '\\delta ', 'λ': '\\lambda ',
+    'μ': '\\mu ', 'σ': '\\sigma ', 'Ω': '\\Omega ', 'ω': '\\omega ',
+    '∞': '\\infty ', '→': '\\to ', '←': '\\leftarrow ', '≤': '\\le ', '≥': '\\ge ',
+    '≠': '\\ne ', '×': '\\times ', '·': '\\cdot ', '√': '\\sqrt{}',
+  };
+  return String(latex || '').replace(/[⁡πθαβγΔδλμσΩω∞→←≤≥≠×·√]/g, (char) => symbols[char] ?? char).trim();
+}
+
+function validateLatex(latex) {
+  if (!latex) return false;
+  try { katex.renderToString(latex, { throwOnError: true, strict: 'error' }); return true; }
+  catch { return false; }
+}
+
+function orderedContentBlocks(paragraphXml, assets) {
+  const candidates = findXmlElementRanges(paragraphXml, ['oMathPara', 'oMath', 'object', 'drawing', 'pict']);
+  const objects = candidates.filter((range) => range.local === 'object');
+  const equations = candidates.filter((range) => range.local === 'omathpara' || range.local === 'omath')
+    .filter((range) => !candidates.some((outer) => outer.local === 'omathpara' && outer.start < range.start && outer.end > range.end));
+  const visualNodes = candidates.filter((range) => ['drawing', 'pict'].includes(range.local));
+  const special = [...equations, ...objects, ...visualNodes].sort((a, b) => a.start - b.start || b.end - a.end);
+  const topLevel = [];
+  for (const range of special) {
+    if (topLevel.some((outer) => outer.start <= range.start && outer.end >= range.end)) continue;
+    topLevel.push(range);
+  }
+
+  const blocks = [];
+  const addText = (value) => {
+    const text = value.replace(/\s+/g, ' ').trim();
+    if (text) blocks.push({ type: 'text', text });
+  };
+  let cursor = 0;
+  for (const range of topLevel) {
+    addText(plainTextFromFragment(paragraphXml.slice(cursor, range.start)));
+    if (range.local === 'omath' || range.local === 'omathpara') {
+      const ast = parseXml(range.xml) || [];
+      let latex = '';
+      let warning = null;
+      try { latex = normalizeEquationLatex(translateOmmlNode(ast[0])); } catch { warning = 'OMML could not be normalized to LaTeX'; }
+      const latexIsValid = validateLatex(latex);
+      if (latex && !latexIsValid) warning = 'Generated LaTeX failed math-render validation; original OMML was retained';
+      blocks.push({
+        type: 'equation', source: 'omml', omml: range.xml, original: range.xml,
+        latex: latex || null, displayMode: range.local === 'omathpara',
+        fidelity: latexIsValid ? 0.98 : (latex ? 0.55 : 0.25), warning,
+      });
+      if (latex) blocks.push({ type: 'text', text: '' });
+    } else if (range.local === 'object') {
+      const progId = range.xml.match(/\bProgID\s*=\s*["']([^"']+)["']/i)?.[1] || null;
+      const relId = range.xml.match(/\br:id\s*=\s*["']([^"']+)["']/i)?.[1] || null;
+      const isMathType = /mathtype|equation\.(?:3|dsmt4)/i.test(progId || '');
+      const previewRelationshipIds = relationshipIds(range.xml).filter((id) => id !== relId && assets.has(id));
+      if (isMathType) {
+        blocks.push({
+          type: 'equation', source: 'mathtype', original: range.xml,
+          originalRelationshipId: relId, originalAsset: relId && assets.has(relId) ? relId : null,
+          progId, latex: null, displayMode: false, previewRelationshipIds,
+          fidelity: relId && assets.has(relId) ? 0.6 : 0.35,
+          warning: 'MathType source preserved; automatic conversion to LaTeX is unavailable for this OLE object',
+        });
+      } else if (relId && assets.has(relId)) {
+        blocks.push({ type: 'embedded', original: range.xml, relationshipId: relId, fidelity: 0.5, warning: 'Embedded object requires review' });
+      } else {
+        blocks.push({ type: 'embedded', original: range.xml, relationshipId: relId, fidelity: 0.25, warning: 'Unsupported embedded object preserved for review' });
+      }
+    } else {
+      const ids = relationshipIds(range.xml).filter((id) => assets.has(id));
+      if (ids.length) {
+        for (const relationshipId of ids) blocks.push({ type: 'image', relationshipId, source: 'embedded', fidelity: 1 });
+      } else {
+        blocks.push({ type: 'embedded', original: range.xml, fidelity: 0.4, warning: 'Drawing preserved but no embedded image relationship was found' });
+      }
+    }
+    cursor = range.end;
+  }
+  addText(plainTextFromFragment(paragraphXml.slice(cursor)));
+  return blocks.filter((block) => block.type !== 'text' || block.text);
 }
 
 function findFirstNode(nodes, tag) {
@@ -170,7 +321,7 @@ function extractTableStructureFromXml(tableXml) {
   return extractTableStructureFromNode(tblNode);
 }
 
-function extractTableStructureFromNode(tblNode) {
+function extractTableStructureFromNode(tblNode, assets = new Map()) {
   const rows = [];
   const textRows = [];
 
@@ -203,15 +354,18 @@ function extractTableStructureFromNode(tblNode) {
 
       let cellHtml = '';
       const ps = childrenOf(tc, 'p');
+      const contentBlocks = [];
       for (const p of ps) {
         cellHtml += convertXmlNodeToHtml(p);
       }
 
       let cellText = cellHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cellText) contentBlocks.push({ type: 'text', text: cellText });
       textCells.push(cellText);
       cells.push({
         text: cellText,
         html: cellHtml,
+        contentBlocks,
         colspan,
         rowspan
       });
@@ -250,6 +404,7 @@ function extractTableStructureFromNode(tblNode) {
       return {
         text: cell.text,
         html: cell.html,
+        contentBlocks: cell.contentBlocks || [],
         colspan: cell.colspan,
         rowspan: cell.rowspan
       };
@@ -306,6 +461,32 @@ export async function parseDocxXmlStructure(buffer) {
   const parsedRoot = parseXml(docXml);
   const bodyNode = findFirstNode(parsedRoot, 'body');
   const orderedBodyChildren = childrenOf(bodyNode).filter((child) => ['p', 'tbl'].includes(nodeTag(child)));
+  const rawBodyElements = findXmlElementRanges(docXml, ['p', 'tbl'], 'body');
+  const relXml = await zip.file('word/_rels/document.xml.rels')?.async('string') || '';
+  const relationships = relationshipEntries(relXml);
+  const relationshipAssets = new Map();
+  let totalAssetBytes = 0;
+  for (const [id, rel] of relationships) {
+    if (rel.targetmode?.toLowerCase() === 'external') continue;
+    const target = relationshipPartPath(rel.target);
+    const part = target && zip.file(target);
+    const imageRelationship = /\/image$/i.test(rel.type || '');
+    const oleRelationship = /oleobject|package/i.test(rel.type || '');
+    if (!part || (!imageRelationship && !oleRelationship)) continue;
+    const declaredSize = part._data?.uncompressedSize || 0;
+    if (declaredSize > 20 * 1024 * 1024 || totalAssetBytes + declaredSize > 80 * 1024 * 1024) continue;
+    const data = await part.async('nodebuffer');
+    if (!data.length || data.length > 20 * 1024 * 1024 || totalAssetBytes + data.length > 80 * 1024 * 1024) continue;
+    totalAssetBytes += data.length;
+    relationshipAssets.set(id, {
+      relationshipId: id,
+      target,
+      type: imageRelationship ? 'image' : 'ole',
+      contentType: part.name.toLowerCase().endsWith('.emf') ? 'image/emf' : part.name.toLowerCase().endsWith('.wmf') ? 'image/wmf' : null,
+      extension: path.posix.extname(part.name).slice(1).toLowerCase() || 'bin',
+      data,
+    });
+  }
 
   const paragraphs = [];
   const tables = [];
@@ -314,31 +495,48 @@ export async function parseDocxXmlStructure(buffer) {
   const parsedTables = asArray(body.tbl);
   let tblIdx = 0;
 
-  for (const child of orderedBodyChildren) {
+  for (const [childIndex, child] of orderedBodyChildren.entries()) {
     const tagName = nodeTag(child);
+    const rawElement = rawBodyElements[childIndex];
 
     if (tagName === 'tbl') {
       const tblNode = parsedTables[tblIdx++];
       if (tblNode) {
-        const parsedTable = extractTableStructureFromNode(child);
+        const parsedTable = extractTableStructureFromNode(child, relationshipAssets);
         const tableText = parsedTable ? parsedTable.text : extractTableText(tblNode);
         const tableModel = parsedTable ? parsedTable.tableModel : { rows: [] };
+        if (rawElement && tableModel.rows?.length) {
+          const rawCells = findXmlElementRanges(rawElement.xml, ['tc'], 'tr');
+          let cellIndex = 0;
+          for (const row of tableModel.rows) {
+            for (const cell of row || []) {
+              if (!cell) continue;
+              const rawCell = rawCells[cellIndex++];
+              if (!rawCell) continue;
+              const paragraphRanges = findXmlElementRanges(rawCell.xml, ['p'], 'tc');
+              const ordered = paragraphRanges.flatMap((p) => orderedContentBlocks(p.xml, relationshipAssets));
+              if (ordered.length) cell.contentBlocks = ordered;
+            }
+          }
+        }
         tables.push({ text: tableText, tableModel, section });
         paragraphs.push({
           text: `[TABLE_START]\n${tableText}\n[TABLE_END]`,
           isTable: true,
           tableModel,
+          contentBlocks: [{ type: 'table', ...tableModel, fidelity: 0.95 }],
           section
         });
       }
     } else {
       const text = extractParagraphTextFromNodes([child]);
-      if (!text) continue;
+      const contentBlocks = rawElement ? orderedContentBlocks(rawElement.xml, relationshipAssets) : (text ? [{ type: 'text', text }] : []);
+      if (!text && !contentBlocks.length) continue;
 
       const header = detectSectionHeader(text);
       if (header) {
         section = header.name;
-        paragraphs.push({ text, isSection: true, section, numbering: null });
+        paragraphs.push({ text, contentBlocks, isSection: true, section, numbering: null });
         continue;
       }
 
@@ -356,6 +554,7 @@ export async function parseDocxXmlStructure(buffer) {
 
       paragraphs.push({
         text,
+        contentBlocks,
         section,
         numbering: num,
         style: attrValue(firstChild(pPr, 'pstyle'), 'val'),
@@ -364,7 +563,7 @@ export async function parseDocxXmlStructure(buffer) {
   }
 
   const rawText = paragraphs.map((p) => p.text).join('\n');
-  return { paragraphs, tables, rawText };
+  return { paragraphs, tables, rawText, relationshipAssets };
 }
 
 /**

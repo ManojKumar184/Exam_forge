@@ -30,7 +30,7 @@ async function loadPaperForExport(paperId, user) {
   const cached = getCachedPaper(cacheKey);
   if (cached !== undefined) return cached;
 
-  const paper = await Paper.findById(paperId)
+  const paper = await Paper.findOne({ _id: paperId, institutionId: user.activeInstitutionId || user.defaultInstitutionId })
     // Populate for flat Subject/ExamType removed — collections were dropped
     .populate('createdBy', 'fullName schoolInstitute')
     .populate('questions.questionId');

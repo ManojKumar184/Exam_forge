@@ -3,9 +3,10 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import * as analyticsController from '../controllers/analyticsController.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/admin', authorize('super_admin'), asyncHandler(analyticsController.adminAnalytics));
 router.get('/faculty', authorize('faculty', 'super_admin'), asyncHandler(analyticsController.facultyAnalytics));

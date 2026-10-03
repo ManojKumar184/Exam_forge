@@ -50,7 +50,7 @@ export interface ExamType {
 }
 
 // Question types
-export type QuestionType = 'mcq' | 'descriptive' | 'numerical' | 'MCQ_SINGLE' | 'MCQ_MULTIPLE' | 'NUMERICAL_INTEGER' | 'MATCH_FOLLOWING' | 'ASSERTION_REASON' | 'DESCRIPTIVE' | 'MCQ_MULTI' | 'INTEGER' | 'NUMERICAL' | 'MATCH_COLUMNS';
+export type QuestionType = 'mcq' | 'descriptive' | 'numerical' | 'MCQ_SINGLE' | 'MCQ_MULTIPLE' | 'TRUE_FALSE' | 'FILL_BLANK' | 'UNCLASSIFIED' | 'NUMERICAL_INTEGER' | 'MATCH_FOLLOWING' | 'ASSERTION_REASON' | 'DESCRIPTIVE' | 'MCQ_MULTI' | 'INTEGER' | 'NUMERICAL' | 'MATCH_COLUMNS';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type QuestionStatus = 'pending' | 'approved' | 'rejected' | 'needs_review';
 export type ContextType = 'COMPREHENSION' | 'CASE_STUDY' | 'PARAGRAPH_BASED' | 'STATEMENT_SET' | 'MATRIX_MATCH' | 'TRUE_FALSE' | 'NESTED_OPTION_MCQ' | null;
@@ -71,6 +71,7 @@ export interface Question {
   question_images: string[];
   options: QuestionOption[];
   correct_option: number | null;
+  correct_answers?: string[];
   numerical_answer: number | null;
   numerical_tolerance: number;
   answer_text: string | null;
@@ -92,6 +93,7 @@ export interface Question {
   has_equation: boolean;
   has_table?: boolean;
   rendering_metadata?: Record<string, unknown>;
+  content_blocks?: ContentBlock[];
   tags: string[];
   ai_confidence: number;
   ai_metadata: Record<string, any>;
@@ -127,7 +129,26 @@ export interface Question {
   owner_id?: string | null;
   is_private?: boolean;
   visibility?: 'private' | 'faculty_bank' | 'institution' | 'public';
+  subject_id?: string | null;
+  chapter_id?: string | null;
+  exam_type_id?: string | null;
 }
+
+export type ContentBlock = {
+  type: 'text' | 'equation' | 'image' | 'table' | 'embedded';
+  text?: string;
+  latex?: string | null;
+  source?: string;
+  omml?: string;
+  original?: string;
+  displayMode?: boolean;
+  assetUrl?: string;
+  originalAssetUrl?: string;
+  previewAssetUrls?: string[];
+  warning?: string | null;
+  fidelity?: number;
+  rows?: Array<Array<{ text?: string; html?: string; contentBlocks?: ContentBlock[]; colspan?: number; rowspan?: number } | null>>;
+};
 
 // Paper types
 export type PaperStatus = 'draft' | 'published' | 'archived';
@@ -242,6 +263,7 @@ export interface TestAnswer {
   attempt_id: string;
   question_id: string;
   selected_option: number | null;
+  selected_options?: number[];
   numerical_answer: number | null;
   text_answer: string | null;
   is_correct: boolean | null;

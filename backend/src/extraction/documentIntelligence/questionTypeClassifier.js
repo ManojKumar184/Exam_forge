@@ -10,28 +10,25 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
   const lower = text.toLowerCase();
   const optionCount = legacyBlock.options?.length || 0;
 
-  let rawType = 'DESCRIPTIVE';
-  let rawSubtype = 'descriptive';
+  let rawType = 'UNCLASSIFIED';
+  let rawSubtype = 'unclassified';
 
   const isMatchFollowing = /match\s+(?:the\s+)?following|list-?\s*i\b|list-?\s*ii\b|column\s+i/i.test(text);
   
-  if (lower.includes('four charges') || legacyBlock.questionNumber === 31 || legacyBlock.questionNumber === 3) {
-    console.log(`[CLASSIFY DEBUG] Q${legacyBlock.questionNumber || 'unknown'} text length: ${text.length}`);
-    console.log(`[CLASSIFY DEBUG] text contains 'match': ${isMatchFollowing}`);
-    console.log(`[CLASSIFY DEBUG] text snippet: "${text.slice(0, 150)}..."`);
-    console.log(`[CLASSIFY DEBUG] section: "${legacyBlock.section}"`);
-    console.log(`[CLASSIFY DEBUG] tags: ${JSON.stringify(legacyBlock.tags)}`);
-  }
-
   if (/assertion.*reason|reason.*assertion/i.test(text)) {
     rawType = 'ASSERTION_REASON';
     rawSubtype = 'assertion_reason';
-  } else if (/matrix\s+match/i.test(text)) {
-    rawType = 'MCQ_SINGLE';
-    rawSubtype = 'matrix_match';
   } else if (isMatchFollowing) {
     rawType = 'MATCH_FOLLOWING';
     rawSubtype = 'match_following';
+  } else if (/\btrue\s*\/\s*false\b|\btrue or false\b/i.test(text) ||
+             (optionCount === 2 && ['true', 'false'].every(value =>
+               (legacyBlock.options || []).some(option => option.text?.trim().toLowerCase() === value)))) {
+    rawType = 'TRUE_FALSE';
+    rawSubtype = 'true_false';
+  } else if (optionCount === 0 && /_{2,}|\[\s*\]|\bfill\s+in\s+the\s+blank/i.test(text)) {
+    rawType = 'FILL_BLANK';
+    rawSubtype = 'fill_blank';
   } else if ((segment.passageBlocks || []).length || /comprehension|passage based|read the following passage/.test(lower)) {
     rawType = 'DESCRIPTIVE';
     rawSubtype = 'comprehension';
@@ -62,14 +59,22 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
     rawSubtype = 'numerical';
   } else {
     const fallback = detectQuestionType(legacyBlock);
-    rawType = fallback.questionType;
-    rawSubtype = fallback.subtype;
+    if (fallback.questionType !== 'DESCRIPTIVE') {
+      rawType = fallback.questionType;
+      rawSubtype = fallback.subtype;
+    }
   }
 
+  const supportedTypes = new Set([
+    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
+    'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+  ]);
+  const isSupported = supportedTypes.has(rawType);
+
   return {
-    questionType: normalizeQuestionType(rawType),
+    questionType: isSupported ? normalizeQuestionType(rawType) : 'UNCLASSIFIED',
     subtype: rawSubtype,
     contextType: getContextTypeForType(rawType) || null,
-    confidence: 0.86,
+    confidence: isSupported ? 0.86 : 0.2,
   };
 }

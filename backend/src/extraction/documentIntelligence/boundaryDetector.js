@@ -22,7 +22,7 @@ export function detectQuestionBoundaries(semanticDocument) {
 
   for (const block of semanticDocument.blocks || []) {
     const text = block.text?.trim() || '';
-    if (!text && block.type !== 'image') continue;
+    if (!text && block.type !== 'image' && !block.contentBlocks?.length) continue;
 
     // Detect section block
     const isSectionHeader = block.roleHints?.includes('section') || block.style === 'section';
@@ -128,6 +128,13 @@ function scoreBoundary(segment) {
   return Math.min(0.98, score);
 }
 
+function flattenContentBlocks(blocks = []) {
+  return blocks.flatMap((block) => [
+    block,
+    ...(block.rows || []).flatMap((row) => (row || []).flatMap((cell) => flattenContentBlocks(cell?.contentBlocks || []))),
+  ]);
+}
+
 function splitAnswerAndExplanation(block) {
   const text = block.text || '';
   const match = text.match(/(?:solution|explanation|detailed\s+solution|soln|reason)\s*[:\-]?\s*(.+)$/i);
@@ -136,9 +143,18 @@ function splitAnswerAndExplanation(block) {
 
 export function segmentToLegacyBlock(segment) {
   const optionBlocks = segment.optionBlocks || [];
+  const orderedBlocks = [
+    ...(segment.passageBlocks || []),
+    ...(segment.stemBlocks || []),
+    ...(segment.mediaBlocks || []),
+    ...optionBlocks,
+  ];
+  const contentBlocks = orderedBlocks.flatMap((block) => block.contentBlocks || []);
+  const fidelityBlocks = flattenContentBlocks(contentBlocks);
   return {
     segmentId: segment.id,
     lines: segment.stemBlocks.map((block) => block.text).filter(Boolean),
+    contentBlocks,
     passage: segment.passageBlocks.map((block) => block.text).filter(Boolean).join('\n\n') || null,
     options: optionBlocks.flatMap((block, index) => {
       const text = block.text || '';
@@ -163,6 +179,17 @@ export function segmentToLegacyBlock(segment) {
     }),
     explanation: segment.explanationBlocks.map((block) => block.text.replace(EXPLANATION_RE, '').trim()).filter(Boolean).join('\n\n'),
     answerKey: segment.answerBlocks.map((block) => block.text).join('\n'),
+    answerText: segment.answerMapping?.answer?.join(',') || null,
+    correctAnswers: segment.answerMapping?.answer || [],
+    correctOption: segment.answerMapping?.answer?.length === 1 && /^[A-H]$/.test(segment.answerMapping.answer[0])
+      ? segment.answerMapping.answer[0].charCodeAt(0) - 65
+      : (segment.answerMapping?.answer?.length === 1 && ['TRUE', 'T'].includes(segment.answerMapping.answer[0]) ? 0
+        : (segment.answerMapping?.answer?.length === 1 && ['FALSE', 'F'].includes(segment.answerMapping.answer[0]) ? 1 : null)),
+    numericalAnswer: segment.answerMapping?.answer?.length === 1 && /^-?\d+(?:\.\d+)?$/.test(segment.answerMapping.answer[0])
+      ? Number(segment.answerMapping.answer[0]) : undefined,
+    answerMappingIssues: segment.answerMappingIssues || [],
+    answerConfidence: segment.answerMapping?.confidence ?? null,
+    extractionWarnings: (segment.answerMappingIssues || []).map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`),
     questionNumber: segment.questionNumber,
     section: segment.section || segment.stemBlocks[0]?.section || 'General',
     sectionContext: segment.sectionContext || null,
@@ -173,6 +200,15 @@ export function segmentToLegacyBlock(segment) {
       boundaryConfidence: segment.confidence,
     },
     parserConfidence: segment.confidence,
+    fidelity: {
+      boundaryConfidence: segment.confidence,
+      classificationConfidence: null,
+      answerConfidence: null,
+      textFidelity: 1,
+      equationFidelity: Math.min(1, ...fidelityBlocks.filter((b) => b.type === 'equation').map((b) => b.fidelity ?? 0.5)),
+      tableFidelity: Math.min(1, ...fidelityBlocks.filter((b) => b.type === 'table').map((b) => b.fidelity ?? 0.8)),
+      imageFidelity: Math.min(1, ...fidelityBlocks.filter((b) => b.type === 'image').map((b) => b.fidelity ?? 0.5)),
+    },
     tags: [
       ...(segment.questionNumber ? [`qnum:${segment.questionNumber}`] : []),
       ...(segment.sectionContext?.questionType ? [`typeOverride:${segment.sectionContext.questionType}`] : []),

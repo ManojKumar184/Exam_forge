@@ -81,21 +81,21 @@ function computeFieldConfidence(rules, semantic, llm) {
   const fc = { class: 0, subject: 0, chapter: 0, topic: 0, difficulty: 0 };
 
   // ── Rules contributions ──────────────────────────────────────
-  if (rules.class >= 6 && rules.class <= 12) fc.class = Math.max(fc.class, 0.7);
+  if (rules.class >= 6 && rules.class <= 12) fc.class = Math.max(fc.class, 0.95);
   else fc.class = Math.max(fc.class, 0.35);
 
-  if (rules.subjectId) fc.subject = Math.max(fc.subject, 0.75);
+  if (rules.subjectId) fc.subject = Math.max(fc.subject, 0.95);
   else fc.subject = Math.max(fc.subject, 0.25);
 
   if (rules.chapterId) {
-    fc.chapter = Math.max(fc.chapter, 0.65);
-    fc.topic = Math.max(fc.topic, 0.60);
+    fc.chapter = Math.max(fc.chapter, 0.90);
+    fc.topic = Math.max(fc.topic, 0.85);
   } else {
     fc.chapter = Math.max(fc.chapter, 0.2);
     fc.topic = Math.max(fc.topic, 0.15);
   }
 
-  if (rules.difficulty) fc.difficulty = Math.max(fc.difficulty, 0.6);
+  if (rules.difficulty) fc.difficulty = Math.max(fc.difficulty, 0.80);
 
   // ── Semantic contributions ───────────────────────────────────
   if (semantic?.semanticScores) {
@@ -214,15 +214,18 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
   let syllabusMappings = null;
   const syllabusCatalog = catalog?.syllabus || null;
 
-  // Use already-resolved syllabusMappings from the rules provider (avoids re-resolution failures)
-  if (rules.syllabusMappings) {
+  // Use already-resolved syllabusMappings from the rules provider (avoids re-resolution failures) only if they are fully resolved (has subjectId and chapterId)
+  if (rules.syllabusMappings && rules.syllabusMappings.some(m => m.subjectId && m.chapterId)) {
     syllabusMappings = rules.syllabusMappings;
   }
 
   if (syllabusCatalog && !syllabusMappings) {
     // Try LLM hints first (most specific)
     if (llmHints && (llmHints.subject || llmHints.topic || llmHints.examType)) {
-      syllabusMappings = resolveHintsToSyllabusMappings(llmHints, syllabusCatalog);
+      syllabusMappings = resolveHintsToSyllabusMappings(
+        { ...llmHints, class: llm.class || classLevel },
+        syllabusCatalog
+      );
       if (!syllabusMappings) {
         warnings.push('LLM hints did not match any existing syllabus nodes — syllabus mapping skipped');
       }
@@ -241,7 +244,13 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
       }
     }
 
-    // Extract chapterId and topicId from resolved syllabus mappings if available
+    // Extract fields from resolved syllabus mappings if available
+    if (syllabusMappings?.[0]?.subjectId) {
+      subjectId = resolveId(syllabusMappings[0].subjectId);
+    }
+    if (syllabusMappings?.[0]?.examTypeId) {
+      examTypeId = resolveId(syllabusMappings[0].examTypeId);
+    }
     if (syllabusMappings?.[0]?.chapterId) {
       chapterId = resolveId(syllabusMappings[0].chapterId);
     }
@@ -268,6 +277,38 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
     warnings.push(`LLM topic hint: ${llm.hints.topic}`);
   }
 
+  let filteredFieldWarnings = [...fieldWarnings];
+  if (subjectId) {
+    filteredFieldWarnings = filteredFieldWarnings.filter(w => !w.includes('subject'));
+  }
+  if (chapterId || topicId) {
+    filteredFieldWarnings = filteredFieldWarnings.filter(w => !w.includes('chapter') && !w.includes('topic'));
+  }
+
+  const finalStatus = determineStatus(aiConfidence, subjectId, examTypeId, question, filteredFieldWarnings);
+
+  let filteredWarnings = [...warnings];
+  if (subjectId) {
+    filteredWarnings = filteredWarnings.filter(
+      w => w !== 'Subject not classified' &&
+           w !== 'Subject could not be detected — set before approval' &&
+           !w.includes('subject confidence')
+    );
+  }
+  if (examTypeId) {
+    filteredWarnings = filteredWarnings.filter(
+      w => w !== 'Exam type could not be detected — set before approval' &&
+           !w.includes('examType confidence')
+    );
+  }
+  if (chapterId || topicId) {
+    filteredWarnings = filteredWarnings.filter(
+      w => w !== 'Topic/chapter not matched' &&
+           !w.includes('chapter confidence') &&
+           !w.includes('topic confidence')
+    );
+  }
+
   return {
     class: classLevel,
     subjectId,
@@ -277,7 +318,7 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
     difficulty,
     questionType,
     tags,
-    status,
+    status: finalStatus,
     aiConfidence,
     fieldConfidence: {
       class: Math.round(fieldConfidence.class * 100),
@@ -292,7 +333,7 @@ export function mergeClassification(rules, semantic, llm, question, catalog = {}
       semantic: semantic?.semanticScores || null,
       llm: llm ? { confidence: llm.confidence, hints: llm.hints, reasoning: llm.reasoning } : null,
     },
-    extractionWarnings: warnings,
+    extractionWarnings: filteredWarnings,
     syllabusMappings,
   };
 }

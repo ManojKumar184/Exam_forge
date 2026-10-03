@@ -8,10 +8,19 @@ export interface UploadProcessResult {
 }
 
 export async function uploadQuestionFileApi(
-  file: File
+  file: File,
+  options?: Record<string, string | undefined>
 ): Promise<UploadProcessResult> {
   const formData = new FormData();
   formData.append('file', file);
+  
+  if (options) {
+    Object.entries(options).forEach(([key, val]) => {
+      if (val !== undefined) {
+        formData.append(key, val);
+      }
+    });
+  }
 
   const { data } = await apiClient.post<{ success: boolean; data: any }>(
     '/uploads',
@@ -80,6 +89,17 @@ export async function commitStagedQuestionsApi(
 ): Promise<Upload> {
   const { data } = await apiClient.post<{ success: boolean; data: Upload }>(
     `/uploads/${id}/commit`,
+    { indices }
+  );
+  return data.data;
+}
+
+export async function bulkRejectStagedQuestionsApi(
+  id: string,
+  indices: number[]
+): Promise<Upload> {
+  const { data } = await apiClient.post<{ success: boolean; data: Upload }>(
+    `/uploads/${id}/bulk-reject`,
     { indices }
   );
   return data.data;

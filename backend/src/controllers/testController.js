@@ -1,6 +1,7 @@
 import * as testService from '../services/testService.js';
 import * as gradingService from '../services/gradingService.js';
 import * as analyticsService from '../services/analyticsService.js';
+import { recordAudit } from '../services/auditLogService.js';
 
 export async function list(req, res) {
   const data = await testService.listTests(req.query, req.user);
@@ -14,11 +15,13 @@ export async function getOne(req, res) {
 
 export async function create(req, res) {
   const data = await testService.createTest(req.body, req.user);
+  await recordAudit({ req, action: 'exam_created', resource: 'exam', resourceId: data.id });
   res.status(201).json({ success: true, data });
 }
 
 export async function update(req, res) {
   const data = await testService.updateTest(req.params.id, req.body, req.user);
+  if (req.body.status === 'active') await recordAudit({ req, action: 'exam_published', resource: 'exam', resourceId: req.params.id });
   res.json({ success: true, data });
 }
 
@@ -39,6 +42,7 @@ export async function autosave(req, res) {
 
 export async function submit(req, res) {
   const data = await testService.submitAttempt(req.params.id, req.user, { auto: false });
+  await recordAudit({ req, action: 'exam_submitted', resource: 'exam_attempt', resourceId: data.id });
   res.json({ success: true, data });
 }
 

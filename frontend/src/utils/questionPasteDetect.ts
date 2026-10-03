@@ -13,7 +13,10 @@ export type EditorSubtype =
   | 'match_following'
   | 'mcq'
   | 'numerical_integer'
-  | 'assertion_reason';
+  | 'assertion_reason'
+  | 'true_false'
+  | 'fill_blank'
+  | 'unclassified';
 
 const MCQ_MULTIPLE_RE =
   /one\s+or\s+more\s+correct|multiple\s+correct|select\s+all\s+that\s+apply/i;

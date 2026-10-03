@@ -61,6 +61,30 @@ function getImageBuffer(url) {
   return buffer;
 }
 
+function getContainedImageSize(buffer, maxWidth = 500, maxHeight = 360) {
+  let width = 0;
+  let height = 0;
+  if (buffer?.length >= 24 && buffer.toString('hex', 0, 4) === '89504e47') {
+    width = buffer.readUInt32BE(16); height = buffer.readUInt32BE(20);
+  } else if (buffer?.length >= 10 && (buffer.toString('ascii', 0, 3) === 'GIF')) {
+    width = buffer.readUInt16LE(6); height = buffer.readUInt16LE(8);
+  } else if (buffer?.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    for (let offset = 2; offset < buffer.length - 9;) {
+      if (buffer[offset] !== 0xff) { offset += 1; continue; }
+      const marker = buffer[offset + 1];
+      const size = buffer.readUInt16BE(offset + 2);
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        height = buffer.readUInt16BE(offset + 5); width = buffer.readUInt16BE(offset + 7); break;
+      }
+      if (size < 2) break;
+      offset += size + 2;
+    }
+  }
+  if (!width || !height) return { width: 300, height: 180 };
+  const scale = Math.min(1, maxWidth / width, maxHeight / height);
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+
 // Disk path resolver
 function diskPathForUrl(url) {
   if (!url) return null;
@@ -77,6 +101,7 @@ function createImageParagraphs(imageUrls) {
     const buffer = getImageBuffer(url);
     if (buffer) {
       try {
+        const transformation = getContainedImageSize(buffer);
         paragraphs.push(
           new docx.Paragraph({
             alignment: docx.AlignmentType.CENTER,
@@ -85,8 +110,7 @@ function createImageParagraphs(imageUrls) {
               new docx.ImageRun({
                 data: buffer,
                 transformation: {
-                  width: 300,
-                  height: 180,
+                  ...transformation,
                 },
               }),
             ],
@@ -472,6 +496,49 @@ function addTextOrTableToChildren(text, tablesList, container, prefixes = [], fo
   }
 }
 
+function addStructuredBlocksToChildren(blocks, container, prefixes = [], fontConfig = {}, lineSpacing = 1.25) {
+  let pendingPrefixes = [...prefixes];
+  for (const block of blocks || []) {
+    if (block.type === 'text') {
+      const value = String(block.text || '');
+      if (!value.trim()) continue;
+      const paras = value.split(/\n\n+/).filter((part) => part.trim());
+      for (const text of paras) {
+        const children = [...pendingPrefixes, ...parseTextAndMath(text, null, fontConfig)];
+        pendingPrefixes = [];
+        container.push(new docx.Paragraph({ keepNext: true, spacing: { before: 100, after: 100, line: lineSpacing * 240 }, children }));
+      }
+    } else if (block.type === 'equation') {
+      if (block.latex) {
+        const equationRuns = parseTextAndMath(`$${block.latex}$`, null, fontConfig);
+        container.push(new docx.Paragraph({ alignment: block.displayMode ? docx.AlignmentType.CENTER : undefined, spacing: { before: 120, after: 120 }, children: [...pendingPrefixes, ...equationRuns] }));
+        pendingPrefixes = [];
+      } else {
+        const urls = block.previewAssetUrls || (block.originalAssetUrl ? [block.originalAssetUrl] : []);
+        if (urls.length) container.push(...createImageParagraphs(urls));
+        else container.push(new docx.Paragraph({ children: [...pendingPrefixes, new docx.TextRun({ text: '[Equation source retained for review]', italics: true, color: '9A6700' })] }));
+        pendingPrefixes = [];
+      }
+    } else if (block.type === 'image' && block.assetUrl) {
+      if (pendingPrefixes.length) {
+        container.push(new docx.Paragraph({ children: pendingPrefixes }));
+        pendingPrefixes = [];
+      }
+      container.push(...createImageParagraphs([block.assetUrl]));
+    } else if (block.type === 'table') {
+      if (pendingPrefixes.length) {
+        container.push(new docx.Paragraph({ children: pendingPrefixes }));
+        pendingPrefixes = [];
+      }
+      container.push(renderJsonTableToDocx(block, fontConfig));
+    } else if (block.type === 'embedded') {
+      container.push(new docx.Paragraph({ children: [...pendingPrefixes, new docx.TextRun({ text: '[Embedded object requires review]', italics: true, color: '9A6700' })] }));
+      pendingPrefixes = [];
+    }
+  }
+  if (pendingPrefixes.length) container.push(new docx.Paragraph({ children: pendingPrefixes }));
+}
+
 // Parse rich text and math into docx runs/components
 function parseTextAndMath(rawText, blockLatex, fontConfig = {}) {
   const children = [];
@@ -525,7 +592,7 @@ function parseTextAndMath(rawText, blockLatex, fontConfig = {}) {
 }
 
 // Get option column table
-function renderOptionsTable(options, correctOptionIndex, showAnswers, fontConfig) {
+function renderOptionsTable(options, correctOptionIndex, showAnswers, fontConfig, correctAnswers = []) {
   if (!options || options.length === 0) return [];
 
   const longestOptLength = Math.max(...options.map(opt => (opt.text || '').length));
@@ -550,9 +617,14 @@ function renderOptionsTable(options, correctOptionIndex, showAnswers, fontConfig
     size: fontConfig.size ? fontConfig.size * 2 : 22,
   };
 
+  const correctIndexes = new Set(correctAnswers.map((value) => {
+    const label = String(value).trim().toUpperCase();
+    return /^[A-H]$/.test(label) ? label.charCodeAt(0) - 65 : Number(label);
+  }).filter(Number.isInteger));
+
   const cells = options.map((opt, idx) => {
     const label = String.fromCharCode(65 + idx);
-    const correctIndicator = showAnswers && correctOptionIndex !== null && Number(correctOptionIndex) === idx ? " ✓" : "";
+    const correctIndicator = showAnswers && ((correctOptionIndex !== null && Number(correctOptionIndex) === idx) || correctIndexes.has(idx)) ? " ✓" : "";
     const parsedRuns = parseTextAndMath(opt.text, opt.latex, fontConfig);
     
     const labelRun = new docx.TextRun({
@@ -621,11 +693,15 @@ function renderOptionsTable(options, correctOptionIndex, showAnswers, fontConfig
 // Get answer value helper (canonical-aware)
 function getAnswerValue(q) {
   const type = normalizeQT(q.question_type || 'descriptive');
+  const answerLabels = (values) => values.map((value) => {
+    const label = String(value).trim().toUpperCase();
+    return /^[A-H]$/.test(label) ? label : (Number.isInteger(Number(value)) && Number(value) >= 0 ? String.fromCharCode(65 + Number(value)) : label);
+  }).join(', ');
   
   if (type === 'MCQ_SINGLE' || type === 'MCQ_MULTIPLE') {
     if (type === 'MCQ_MULTIPLE') {
       if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
-        return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
+        return answerLabels(q.correct_answers);
       }
     }
     if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
@@ -637,6 +713,7 @@ function getAnswerValue(q) {
       return String(q.numerical_answer);
     }
   }
+  if (type === 'TRUE_FALSE' || type === 'FILL_BLANK') return q.answer_text || q.answer_key || 'No answer provided';
   if (type === 'MATCH_FOLLOWING') {
     return q.answer_text ? q.answer_text.replace(/<\/?[^>]+(>|$)/g, "") : 'Match the Following';
   }
@@ -993,7 +1070,8 @@ export async function buildPaperExportDocx(paper, options = {}) {
         allAnswerKeys.push({ qNum: displayQNum, label: keyLabel, answer: answerVal, question: q });
 
         const marks = pq.custom_marks ?? q.marks ?? 4;
-        const showMarksForThisQuestion = !allSameMarks;
+        const negativeMarks = pq.custom_negative_marks ?? pq.customNegativeMarks ?? 0;
+        const showMarksForThisQuestion = !allSameMarks || negativeMarks > 0;
         
         const qNumRun = new docx.TextRun({
           text: `Q${displayQNum}. `,
@@ -1003,7 +1081,7 @@ export async function buildPaperExportDocx(paper, options = {}) {
         });
 
         const marksRun = showMarksForThisQuestion ? new docx.TextRun({
-          text: ` [${marks} Marks] `,
+          text: ` [${marks} Marks${negativeMarks > 0 ? ` / −${negativeMarks} Negative` : ''}] `,
           bold: true,
           font: fontName,
           size: (fontSize - 1) * 2,
@@ -1014,10 +1092,14 @@ export async function buildPaperExportDocx(paper, options = {}) {
         if (marksRun) prefixes.push(marksRun);
 
         const tablesList = (q.renderingMetadata?.tables || []).concat(q.imageMetadata?.filter(img => img.type === 'table') || []);
-        addTextOrTableToChildren(q.question_text || '', tablesList, questionSectionChildren, prefixes, fontConfig, lineSpacing);
+        if (q.content_blocks?.length || q.contentBlocks?.length) {
+          addStructuredBlocksToChildren(q.content_blocks || q.contentBlocks, questionSectionChildren, prefixes, fontConfig, lineSpacing);
+        } else {
+          addTextOrTableToChildren(q.question_text || '', tablesList, questionSectionChildren, prefixes, fontConfig, lineSpacing);
+        }
 
         // Add question images
-        const qImages = [
+        const qImages = (q.content_blocks?.length || q.contentBlocks?.length) ? [] : [
           ...(q.question_images || q.questionImages || []),
           ...(q.image_metadata || q.imageMetadata || []).map(m => m.url)
         ].filter(Boolean);
@@ -1028,7 +1110,7 @@ export async function buildPaperExportDocx(paper, options = {}) {
         // Add options table
         if (q.options?.length > 0) {
           questionSectionChildren.push(
-            ...renderOptionsTable(q.options, q.correct_option, showAnswersInline, fontConfig)
+            ...renderOptionsTable(q.options, q.correct_option, showAnswersInline, fontConfig, q.correct_answers || q.correctAnswers || [])
           );
         }
       }

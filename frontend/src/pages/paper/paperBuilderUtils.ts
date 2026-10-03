@@ -13,9 +13,9 @@ export interface Section {
 }
 
 export const DEFAULT_SECTIONS: Section[] = [
-  { id: 'A', name: 'Section A - MCQ', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['mcq'], targetCount: 15, questions: [] },
-  { id: 'B', name: 'Section B - Short Answer', marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
-  { id: 'C', name: 'Section C - Long Answer', marksPerQuestion: 8, negativeMarksPerQuestion: 0, questionTypes: ['descriptive', 'numerical'], targetCount: 5, questions: [] },
+  { id: 'A', name: 'Section A - Single and multiple choice', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['MCQ_SINGLE', 'MCQ_MULTIPLE'], targetCount: 15, questions: [] },
+  { id: 'B', name: 'Section B - True/False and fill blank', marksPerQuestion: 2, negativeMarksPerQuestion: 0, questionTypes: ['TRUE_FALSE', 'FILL_BLANK'], targetCount: 5, questions: [] },
+  { id: 'C', name: 'Section C - Numerical and matching', marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON'], targetCount: 5, questions: [] },
 ];
 
 export function applySelectionToSections(
@@ -94,7 +94,6 @@ export function buildSelectPayload(
     syllabus_class_id: f?.syllabusClassId || undefined,
     syllabus_chapter_id: f?.syllabusChapterId || undefined,
     syllabus_topic_id: f?.syllabusTopicId || undefined,
-    syllabus_subtopic_id: f?.syllabusSubtopicId || undefined,
     class: config.classLevel,
     classes: f?.classLevels?.length ? f.classLevels : undefined,
     chapter_ids: f?.chapterIds?.length ? f.chapterIds : undefined,
@@ -130,7 +129,6 @@ export function buildPoolStatsPayload(
     syllabus_class_id: f?.syllabusClassId || undefined,
     syllabus_chapter_id: f?.syllabusChapterId || undefined,
     syllabus_topic_id: f?.syllabusTopicId || undefined,
-    syllabus_subtopic_id: f?.syllabusSubtopicId || undefined,
     class: config.classLevel,
     classes: f?.classLevels,
     chapter_ids: f?.chapterIds,

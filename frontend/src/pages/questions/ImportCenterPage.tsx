@@ -9,6 +9,7 @@ import {
   getUploadStatusApi,
   fetchUploadsApi,
   rejectStagedQuestionApi,
+  bulkRejectStagedQuestionsApi,
   commitStagedQuestionsApi,
   reprocessUploadApi,
   duplicateUploadSessionApi,
@@ -18,6 +19,7 @@ import { createQuestionApi } from '../../api/questions';
 import { getApiErrorMessage } from '../../api/client';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import { QuestionEditorForm } from '../../components/questions/QuestionEditorForm';
+import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 import { QuestionPreviewModal } from '../../components/questions/QuestionPreviewModal';
 import { StagingEditModal } from '../../components/questions/StagingEditModal';
 import {
@@ -57,6 +59,21 @@ export function ImportCenterPage() {
   const { profile } = useAuth();
   const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
 
+  const [syllabusNodesMap, setSyllabusNodesMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    function flattenTree(nodes: SyllabusNode[], map: Record<string, string> = {}) {
+      for (const node of nodes) {
+        map[node._id] = node.name;
+        if (node.children) flattenTree(node.children, map);
+      }
+      return map;
+    }
+    fetchSyllabusTree().then((tree) => {
+      setSyllabusNodesMap(flattenTree(tree));
+    }).catch((err) => console.error('Failed to load syllabus tree map in staging:', err));
+  }, []);
+
   // Navigation & Tabs state — teacher-friendly labels
   const [activeTab, setActiveTab] = useState<'ingest' | 'staging' | 'history' | 'create'>('ingest');
   
@@ -79,12 +96,7 @@ export function ImportCenterPage() {
     }
   }, [selectedUploadId]);
 
-  // Clear staging session from localStorage when explicitly reset
-  const clearStagingSession = useCallback(() => {
-    localStorage.removeItem('import_staging_upload_id');
-    setSelectedUploadId(null);
-    setUploadDetail(null);
-  }, []);
+
 
   // On mount, auto-restore staging session from localStorage
   useEffect(() => {
@@ -114,7 +126,7 @@ export function ImportCenterPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedStagedIndices, setSelectedStagedIndices] = useState<number[]>([]);
-  const [stagingFilter, setStagingFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'warnings'>('all');
+  const [stagingFilter, setStagingFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'warnings' | 'validation'>('all');
 
   // Edit Modal state (replaced by StagingEditModal/QuestionEditorForm)
 
@@ -350,15 +362,12 @@ export function ImportCenterPage() {
 
   const bulkReject = async () => {
     if (!selectedUploadId || selectedStagedIndices.length === 0) return;
-    let data = uploadDetail;
-    const loading = toast.loading('Toggling rejection status...');
+    const loading = toast.loading('Rejecting selected questions...');
     try {
-      for (const idx of selectedStagedIndices) {
-        data = await rejectStagedQuestionApi(selectedUploadId, idx);
-      }
+      const data = await bulkRejectStagedQuestionsApi(selectedUploadId, selectedStagedIndices);
       setUploadDetail(data);
       setSelectedStagedIndices([]);
-      toast.success('Batch update complete', { id: loading });
+      toast.success('Selected questions rejected successfully!', { id: loading });
       loadHistory();
     } catch (err) {
       toast.error(getApiErrorMessage(err), { id: loading });
@@ -430,6 +439,15 @@ export function ImportCenterPage() {
   }, [filteredStagedQuestions, currentPage]);
 
   const totalPages = Math.ceil(filteredStagedQuestions.length / itemsPerPage) || 1;
+
+  const selectableIndices = useMemo(() => {
+    return filteredStagedQuestions.filter((q: any) => !q.is_approved).map((q: any) => q.originalIndex);
+  }, [filteredStagedQuestions]);
+
+  const isAllSelectableSelected = useMemo(() => {
+    if (selectableIndices.length === 0) return false;
+    return selectableIndices.every((idx: number) => selectedStagedIndices.includes(idx));
+  }, [selectableIndices, selectedStagedIndices]);
 
   // Staging Quality Metrics calculations
   const metrics = useMemo(() => {
@@ -782,6 +800,30 @@ export function ImportCenterPage() {
                     ))}
                   </div>
 
+                  {selectableIndices.length > 0 && (
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none ml-2 mr-auto">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelectableSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStagedIndices(prev => {
+                              const newIndices = [...prev];
+                              selectableIndices.forEach((idx: number) => {
+                                if (!newIndices.includes(idx)) newIndices.push(idx);
+                              });
+                              return newIndices;
+                            });
+                          } else {
+                            setSelectedStagedIndices(prev => prev.filter((idx: number) => !selectableIndices.includes(idx)));
+                          }
+                        }}
+                        className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer w-3.5 h-3.5"
+                      />
+                      Select All
+                    </label>
+                  )}
+
                   {selectedStagedIndices.length > 0 && (
                     <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-lg border border-blue-100 dark:border-blue-800">
                       <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">
@@ -838,7 +880,7 @@ export function ImportCenterPage() {
                                   <span className="text-xs font-bold text-slate-500">#{q.originalIndex + 1}</span>
                                   <Badge variant="default" size="sm">Class {q.class}</Badge>
                                   {(q.subject || subjects.find(s => s.id === q.subject_id)) && (
-                                    <Badge variant="primary" size="sm">
+                                    <Badge variant="info" size="sm">
                                       {q.subject?.name || subjects.find(s => s.id === q.subject_id)?.name}
                                     </Badge>
                                   )}
@@ -847,6 +889,30 @@ export function ImportCenterPage() {
                                       {q.chapter?.name || chapters.find(c => c.id === q.chapter_id)?.name}
                                     </Badge>
                                   )}
+                                  {/* Resolved Syllabus Tree Mappings */}
+                                  {(() => {
+                                    const mapping = q.syllabus_mappings?.[0] || q.syllabusMappings?.[0];
+                                    if (!mapping) return null;
+                                    const examPatternName = mapping.examPatternId ? syllabusNodesMap[mapping.examPatternId] : null;
+                                    const className = mapping.classId ? syllabusNodesMap[mapping.classId] : null;
+                                    const subjectName = mapping.subjectId ? syllabusNodesMap[mapping.subjectId] : null;
+                                    const chapterName = mapping.chapterId ? syllabusNodesMap[mapping.chapterId] : null;
+                                    const topicName = mapping.topicId ? syllabusNodesMap[mapping.topicId] : null;
+
+                                    return (
+                                      <>
+                                        {examPatternName && <Badge variant="info" size="sm">Pattern: {examPatternName}</Badge>}
+                                        {className && className !== `Class ${q.class}` && <Badge variant="default" size="sm">{className}</Badge>}
+                                        {subjectName && subjectName !== (q.subject?.name || subjects.find(s => s.id === q.subject_id)?.name) && (
+                                          <Badge variant="info" size="sm">Subject: {subjectName}</Badge>
+                                        )}
+                                        {chapterName && chapterName !== (q.chapter?.name || chapters.find(c => c.id === q.chapter_id)?.name) && (
+                                          <Badge variant="default" size="sm">Chapter: {chapterName}</Badge>
+                                        )}
+                                        {topicName && <Badge variant="warning" size="sm">Topic: {topicName}</Badge>}
+                                      </>
+                                    );
+                                  })()}
                                   {q.question_type && <Badge variant="info" size="sm">{q.question_type.toUpperCase()}</Badge>}
                                   {q.difficulty && (
                                     <Badge
@@ -890,15 +956,21 @@ export function ImportCenterPage() {
 
                               {/* Ingestion Warning List */}
                               {q.extraction_warnings && q.extraction_warnings.length > 0 && (
-                                <div className="p-2.5 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200/50 dark:border-amber-800/30 space-y-1">
-                                  <div className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                    <AlertCircle className="w-3.5 h-3.5" />
-                                    Extraction Notes:
+                                <details className="group border border-amber-200 dark:border-amber-800/30 rounded-lg bg-amber-50/40 dark:bg-amber-950/10">
+                                  <summary className="list-none flex items-center justify-between cursor-pointer p-2.5 text-xs font-bold text-amber-800 dark:text-amber-400 select-none">
+                                    <span className="flex items-center gap-1.5">
+                                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                                      Extraction Notes ({q.extraction_warnings.length})
+                                    </span>
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-500 font-medium group-open:hidden">Show Notes</span>
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-500 font-medium hidden group-open:block">Hide Notes</span>
+                                  </summary>
+                                  <div className="px-3 pb-2.5 pt-0.5 border-t border-amber-100 dark:border-amber-900/20 space-y-1 mt-1">
+                                    {q.extraction_warnings.map((w: string, i: number) => (
+                                      <p key={i} className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">· {w}</p>
+                                    ))}
                                   </div>
-                                  {q.extraction_warnings.map((w: string, i: number) => (
-                                    <p key={i} className="text-[11px] text-amber-700 dark:text-amber-300">· {w}</p>
-                                  ))}
-                                </div>
+                                </details>
                               )}
 
                               {/* Question Contents Preview */}

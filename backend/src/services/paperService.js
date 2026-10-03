@@ -4,14 +4,16 @@ import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapPaper } from '../utils/examMapper.js';
 import { selectQuestionsForPaper } from './paperSelectionService.js';
+import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
 function toObjectIdList(items) {
   return (items || []).filter(Boolean);
 }
 
 async function buildPaperFilter(query, user) {
-  const filter = {};
-  if (user.role === 'faculty') filter.createdBy = user._id;
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  const filter = user.role === 'super_admin' ? { institutionId } : { institutionId };
+  if (user.role === 'faculty' && user.membershipRole !== 'INSTITUTION_ADMIN') filter.createdBy = user._id;
   if (query.status) filter.status = query.status;
   if (query.exam_type_id) filter.examTypeId = query.exam_type_id;
   if (query.class) filter.class = Number(query.class);
@@ -51,6 +53,10 @@ async function buildPaperFilter(query, user) {
 
   if (filterByQuestions) {
     const { Question } = await import('../models/Question.js');
+    questionFilter.$and = [
+      ...(questionFilter.$and || []),
+      { $or: [{ institutionId }, { institutionId: null, visibility: 'public' }] },
+    ];
     const matchingQuestions = await Question.find(questionFilter).select('_id').lean();
     const matchingIds = matchingQuestions.map(q => q._id);
     filter['questions.questionId'] = { $in: matchingIds };
@@ -68,11 +74,11 @@ export async function listPapers(query, user) {
 }
 
 export async function getPaperById(id, user) {
-  const paper = await Paper.findById(id)
+  const paper = await Paper.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId })
     // Populate for flat Subject/ExamType removed — collections were dropped
     .populate('questions.questionId');
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
   return mapPaper(paper);
@@ -180,12 +186,19 @@ async function validatePaperAgainstTemplate(fields) {
 }
 
 export async function createPaper(body, user) {
+  const tenantId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (tenantId) await assertWithinEntitlement(tenantId, 'papers');
   const fields = mapBodyToPaperFields(body);
+  fields.institutionId = user.activeInstitutionId || user.defaultInstitutionId;
   const questions = body.questions || [];
   const questionIds = toObjectIdList(
     questions.map((q) => q.question_id || q.questionId || q.id).filter(Boolean)
   );
-  const existing = await Question.countDocuments({ _id: { $in: questionIds }, status: 'approved' });
+  const institutionId = fields.institutionId;
+  const existing = await Question.countDocuments({
+    _id: { $in: questionIds }, status: 'approved',
+    $or: [{ institutionId }, { institutionId: null, visibility: 'public' }],
+  });
   if (questionIds.length && existing !== questionIds.length) {
     throw new AppError('Paper includes non-approved questions', 400, 'INVALID_QUESTIONS');
   }
@@ -203,21 +216,30 @@ export async function createPaper(body, user) {
   await validatePaperAgainstTemplate(fields);
 
   const doc = await Paper.create(fields);
+  if (tenantId) await recordUsage(tenantId, 'papers');
   // Populate for flat Subject/ExamType removed; only populate questions
   await doc.populate(['questions.questionId']);
   return mapPaper(doc);
 }
 
 export async function updatePaper(id, body, user) {
-  const paper = await Paper.findById(id);
+  const paper = await Paper.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
   const fields = mapBodyToPaperFields({ ...paper.toObject(), ...body });
+  fields.institutionId = paper.institutionId;
   Object.assign(paper, fields);
   if (body.questions) {
+    const questionIds = body.questions.map((q) => q.question_id || q.questionId || q.id).filter(Boolean);
+    const eligible = await Question.countDocuments({
+      _id: { $in: questionIds },
+      status: 'approved',
+      $or: [{ institutionId: paper.institutionId }, { institutionId: null, visibility: 'public' }],
+    });
+    if (eligible !== questionIds.length) throw new AppError('Paper includes questions outside this institution or not approved.', 400, 'INVALID_QUESTIONS');
     paper.questions = body.questions.map((q, idx) => ({
       questionId: q.question_id || q.questionId || q.id,
       section: q.section || 'A',
@@ -240,9 +262,9 @@ export async function updatePaper(id, body, user) {
 }
 
 export async function deletePaper(id, user) {
-  const paper = await Paper.findById(id);
+  const paper = await Paper.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
   await paper.deleteOne();
@@ -296,6 +318,7 @@ export async function generatePaper(config, user) {
 
   const selection = await selectQuestionsForPaper({
     ...config,
+    institutionId: user.activeInstitutionId || user.defaultInstitutionId,
     sections: sectionSpecs.map((s) => ({
       id: s.id || s.name,
       name: s.name,

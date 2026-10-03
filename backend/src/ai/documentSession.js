@@ -6,11 +6,13 @@
  */
 
 class DocumentSession {
-  constructor({ docId, syllabusTree, metadata, questions }) {
+  constructor({ docId, syllabusTree, metadata, questions, userId, institutionId }) {
     this.docId = docId;
     this.syllabusTree = syllabusTree; // object representation of the syllabus
     this.metadata = metadata; // document‑level metadata (e.g., title, source)
     this.questions = questions || []; // array of question objects (already parsed/cleaned)
+    this.userId = userId?.toString() || null;
+    this.institutionId = institutionId?.toString() || null;
     this.results = []; // classification results per batch
     this.createdAt = new Date();
   }

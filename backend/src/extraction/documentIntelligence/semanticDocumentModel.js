@@ -40,6 +40,7 @@ export function normalizeBlock(block, index) {
     indentation: block.indentation ?? null,
     style: block.style || null,
     table: block.table || null,
+    contentBlocks: Array.isArray(block.contentBlocks) ? block.contentBlocks : [],
     images: block.images || [],
     equations: block.equations || [],
     captions: block.captions || [],
@@ -109,6 +110,7 @@ export function semanticDocumentFromDocxStructure(structure, metadata = {}) {
       numbering: paragraph.numbering,
       style: paragraph.style || (paragraph.isSection ? 'section' : null),
       table: paragraph.tableModel || null,
+      contentBlocks: paragraph.contentBlocks || [],
       roleHints: paragraph.isSection ? ['section'] : [],
       order: index,
     });

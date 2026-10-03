@@ -1,6 +1,7 @@
 import path from 'path';
 import { Upload } from '../models/Upload.js';
 import { Question } from '../models/Question.js';
+import { Counter } from '../models/Counter.js';
 import { env } from '../config/env.js';
 import { getFileType } from '../config/multer.js';
 import { extractionService, normalizeQuestions } from '../extraction/index.js';
@@ -13,6 +14,7 @@ import { logger } from '../utils/logger.js';
 import { retryAsync } from '../utils/retry.js';
 import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
+import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
 /**
  * Atomic heartbeat/stage update — no version conflicts.
@@ -86,6 +88,8 @@ async function releaseActiveProcessing(uploadId) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function startAsyncUpload(file, user, options = {}) {
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (institutionId) await assertWithinEntitlement(institutionId, 'uploadsPerMonth');
   const fileType = getFileType(file.mimetype, file.originalname);
   if (!fileType) throw new AppError('Unsupported file type', 400, 'UNSUPPORTED_FILE');
 
@@ -100,10 +104,12 @@ export async function startAsyncUpload(file, user, options = {}) {
     processingStage: 'parsing',
     progress: 0,
     uploadedBy: user._id,
+    institutionId: user.activeInstitutionId || user.defaultInstitutionId,
     uploadOptions: options,
     reconstructionVersion: 'v1.0.0',
     classificationVersion: 'v1.0.0',
   });
+  if (institutionId) await recordUsage(institutionId, 'uploadsPerMonth');
 
   const processingId = `${upload._id}-${Date.now()}`;
 
@@ -191,6 +197,8 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
       skipRefinement: true,
       returnRawBlocks: true,
       onStageChange: atomicOnStageChange,
+      examTypeId: options.exam_type_id || options.examTypeId || null,
+      exam_type_id: options.exam_type_id || options.examTypeId || null,
     };
 
     const extractResult = await retryAsync(
@@ -351,6 +359,7 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
           aiMetadata: classified.aiMetadata || {},
           syllabusMappings: classified.syllabusMappings || null,
           uploadId: uploadId,
+          institutionId: user.activeInstitutionId || user.defaultInstitutionId,
           createdBy: user._id,
           ownerId: user._id,
           isPrivate: user.role === 'faculty',
@@ -476,6 +485,8 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
  * @returns {Promise<Record<string, any>>}
  */
 export async function startManualImport(html, plain, user, options = {}) {
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (institutionId) await assertWithinEntitlement(institutionId, 'uploadsPerMonth');
   const upload = await Upload.create({
     filename: 'Manual Import',
     originalName: 'Manual Import',
@@ -485,12 +496,14 @@ export async function startManualImport(html, plain, user, options = {}) {
     processingStage: 'parsing',
     progress: 0,
     uploadedBy: user._id,
+    institutionId: user.activeInstitutionId || user.defaultInstitutionId,
     originalHtml: html || null,
     originalPlain: plain || null,
     uploadOptions: options,
     reconstructionVersion: 'v1.0.0',
     classificationVersion: 'v1.0.0',
   });
+  if (institutionId) await recordUsage(institutionId, 'uploadsPerMonth');
 
   const processingId = `${upload._id}-${Date.now()}`;
 
@@ -559,6 +572,8 @@ async function processManualImportInternal(upload, html, plain, user, options = 
       skipLlm: false,
       skipRefinement: true,
       onStageChange: atomicOnStageChange,
+      examTypeId: options.exam_type_id || options.examTypeId || null,
+      exam_type_id: options.exam_type_id || options.examTypeId || null,
     };
 
     await atomicStageUpdate(uploadId, {
@@ -680,6 +695,7 @@ async function processManualImportInternal(upload, html, plain, user, options = 
         aiMetadata: classified.aiMetadata || {},
         syllabusMappings: classified.syllabusMappings || null,
         uploadId: uploadId,
+        institutionId: user.activeInstitutionId || user.defaultInstitutionId,
         createdBy: user._id,
         ownerId: user._id,
         isPrivate: user.role === 'faculty',
@@ -771,7 +787,7 @@ async function processManualImportInternal(upload, html, plain, user, options = 
  * @returns {Promise<Record<string, any>>}
  */
 export async function updateStagedQuestion(uploadId, index, questionFields, user) {
-  const upload = await Upload.findById(uploadId);
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
   if (user.role !== 'super_admin' && upload.uploadedBy.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
@@ -804,7 +820,7 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
  * @returns {Promise<Record<string, any>>}
  */
 export async function rejectStagedQuestion(uploadId, index, user) {
-  const upload = await Upload.findById(uploadId);
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
   if (user.role !== 'super_admin' && upload.uploadedBy.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
@@ -829,12 +845,40 @@ export async function rejectStagedQuestion(uploadId, index, user) {
 
 /**
  * @param {string} uploadId
+ * @param {number[]} indices
+ * @param {import('../models/User.js').IUser} user
+ * @returns {Promise<Record<string, any>>}
+ */
+export async function bulkRejectStagedQuestions(uploadId, indices, user) {
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
+  if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
+  if (user.role !== 'super_admin' && upload.uploadedBy.toString() !== user._id.toString()) {
+    throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  }
+
+  for (const index of indices) {
+    const idx = Number(index);
+    if (idx < 0 || idx >= upload.stagedQuestions.length) continue;
+    const q = upload.stagedQuestions[idx];
+    q.isRejected = true;
+    q.isApproved = false;
+  }
+
+  upload.markModified('stagedQuestions');
+  await upload.save();
+
+  return mapUploadDetail(upload);
+}
+
+
+/**
+ * @param {string} uploadId
  * @param {string[]} indices
  * @param {import('../models/User.js').IUser} user
  * @returns {Promise<Record<string, any>>}
  */
 export async function commitStagedQuestions(uploadId, indices, user) {
-  const upload = await Upload.findById(uploadId);
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!docMetaChecked(upload)) throw new AppError('Upload not found', 404, 'NOT_FOUND');
 
   function docMetaChecked(u) { return !!u; }
@@ -844,27 +888,16 @@ export async function commitStagedQuestions(uploadId, indices, user) {
   }
 
   const questionIds = [...(upload.extractedQuestionIds || [])];
-  let systemBankId = null;
-
-  if (user.role === 'super_admin') {
-    try {
-      const { QuestionBank } = await import('../models/QuestionBank.js');
-      let systemBank = await QuestionBank.findOne({ type: 'system', name: 'System Global Bank' });
-      if (!systemBank) {
-        systemBank = await QuestionBank.create({
-          name: 'System Global Bank',
-          description: 'Global repository of questions accessible by everyone.',
-          type: 'system',
-          createdBy: null,
-          institution: null,
-          visibility: 'public',
-        });
-      }
-      systemBankId = systemBank._id;
-    } catch (bankErr) {
-      logger.error('Failed to resolve System Global Bank for commit', { error: bankErr.message });
-    }
+  let defaultBankIds = [];
+  try {
+    const { resolveDefaultQuestionBankIds } = await import('./questionBankMembershipService.js');
+    defaultBankIds = await resolveDefaultQuestionBankIds(user);
+  } catch (bankErr) {
+    logger.error('Failed to resolve default question bank for commit', { error: bankErr.message });
   }
+
+  const docsToCreate = [];
+  const validStagedQuestions = [];
 
   for (const idx of indices) {
     const numIdx = Number(idx);
@@ -873,13 +906,15 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     const q = upload.stagedQuestions[numIdx];
     if (q.isApproved) continue;
 
-    const created = await Question.create({
+    docsToCreate.push({
       questionText: q.questionText,
+      contentBlocks: q.contentBlocks || [],
       questionType: q.questionType,
       questionLatex: q.questionLatex || null,
       questionImages: q.questionImages || [],
       options: q.options || [],
       correctOption: q.correctOption,
+      correctAnswers: q.correctAnswers || [],
       numericalAnswer: q.numericalAnswer,
       numericalTolerance: q.numericalTolerance || 0,
       answerText: q.answerText || q.answerKey || null,
@@ -904,18 +939,39 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       source: q.source || 'upload',
       sourceFile: q.sourceFile || upload.originalName,
       uploadId: upload._id,
+      institutionId: upload.institutionId,
       createdBy: user._id,
       ownerId: upload.uploadedBy,
       isPrivate: user.role === 'faculty',
       visibility: user.role === 'faculty' ? 'private' : 'public',
-      bankIds: user.role === 'super_admin' && systemBankId ? [systemBankId] : [],
+      bankIds: defaultBankIds,
       syllabusMappings: q.syllabusMappings || [],
     });
+    validStagedQuestions.push(q);
+  }
 
-    q.isApproved = true;
-    q.isRejected = false;
-    q.savedQuestionId = created._id;
-    questionIds.push(created._id);
+  if (docsToCreate.length > 0) {
+    if (upload.institutionId) await assertWithinEntitlement(upload.institutionId, 'questions', docsToCreate.length);
+    const counter = await Counter.findOneAndUpdate(
+      { _id: 'questions' },
+      { $inc: { seq: docsToCreate.length } },
+      { new: true, upsert: true }
+    );
+    const startSeq = counter.seq - docsToCreate.length + 1;
+    for (let i = 0; i < docsToCreate.length; i++) {
+      docsToCreate[i].serialId = startSeq + i;
+    }
+
+    const createdDocs = await Question.insertMany(docsToCreate);
+    if (upload.institutionId) await recordUsage(upload.institutionId, 'questions', createdDocs.length);
+    for (let k = 0; k < createdDocs.length; k++) {
+      const created = createdDocs[k];
+      const q = validStagedQuestions[k];
+      q.isApproved = true;
+      q.isRejected = false;
+      q.savedQuestionId = created._id;
+      questionIds.push(created._id);
+    }
   }
 
   upload.extractedQuestionIds = questionIds;
@@ -932,7 +988,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function reprocessUpload(uploadId, user) {
-  const upload = await Upload.findById(uploadId).populate('uploadedBy');
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
   if (user.role !== 'super_admin' && upload.uploadedBy._id.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
@@ -1000,7 +1056,7 @@ export async function reprocessUpload(uploadId, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function duplicateUploadSession(uploadId, user) {
-  const upload = await Upload.findById(uploadId);
+  const upload = await Upload.findOne({ _id: uploadId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
   if (user.role !== 'super_admin' && upload.uploadedBy.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
@@ -1023,6 +1079,7 @@ export async function duplicateUploadSession(uploadId, user) {
     processingStage: 'completed',
     progress: 100,
     uploadedBy: user._id,
+    institutionId: upload.institutionId,
     uploadOptions: upload.uploadOptions,
     stagedQuestions: duplicatedQuestions,
     questionsExtracted: duplicatedQuestions.length,
@@ -1126,7 +1183,8 @@ export async function resumeUpload(uploadId) {
  * @returns {Promise<Array<Record<string, any>>>}
  */
 export async function listUploads(user) {
-  const filter = user.role === 'super_admin' ? {} : { uploadedBy: user._id };
+  const filter = { institutionId: user.activeInstitutionId || user.defaultInstitutionId };
+  if (user.role !== 'super_admin') filter.uploadedBy = user._id;
   const uploads = await Upload.find(filter).populate('uploadedBy').sort({ createdAt: -1 }).limit(50);
   return uploads.map(mapUpload);
 }
@@ -1137,7 +1195,7 @@ export async function listUploads(user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function getUploadById(id, user) {
-  const upload = await Upload.findById(id).populate('uploadedBy');
+  const upload = await Upload.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate('uploadedBy');
   if (!upload) throw new AppError('Upload not found', 404, 'NOT_FOUND');
   if (user.role !== 'super_admin' && upload.uploadedBy._id.toString() !== user._id.toString()) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');

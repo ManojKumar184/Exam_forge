@@ -3,9 +3,11 @@ import mongoose from 'mongoose';
 import { Question } from '../models/Question.js';
 import { SyllabusNode } from '../models/SyllabusNode.js';
 import { AppError } from '../utils/AppError.js';
+import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
+import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
 function parseListParam(value) {
   if (!value) return [];
@@ -16,14 +18,26 @@ function parseListParam(value) {
     .filter(Boolean);
 }
 
+function tenantQuestionAccess(user) {
+  const institutionId = user?.activeInstitutionId || user?.defaultInstitutionId;
+  if (!institutionId) return { _id: null };
+  const ownTenant = { institutionId };
+  const global = { institutionId: null, visibility: 'public' };
+  return { $or: [ownTenant, global] };
+}
+
+function scopedQuestionId(id, user) {
+  return { $and: [{ _id: id }, tenantQuestionAccess(user)] };
+}
+
 function buildListFilter(query, user) {
-  const andClauses = [];
+  const andClauses = [tenantQuestionAccess(user)];
 
   // Role-based accessibility boundaries
   if (user.role === 'student') {
     andClauses.push({ status: 'approved' });
     andClauses.push({ isPrivate: false });
-  } else if (user.role === 'faculty') {
+  } else if (user.role === 'faculty' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     // Faculty can access their own questions or any published question
     andClauses.push({
       $or: [
@@ -214,7 +228,7 @@ export async function listQuestions(query, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function getQuestionById(id, user) {
-  const question = await Question.findById(id)
+  const question = await Question.findOne(scopedQuestionId(id, user))
     // Populate for flat Subject/Topic/ExamType removed — collections were dropped
 
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
@@ -232,8 +246,11 @@ export async function getQuestionById(id, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function createQuestion(body, user) {
+  const tenantId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (tenantId) await assertWithinEntitlement(tenantId, 'questions');
   const fields = bodyToQuestionFields(body);
   fields.createdBy = user._id;
+  fields.institutionId = user.activeInstitutionId || user.defaultInstitutionId || null;
   fields.ownerId = fields.ownerId || user._id;
 
   if (user.role === 'faculty') {
@@ -297,23 +314,13 @@ export async function createQuestion(body, user) {
     snapshot
   }];
 
-  if (user.role === 'super_admin' && (!fields.bankIds || fields.bankIds.length === 0)) {
-    const { QuestionBank } = await import('../models/QuestionBank.js');
-    let systemBank = await QuestionBank.findOne({ type: 'system', name: 'System Global Bank' });
-    if (!systemBank) {
-      systemBank = await QuestionBank.create({
-        name: 'System Global Bank',
-        description: 'Global repository of questions accessible by everyone.',
-        type: 'system',
-        createdBy: null,
-        institution: null,
-        visibility: 'public',
-      });
-    }
-    fields.bankIds = [systemBank._id];
+  if (!fields.bankIds?.length) {
+    const { resolveDefaultQuestionBankIds } = await import('./questionBankMembershipService.js');
+    fields.bankIds = await resolveDefaultQuestionBankIds(user);
   }
 
   const doc = await Question.create(fields);
+  if (tenantId) await recordUsage(tenantId, 'questions');
   // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(doc);
 }
@@ -325,17 +332,17 @@ export async function createQuestion(body, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function updateQuestion(id, body, user) {
-  const question = await Question.findById(id);
+  const question = await Question.findOne(scopedQuestionId(id, user));
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
 
-  if (user.role !== 'super_admin') {
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     if (!question.ownerId || question.ownerId.toString() !== user._id.toString()) {
       throw new AppError('You do not own this question', 403, 'FORBIDDEN');
     }
   }
 
   const fields = bodyToQuestionFields(body);
-  if (user.role !== 'super_admin') {
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     delete fields.ownerId;
     delete fields.isPrivate;
     delete fields.visibility;
@@ -388,14 +395,14 @@ export async function updateQuestion(id, body, user) {
  * @returns {Promise<void>}
  */
 export async function deleteQuestion(id, user) {
-  const question = await Question.findById(id);
+  const question = await Question.findOne(scopedQuestionId(id, user));
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
-  if (user.role !== 'super_admin') {
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     if (!question.ownerId || question.ownerId.toString() !== user._id.toString()) {
       throw new AppError('You do not own this question', 403, 'FORBIDDEN');
     }
   }
-  const result = await Question.findByIdAndDelete(id);
+  const result = await Question.findOneAndDelete(scopedQuestionId(id, user));
   if (!result) throw new AppError('Question not found', 404, 'NOT_FOUND');
 }
 
@@ -405,11 +412,23 @@ export async function deleteQuestion(id, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function approveQuestion(id, user) {
-  const existing = await Question.findById(id);
+  const existing = await Question.findOne(scopedQuestionId(id, user));
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
+
+  const coreObjectiveTypes = new Set([
+    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
+    'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+  ]);
+  if (!coreObjectiveTypes.has(normalizeQuestionType(existing.questionType))) {
+    throw new AppError(
+      'Classify and correct this question as a supported objective type before approval',
+      400,
+      'UNSUPPORTED_QUESTION_TYPE'
+    );
+  }
   
   // Ownership check for faculty
-  if (user.role !== 'super_admin') {
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     if (!existing.ownerId || existing.ownerId.toString() !== user._id.toString()) {
       throw new AppError('You can only approve your own questions', 403, 'FORBIDDEN');
     }
@@ -453,11 +472,11 @@ export async function approveQuestion(id, user) {
  * @returns {Promise<Record<string, any>>}
  */
 export async function rejectQuestion(id, user, notes) {
-  const existing = await Question.findById(id);
+  const existing = await Question.findOne(scopedQuestionId(id, user));
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
   
   // Ownership check for faculty
-  if (user.role !== 'super_admin') {
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     if (!existing.ownerId || existing.ownerId.toString() !== user._id.toString()) {
       throw new AppError('You can only reject your own questions', 403, 'FORBIDDEN');
     }
@@ -489,7 +508,8 @@ export async function rejectQuestion(id, user, notes) {
  */
 export async function bulkApprove(ids, user) {
   const filter = { _id: { $in: ids } };
-  if (user.role !== 'super_admin') {
+  filter.institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     filter.ownerId = user._id;
   }
   const questions = await Question.find(filter);
@@ -531,7 +551,8 @@ export async function bulkApprove(ids, user) {
  */
 export async function bulkReject(ids, user, notes) {
   const filter = { _id: { $in: ids } };
-  if (user.role !== 'super_admin') {
+  filter.institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     filter.ownerId = user._id;
   }
   const questions = await Question.find(filter);
@@ -560,9 +581,9 @@ export async function bulkReject(ids, user, notes) {
  */
 export async function bulkDelete(ids, user) {
   if (user.role !== 'super_admin') {
-    await Question.deleteMany({ _id: { $in: ids }, ownerId: user._id });
+    await Question.deleteMany({ _id: { $in: ids }, ownerId: user._id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   } else {
-    await Question.deleteMany({ _id: { $in: ids } });
+    await Question.deleteMany({ _id: { $in: ids }, institutionId: user.activeInstitutionId });
   }
 }
 
@@ -581,10 +602,10 @@ export async function bulkUpdateMetadata(ids, updates, user) {
     delete fields.ownerId;
     delete fields.isPrivate;
     delete fields.visibility;
-    const result = await Question.updateMany({ _id: { $in: ids }, ownerId: user._id }, { $set: fields });
+    const result = await Question.updateMany({ _id: { $in: ids }, ownerId: user._id, institutionId: user.activeInstitutionId || user.defaultInstitutionId }, { $set: fields });
     return { modified: result.modifiedCount };
   } else {
-    const result = await Question.updateMany({ _id: { $in: ids } }, { $set: fields });
+    const result = await Question.updateMany({ _id: { $in: ids }, institutionId: user.activeInstitutionId }, { $set: fields });
     return { modified: result.modifiedCount };
   }
 }

@@ -361,27 +361,6 @@ export function TestsListPage() {
               }}
             />
           </div>
-          <div className="w-full sm:w-36">
-            <Select
-              className="h-8 text-xs py-1"
-              placeholder="Syllabus Subtopic"
-              options={[
-                { value: '', label: 'All Subtopics' },
-                ...(((((syllabusTree.find(n => n._id === syllabusFilters.syllabus_exam_pattern_id)?.children || [])
-                  .find(n => n._id === syllabusFilters.syllabus_class_id)?.children || [])
-                  .find(n => n._id === syllabusFilters.syllabus_subject_id)?.children || [])
-                  .find(n => n._id === syllabusFilters.syllabus_chapter_id)?.children || [])
-                  .find(n => n._id === syllabusFilters.syllabus_topic_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
-              ]}
-              value={syllabusFilters.syllabus_subtopic_id}
-              disabled={!syllabusFilters.syllabus_topic_id}
-              onChange={(e) => {
-                setSyllabusFilters(prev => ({
-                  ...prev,
-                }));
-              }}
-            />
-          </div>
         </div>
       </div>
 

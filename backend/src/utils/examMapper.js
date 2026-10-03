@@ -128,6 +128,31 @@ export function mapOnlineTest(doc) {
   };
 }
 
+export function removeAnswersFromOnlineTest(mappedTest) {
+  delete mappedTest.access_code;
+  delete mappedTest.allowed_users;
+  mappedTest.show_answers = false;
+  delete mappedTest.access_code;
+  delete mappedTest.allowed_users;
+  if (!mappedTest?.paper?.questions) return mappedTest;
+  for (const row of mappedTest.paper.questions) {
+    if (!row.question) continue;
+    for (const key of ['correct_option', 'correct_answers', 'numerical_answer', 'answer_text', 'answer_key', 'explanation', 'explanation_latex']) {
+      delete row.question[key];
+    }
+    row.question.options = (row.question.options || []).map(({ text, image, latex }) => ({ text, image, latex }));
+  }
+  return mappedTest;
+}
+
+export function removeAnswersFromAttempt(mappedAttempt) {
+  for (const row of mappedAttempt?.answers || []) {
+    if (!row.question) continue;
+    for (const key of ['correct_option', 'correct_answers', 'numerical_answer', 'answer_text', 'answer_key', 'explanation', 'explanation_latex']) delete row.question[key];
+  }
+  return mappedAttempt;
+}
+
 export function mapTestAttempt(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject() : doc;
@@ -164,6 +189,7 @@ export function mapTestAttempt(doc) {
         attempt_id: idStr(d._id),
         question_id: idStr(a.questionId?._id || a.questionId),
         selected_option: a.selectedOption ?? null,
+        selected_options: a.selectedOptions || [],
         numerical_answer: a.numericalAnswer ?? null,
         text_answer: a.textAnswer ?? null,
         is_correct: a.isCorrect ?? null,

@@ -12,10 +12,11 @@ import {
 } from '../validators/paperValidators.js';
 import * as paperController from '../controllers/paperController.js';
 import { heavyOperationLimiter } from '../middleware/rateLimits.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', asyncHandler(paperController.list));
 router.post(

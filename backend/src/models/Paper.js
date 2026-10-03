@@ -84,6 +84,7 @@ const paperSchema = new mongoose.Schema(
       default: 'draft',
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     publishedAt: { type: Date, default: null },
     pdfUrl: { type: String, default: null },
     exportSettings: { type: paperExportSettingsSchema, default: () => ({}) },
@@ -93,5 +94,6 @@ const paperSchema = new mongoose.Schema(
 );
 
 paperSchema.index({ createdBy: 1, status: 1 });
+paperSchema.index({ institutionId: 1, status: 1, updatedAt: -1 });
 
 export const Paper = mongoose.model('Paper', paperSchema);

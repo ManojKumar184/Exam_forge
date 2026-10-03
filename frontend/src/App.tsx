@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ApiConfigError } from './components/ApiConfigError';
@@ -20,6 +20,7 @@ import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { InstitutionProfilePage } from './pages/settings/InstitutionProfilePage';
 import { UsersPage } from './pages/users/UsersPage';
+import { apiClient, getActiveInstitutionId, setActiveInstitutionId } from './api/client';
 
 // Layout
 import { Layout } from './components/layout/Layout';
@@ -36,7 +37,72 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return <InstitutionGate>{children}</InstitutionGate>;
+}
+
+function InstitutionGate({ children }: { children: React.ReactNode }) {
+  const { profile, signOut } = useAuth();
+  const [institutions, setInstitutions] = useState<Array<{ id: string; name: string; type?: string }>>([]);
+  const [selectedId, setSelectedId] = useState(getActiveInstitutionId() || '');
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [type, setType] = useState('SCHOOL');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const endpoint = profile?.role === 'super_admin' ? '/institutions' : '/institutions/mine';
+        const response = await apiClient.get(endpoint);
+        const rawRows: unknown = response.data.data;
+        const rows = (Array.isArray(rawRows) ? rawRows : []).flatMap((value: unknown) => {
+          const row = value as { institutionId?: { _id?: string; id?: string; name?: string; type?: string }; _id?: string; id?: string; name?: string; type?: string };
+          const institution = row.institutionId || row;
+          const id = institution._id || institution.id;
+          return id && institution.name ? [{ id: String(id), name: institution.name, type: institution.type }] : [];
+        });
+        if (!alive) return;
+        setInstitutions(rows);
+        const active = getActiveInstitutionId();
+        const next = active && rows.some((row: { id: string }) => row.id === active) ? active : rows[0]?.id || '';
+        setSelectedId(next);
+        if (next) setActiveInstitutionId(next);
+        if (rows.length && next) setError('');
+      } catch (cause) {
+        if (alive) setError(cause instanceof Error ? cause.message : 'Could not load institution access.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    load();
+    return () => { alive = false; };
+  }, [profile?.role]);
+
+  const createInstitution = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    try {
+      const response = await apiClient.post('/institutions', { name, type });
+      const institutionId = String(response.data.data.institution._id);
+      setActiveInstitutionId(institutionId);
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create the institution.');
+    }
+  };
+
+  if (loading) return <Loading fullScreen text="Loading institution access..." />;
+  if (institutions.length > 0) {
+    const active = institutions.find((institution) => institution.id === selectedId);
+    if (!active) return <Loading fullScreen text="Selecting institution..." />;
+    if (institutions.length > 1) return <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950"><div className="mx-auto max-w-xl rounded-xl bg-white p-6 shadow dark:bg-slate-900"><h1 className="text-xl font-semibold">Active institution</h1><p className="mt-2 text-sm text-slate-600">Your data and permissions follow this selection.</p><select className="mt-4 w-full rounded border p-2" value={selectedId} onChange={(event) => { setSelectedId(event.target.value); setActiveInstitutionId(event.target.value); window.location.reload(); }}>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select><button className="mt-4 text-sm underline" onClick={() => void signOut()}>Sign out</button></div></div>;
+    return <>{children}</>;
+  }
+
+  if (profile?.role === 'faculty' || profile?.role === 'super_admin') return <div className="min-h-screen bg-slate-50 px-4 py-12 dark:bg-slate-950"><form onSubmit={createInstitution} className="mx-auto max-w-lg space-y-4 rounded-xl bg-white p-6 shadow dark:bg-slate-900"><h1 className="text-2xl font-semibold">Set up your institution</h1><p className="text-sm text-slate-600">Create a secure workspace to manage questions, papers, and exams.</p>{error && <p role="alert" className="text-sm text-red-600">{error}</p>}<label className="block text-sm">Institution name<input required minLength={2} maxLength={160} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded border p-2" /></label><label className="block text-sm">Institution type<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 w-full rounded border p-2"><option value="SCHOOL">School</option><option value="COLLEGE">College</option><option value="UNIVERSITY">University</option><option value="COACHING">Coaching</option><option value="OTHER">Other</option></select></label><button className="rounded bg-blue-600 px-4 py-2 text-white">Create institution workspace</button><button type="button" className="ml-3 text-sm underline" onClick={() => void signOut()}>Sign out</button></form></div>;
+
+  return <div className="p-8"><h1 className="text-xl font-semibold">Institution access required</h1><p className="mt-2">Ask your institution administrator to invite this account.</p><button className="mt-4 underline" onClick={() => void signOut()}>Sign out</button></div>;
 }
 
 // Admin Route wrapper

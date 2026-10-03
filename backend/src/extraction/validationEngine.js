@@ -36,6 +36,16 @@ const VALIDATION_RULES = {
     minOptions: 2,
     description: 'Multiple choice MCQ — must have 2+ options and 1+ correct answers',
   },
+  TRUE_FALSE: {
+    requiresAnswer: true,
+    requiresExactAnswers: 1,
+    description: 'True/False — requires a correct answer',
+  },
+  FILL_BLANK: {
+    requiresAnswer: true,
+    requiresMinAnswers: 1,
+    description: 'Fill in the blank — requires an answer',
+  },
   NUMERICAL_INTEGER: {
     requiresNumericAnswer: true,
     description: 'Numerical/Integer — must have a numeric answer',
@@ -89,7 +99,8 @@ function normalizeTypeForValidation(type) {
     PARAGRAPH_BASED: 'DESCRIPTIVE',
     STATEMENT_SET: 'DESCRIPTIVE',
     MATRIX_MATCH: 'MCQ_SINGLE',
-    TRUE_FALSE: 'MCQ_SINGLE',
+    TRUE_FALSE: 'TRUE_FALSE',
+    FILL_BLANK: 'FILL_BLANK',
     NESTED_OPTION_MCQ: 'MCQ_SINGLE',
     CASE_STUDY: 'DESCRIPTIVE',
     DESCRIPTIVE: 'DESCRIPTIVE',
@@ -166,13 +177,13 @@ export function validateQuestion(question) {
   const type = normalizeTypeForValidation(question.questionType);
   const rules = VALIDATION_RULES[type];
 
-  if (!rules) {
-    return {
-      valid: true,
-      issues: [],
-      suggestedStatus: 'pending',
-      confidence: 0.7,
-    };
+  if (!rules || !['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON'].includes(type)) {
+      return {
+        valid: false,
+        issues: [`Unsupported or unclassified objective question type: ${question.questionType || 'missing'}`],
+        suggestedStatus: 'needs_review',
+        confidence: 0.2,
+      };
   }
 
   const questionText = question.questionText || '';

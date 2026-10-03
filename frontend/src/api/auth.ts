@@ -4,8 +4,8 @@ import type { Profile, UserRole } from '../types';
 export interface AuthResponse {
   user: { id: string; email: string };
   profile: Profile;
-  accessToken: string;
-  refreshToken: string;
+  accessToken?: string;
+  refreshToken?: string;
   pendingApproval?: boolean;
 }
 
@@ -31,8 +31,14 @@ export async function apiLogin(email: string, password: string) {
   return data.data;
 }
 
-export async function apiLogout(refreshToken: string | null) {
-  await apiClient.post('/auth/logout', { refreshToken });
+export async function apiLogout() {
+  try {
+    await apiClient.post('/auth/logout');
+  } catch (error) {
+    if (!(error instanceof Error) || !('response' in error) || (error as { response?: { status?: number } }).response?.status !== 401) throw error;
+    await apiClient.post('/auth/refresh', {});
+    await apiClient.post('/auth/logout');
+  }
 }
 
 export async function apiGetMe() {

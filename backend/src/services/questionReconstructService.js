@@ -102,7 +102,7 @@ async function buildFromCleanedPlain(cleanedPlain, cleanedHtml, ocrText = null, 
       ocrTextLength: ocrText?.length || 0,
       blocksCount: blocks?.length || 0,
       rawHtmlLength: rawHtml?.length || 0,
-      plainSample: cleanedPlain?.slice(0, 100)
+      // Content samples are intentionally excluded from logs.
     }
   });
 

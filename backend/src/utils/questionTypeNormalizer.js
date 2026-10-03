@@ -1,9 +1,9 @@
 /**
  * Question Type Normalizer — centralized canonical type mapping.
  *
- * Canonical types (ONLY these should be stored internally):
- *   MCQ_SINGLE, MCQ_MULTIPLE, NUMERICAL_INTEGER, MATCH_FOLLOWING,
- *   ASSERTION_REASON, DESCRIPTIVE
+ * Core objective types stored for new workflow records:
+ *   MCQ_SINGLE, MCQ_MULTIPLE, TRUE_FALSE, FILL_BLANK, NUMERICAL_INTEGER,
+ *   MATCH_FOLLOWING, ASSERTION_REASON, UNCLASSIFIED
  *
  * Legacy → Canonical mappings:
  *   mcq → MCQ_SINGLE
@@ -15,8 +15,8 @@
  *   LONG_ANSWER → DESCRIPTIVE
  *   DESCRIPTIVE → DESCRIPTIVE
  *
- * Complex assessment patterns (COMPREHENSION, CASE_STUDY, MATRIX_MATCH,
- * TRUE_FALSE, NESTED_OPTION_MCQ, PARAGRAPH_BASED, STATEMENT_SET) are preserved
+ * Legacy long-form patterns (COMPREHENSION, CASE_STUDY, MATRIX_MATCH,
+ * NESTED_OPTION_MCQ, PARAGRAPH_BASED, STATEMENT_SET) are preserved
  * as context_type metadata and NOT as canonical question types.
  */
 
@@ -28,9 +28,12 @@ export const ALL_QUESTION_TYPES = [
   // Canonical types (6)
   'MCQ_SINGLE',
   'MCQ_MULTIPLE',
+  'TRUE_FALSE',
+  'FILL_BLANK',
   'NUMERICAL_INTEGER',
   'MATCH_FOLLOWING',
   'ASSERTION_REASON',
+  'UNCLASSIFIED',
   'DESCRIPTIVE',
 
   // Legacy backward-compatible types
@@ -65,6 +68,9 @@ const LEGACY_TO_CANONICAL = {
   'mcq_single': 'MCQ_SINGLE',
   'mcq_incomplete': 'MCQ_SINGLE',
   'mcq_multiple': 'MCQ_MULTIPLE',
+  'true_false': 'TRUE_FALSE',
+  'fill_blank': 'FILL_BLANK',
+  'unclassified': 'UNCLASSIFIED',
   'mcq_multi': 'MCQ_MULTIPLE',
   'integer': 'NUMERICAL_INTEGER',
   'integer_type': 'NUMERICAL_INTEGER',
@@ -79,7 +85,7 @@ const LEGACY_TO_CANONICAL = {
   'comprehension': 'DESCRIPTIVE',
   'case_study': 'DESCRIPTIVE',
   'matrix_match': 'DESCRIPTIVE',
-  'true_false': 'MCQ_SINGLE',
+  // Other legacy complex types retain compatibility mappings below.
   'nested_option_mcq': 'MCQ_SINGLE',
   'paragraph_based': 'DESCRIPTIVE',
   'statement_set': 'DESCRIPTIVE',
@@ -87,12 +93,12 @@ const LEGACY_TO_CANONICAL = {
 
 /**
  * Normalize ANY question type to its canonical form.
- * Returns canonical string or null if unknown.
+ * Returns a canonical type, using UNCLASSIFIED for unknown input.
  */
 export function normalizeQuestionType(type) {
-  if (!type) return 'DESCRIPTIVE';
+  if (!type) return 'UNCLASSIFIED';
   const key = type.toLowerCase().trim();
-  return LEGACY_TO_CANONICAL[key] || 'DESCRIPTIVE';
+  return LEGACY_TO_CANONICAL[key] || 'UNCLASSIFIED';
 }
 
 /**
@@ -110,21 +116,23 @@ export function isCanonicalType(type) {
   if (!type) return false;
   const upper = type.toUpperCase().trim();
   const canonicalSet = new Set([
-    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER',
-    'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE',
+    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER',
+    'MATCH_FOLLOWING', 'ASSERTION_REASON',
   ]);
   return canonicalSet.has(upper);
 }
 
 /**
  * Get the category for grading/scoring purposes.
- * Returns: 'mcq' | 'numerical' | 'descriptive'
+ * Returns: 'mcq' | 'numerical' | 'fill_blank' | 'descriptive'
  */
 export function getQuestionCategory(type) {
   const canonical = normalizeQuestionType(type);
   if (['MCQ_SINGLE', 'MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(canonical)) {
     return 'mcq';
   }
+  if (canonical === 'TRUE_FALSE') return 'mcq';
+  if (canonical === 'FILL_BLANK') return 'fill_blank';
   if (canonical === 'NUMERICAL_INTEGER') {
     return 'numerical';
   }
@@ -139,7 +147,7 @@ export function getContextTypeForType(type) {
   if (!type) return null;
   const upper = type.toUpperCase().trim();
   const contextTypes = new Set([
-    'COMPREHENSION', 'CASE_STUDY', 'MATRIX_MATCH', 'TRUE_FALSE',
+    'COMPREHENSION', 'CASE_STUDY', 'MATRIX_MATCH',
     'NESTED_OPTION_MCQ', 'PARAGRAPH_BASED', 'STATEMENT_SET',
     'MATCH_FOLLOWING', 'ASSERTION_REASON',
   ]);
@@ -158,6 +166,9 @@ export function formatQuestionType(type) {
     'NUMERICAL_INTEGER': 'Numerical',
     'MATCH_FOLLOWING': 'Match the Following',
     'ASSERTION_REASON': 'Assertion/Reason',
+    'TRUE_FALSE': 'True / False',
+    'FILL_BLANK': 'Fill in the Blank',
+    'UNCLASSIFIED': 'Unclassified',
     'DESCRIPTIVE': 'Descriptive',
   };
   return displayMap[canonical] || canonical;

@@ -12,6 +12,7 @@ import { logger } from './utils/logger.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import crypto from 'node:crypto';
 import { env, isProduction, validateEnv, logEnvSummary } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/db.js';
 import { startBackgroundJobs } from './jobs/index.js';
@@ -24,6 +25,12 @@ import { migrateSyllabus } from './migrateSyllabus.js';
 import { migrateQuestionBanks } from './migrateQuestionBanks.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { seedPredefinedTemplates } from './config/predefinedTemplates.js';
+import { migrateInstitutions } from './migrateInstitutions.js';
+import { authenticate } from './middleware/authenticate.js';
+import { resolveTenantContext, requireInstitutionContext } from './middleware/tenantContext.js';
+import { Upload } from './models/Upload.js';
+import { AppError } from './utils/AppError.js';
+import { csrfProtection } from './middleware/csrfProtection.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +45,8 @@ async function bootstrap() {
   fs.mkdirSync(path.join(env.uploadDir, 'images'), { recursive: true });
 
   await connectDatabase();
+  const tenantMigration = await migrateInstitutions();
+  logger.info('Institution tenancy backfill completed', tenantMigration);
   await seedPredefinedTemplates();
   await migrateQuestionBanks();
   await initializeQuestionSequenceIds();
@@ -60,6 +69,11 @@ async function bootstrap() {
   const app = express();
   app.set('trust proxy', 1);
 
+  app.use((req, res, next) => {
+    req.id = req.get('x-request-id')?.slice(0, 100) || crypto.randomUUID();
+    res.setHeader('X-Request-Id', req.id);
+    next();
+  });
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -70,24 +84,62 @@ async function bootstrap() {
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        const allowedOrigins = [env.clientUrl, 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
-        if (allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin)) {
+        const allowedOrigins = [...env.corsOrigins, ...(isProduction ? [] : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'])];
+        if (allowedOrigins.includes(origin) || (!isProduction && /^http:\/\/localhost:\d+$/.test(origin))) {
           callback(null, true);
         } else {
           callback(new Error('Not allowed by CORS'));
         }
       },
       credentials: true,
+      exposedHeaders: ['X-CSRF-Token', 'X-Request-Id'],
     })
   );
-  app.use(morgan(isProduction ? 'combined' : 'dev'));
+  app.use(morgan((tokens, req, res) => JSON.stringify({
+    ts: new Date().toISOString(),
+    requestId: req.id,
+    userId: req.user?._id?.toString(),
+    institutionId: req.institutionId?.toString(),
+    method: tokens.method(req, res),
+    path: tokens.url(req, res)?.split('?')[0],
+    status: Number(tokens.status(req, res)),
+    durationMs: Number(tokens['response-time'](req, res)),
+  })));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+  app.use('/api', csrfProtection);
 
   app.use(globalApiLimiter);
 
-  app.use('/uploads', express.static(env.uploadDir));
+  app.use('/uploads', authenticate, resolveTenantContext, requireInstitutionContext, async (req, _res, next) => {
+    try {
+      const relativeUrl = `/uploads${req.path}`;
+      const institutionId = req.institutionId;
+      const upload = await Upload.findOne({ institutionId, filePath: relativeUrl }).select('_id uploadedBy').lean();
+      if (upload) {
+        const permitted = req.user.role === 'super_admin' || req.membership?.role === 'INSTITUTION_ADMIN' || upload.uploadedBy?.toString() === req.user._id.toString();
+        if (permitted) return next();
+      }
+      const refQuery = { $or: [
+        { questionImages: relativeUrl },
+        { 'imageMetadata.url': relativeUrl },
+        { 'contentBlocks.assetUrl': relativeUrl },
+        { 'contentBlocks.originalAssetUrl': relativeUrl },
+        { 'contentBlocks.previewAssetUrls': relativeUrl },
+        { 'diagrams.url': relativeUrl },
+      ] };
+      const question = await Question.findOne({
+        $and: [
+          { $or: [{ institutionId }, { institutionId: null, visibility: 'public' }] },
+          refQuery,
+          { $or: [{ ownerId: req.user._id }, { visibility: 'public', status: 'approved' }, { institutionId, isPrivate: false, status: 'approved' }] },
+        ],
+      }).select('_id').lean();
+      if (!question) return next(new AppError('File not found', 404, 'NOT_FOUND'));
+      next();
+    } catch (error) { next(error); }
+  }, express.static(env.uploadDir, { fallthrough: false, dotfiles: 'deny', index: false }));
 
   app.get('/', (_req, res) => {
     res.json({ service: 'examforge-api', status: 'ok' });
@@ -112,7 +164,12 @@ async function bootstrap() {
 
 async function initializeQuestionSequenceIds() {
   try {
-    const questionsWithoutSeq = await Question.find({ serialId: { $exists: false } }).sort({ createdAt: 1 });
+    const questionsWithoutSeq = await Question.find({
+      $or: [
+        { serialId: { $exists: false } },
+        { serialId: null }
+      ]
+    }).sort({ createdAt: 1 });
     if (questionsWithoutSeq.length > 0) {
       console.log(`[migration] Found ${questionsWithoutSeq.length} questions without serialId. Migrating...`);
       
@@ -188,7 +245,10 @@ async function migrateWorkspaceQuestions() {
 }
 
 function setupGracefulShutdown() {
+  let shuttingDown = false;
   const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`\n[server] ${signal} received — shutting down...`);
     if (httpServer) {
       await new Promise((resolve) => httpServer.close(resolve));
@@ -199,7 +259,7 @@ function setupGracefulShutdown() {
     } catch (err) {
       console.error('[server] Error during DB disconnect:', err.message);
     }
-    process.exit(0);
+    process.exitCode = 0;
   };
 
   process.on('SIGINT', () => shutdown('SIGINT'));

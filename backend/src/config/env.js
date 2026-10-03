@@ -28,6 +28,7 @@ export const env = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   },
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  corsOrigins: (process.env.CORS_ORIGINS || process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((value) => value.trim()).filter(Boolean),
   seedAdminEmail: process.env.SEED_ADMIN_EMAIL,
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD,
   uploadDir: process.env.UPLOAD_DIR || path.join(backendRoot, 'uploads'),
@@ -36,7 +37,7 @@ export const env = {
     provider: process.env.AI_PROVIDER || 'nvidia',
     spaceRequestTimeoutMs: Number(process.env.SPACE_REQUEST_TIMEOUT_MS) || 45000,
     spaceColdStartTimeoutMs: Number(process.env.SPACE_COLD_START_TIMEOUT_MS) || 120000,
-    requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 30000,
+    requestTimeoutMs: Number(process.env.AI_REQUEST_TIMEOUT_MS) || 300000,
     // Retry backoff: attempt 1 → 3s, attempt 2 → 10s, attempt 3 → fail
     aiRetryBaseDelayMs: Number(process.env.AI_RETRY_BASE_DELAY_MS) || 3000,
     aiRetryMaxDelayMs: Number(process.env.AI_RETRY_MAX_DELAY_MS) || 10000,
@@ -55,7 +56,13 @@ export const env = {
     enableDocClassifyWorkflow: process.env.ENABLE_DOC_CLASSIFY_WORKFLOW === 'true',
     docClassifyBatchMin: Number(process.env.DOC_CLASSIFY_BATCH_MIN) || 10,
     docClassifyBatchMax: Number(process.env.DOC_CLASSIFY_BATCH_MAX) || 50,
-    fastNvidiaModels: (process.env.FAST_NVIDIA_MODELS?.split(',') || ['deepseek-coder-v2.5','qwen-2.5-7b-instruct','gemma-2b-it','mistral-7b-instruct-v0.2','mixtral-8x7b-instruct']).map(m=>m.trim()),
+    fastNvidiaModels: (process.env.FAST_NVIDIA_MODELS?.split(',') || [
+      'deepseek-ai/deepseek-v4-flash',
+      'qwen/qwen3-next-80b-a3b-instruct',
+      'google/gemma-2-2b-it',
+      'mistralai/mistral-nemotron',
+      'meta/llama-3.1-8b-instruct'
+    ]).map(m=>m.trim()),
     ultraModel: 'nvidia/nemotron-3-ultra-550b-a55b',
   },
   ocr: {
@@ -70,6 +77,20 @@ export function validateEnv() {
   const missing = requiredInProduction.filter((key) => !process.env[key]);
   if (isProduction && missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+  if (isProduction && env.jwt.accessSecret.length < 32) throw new Error('JWT_ACCESS_SECRET must contain at least 32 characters in production');
+  if (isProduction && env.jwt.refreshSecret.length < 32) throw new Error('JWT_REFRESH_SECRET must contain at least 32 characters in production');
+  if (isProduction) {
+    const match = /^(\d+)(s|m|h|d)$/.exec(env.jwt.accessExpiresIn);
+    const factor = { s: 1, m: 60, h: 3600, d: 86400 };
+    const accessSeconds = match ? Number(match[1]) * factor[match[2]] : Number.POSITIVE_INFINITY;
+    if (accessSeconds > 15 * 60) throw new Error('JWT_ACCESS_EXPIRES_IN must be 15 minutes or shorter in production');
+  }
+  if (isProduction && env.corsOrigins.some((origin) => !origin.startsWith('https://'))) throw new Error('Production CORS_ORIGINS must contain HTTPS origins only');
+  if (isProduction) {
+    const secureMongoUri = env.mongodbUri.startsWith('mongodb+srv://') || (env.mongodbUri.startsWith('mongodb://') && /(?:\?|&)tls=true(?:&|$)/i.test(env.mongodbUri));
+    const credentialsPresent = /^mongodb(?:\+srv)?:\/\/[^/@:]+:[^/@]+@/i.test(env.mongodbUri);
+    if (!secureMongoUri || !credentialsPresent) throw new Error('Production MongoDB must use authenticated TLS (mongodb+srv or mongodb:// with tls=true).');
   }
   if (!env.mongodbUri) {
     throw new Error('MONGODB_URI is required. Set it in backend/.env for MongoDB Atlas.');

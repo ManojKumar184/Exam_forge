@@ -159,7 +159,7 @@ export function enrichBlockFromHtml(block, html, xmlTables = []) {
               
               if (htmlCell !== undefined && xmlCell !== undefined) {
                 const xmlText = typeof xmlCell === 'object' ? xmlCell.text : xmlCell;
-                if (xmlText) {
+                if (xmlText !== undefined && xmlText !== null) {
                   const htmlText = typeof htmlCell === 'object' ? htmlCell.text : htmlCell;
                   const hasImage = htmlText && htmlText.includes('![image]');
                   let mergedText = xmlText;
@@ -167,15 +167,16 @@ export function enrichBlockFromHtml(block, html, xmlTables = []) {
                     const imgRegex = /!\[image\]\([^)]+\)/g;
                     const images = htmlText.match(imgRegex);
                     if (images) {
-                      mergedText += ' ' + images.join(' ');
+                      mergedText = (mergedText ? mergedText + ' ' : '') + images.join(' ');
                     }
                   }
                   if (typeof htmlCell === 'object') {
                     htmlCell.text = mergedText;
+                    const originalHtml = htmlCell.html;
                     if (xmlCell && xmlCell.html) {
                       htmlCell.html = xmlCell.html;
                       if (htmlText && htmlText.includes('![image]')) {
-                        const imgTags = htmlCell.html.match(/<img[^>]+>/g) || [];
+                        const imgTags = originalHtml ? (originalHtml.match(/<img[^>]+>/g) || []) : [];
                         if (imgTags.length > 0) {
                           htmlCell.html += ' ' + imgTags.join(' ');
                         }

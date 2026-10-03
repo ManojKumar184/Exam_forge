@@ -3,10 +3,11 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import * as institutionProfileController from '../controllers/institutionProfileController.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', asyncHandler(institutionProfileController.getProfile));
 

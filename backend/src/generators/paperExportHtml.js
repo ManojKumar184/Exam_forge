@@ -1,4 +1,5 @@
 import katex from 'katex';
+import { DOMParser } from 'linkedom';
 import { env } from '../config/env.js';
 import path from 'path';
 import fs from 'fs';
@@ -31,6 +32,24 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
+function sanitizeImportedMarkup(markup) {
+  try {
+    const document = new DOMParser().parseFromString(`<div>${String(markup || '')}</div>`, 'text/html');
+    const allowed = new Set(['DIV', 'P', 'BR', 'SPAN', 'STRONG', 'B', 'EM', 'I', 'U', 'SUB', 'SUP', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'IMG']);
+    for (const element of [...document.querySelectorAll('*')]) {
+      if (!allowed.has(element.tagName)) { element.replaceWith(...element.childNodes); continue; }
+      for (const attr of [...element.attributes]) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on') || name === 'style' || !['src', 'alt', 'title', 'width', 'height', 'colspan', 'rowspan', 'class'].includes(name)) element.removeAttribute(attr.name);
+      }
+      if (element.tagName === 'IMG' && !/^\/?uploads\//i.test(element.getAttribute('src') || '') && !/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(element.getAttribute('src') || '')) element.remove();
+    }
+    return document.body.firstElementChild?.innerHTML || '';
+  } catch {
+    return escapeHtml(markup);
+  }
+}
+
 function renderRichContent(text, latex) {
   const primaryText = decodeHtmlEntities(text || '');
   const blockLatex = latex?.trim();
@@ -44,7 +63,7 @@ function renderRichContent(text, latex) {
     const hasHtmlMarkup = /<(table|img|p|div|span|br|sup|sub|ul|ol|li|strong|b|em|i)\b/i.test(primaryText);
     if (hasHtmlMarkup) {
       // For HTML markup, parse and replace math delimiters inline
-      let out = primaryText;
+      let out = sanitizeImportedMarkup(primaryText);
       
       // Replace $$ ... $$
       out = out.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
@@ -101,7 +120,7 @@ function renderJsonTableToHtml(tableJson) {
         cellText = String(cell || '');
         cellHtml = cellText;
       }
-      const renderedText = renderRichContent(cellHtml, null);
+      const renderedText = renderRichContent(sanitizeImportedMarkup(cellHtml), null);
       const content = isBold ? `<strong>${renderedText}</strong>` : renderedText;
       return `<${cellTag}${attrs}>${content}</${cellTag}>`;
     }).join('');
@@ -140,6 +159,23 @@ function renderBodyWithTables(text, tables) {
     }).join('');
   }
   return html;
+}
+
+function renderStructuredQuestionBlocks(blocks, exportOpts) {
+  return (blocks || []).map((block) => {
+    if (block.type === 'text') return `<span>${renderRichContent(escapeHtml(block.text || ''), null)}</span>`;
+    if (block.type === 'equation') {
+      if (block.latex) return katexRender(block.latex, Boolean(block.displayMode)) || `<span class="math-error">${escapeHtml(block.latex)}</span>`;
+      const previews = block.previewAssetUrls || (block.originalAssetUrl ? [block.originalAssetUrl] : []);
+      return previews.map((url) => `<figure class="q-figure"><img src="${escapeHtml(resolveImageSrc(url, exportOpts) || '')}" alt="Equation source preview"></figure>`).join('') || `<span class="review-warning">Equation requires source review</span>`;
+    }
+    if (block.type === 'image') {
+      const src = block.assetUrl && resolveImageSrc(block.assetUrl, exportOpts);
+      return src ? `<figure class="q-figure"><img src="${escapeHtml(src)}" alt="Question diagram"></figure>` : '<span class="review-warning">Image unavailable</span>';
+    }
+    if (block.type === 'table') return renderJsonTableToHtml(block);
+    return `<span class="review-warning">${escapeHtml(block.warning || 'Embedded object requires review')}</span>`;
+  }).join('');
 }
 
 // getQuestionTypeLabel imported from exportUtils.js
@@ -186,11 +222,15 @@ function renderImages(question, exportOpts) {
     .join('');
 }
 
-function renderOptions(options, correctIndex, showAnswers, exportOpts) {
+function renderOptions(options, correctIndex, showAnswers, exportOpts, correctAnswers = []) {
   if (!options?.length) return '';
 
   // Determine option lengths to decide layout column flow dynamically
   const longestOptLength = Math.max(...options.map(opt => (opt.text || '').length));
+  const correctIndexes = new Set(correctAnswers.map((value) => {
+    const label = String(value).trim().toUpperCase();
+    return /^[A-H]$/.test(label) ? label.charCodeAt(0) - 65 : Number(label);
+  }).filter(Number.isInteger));
   let optionsClass = 'options-1col';
   if (longestOptLength < 15) {
     optionsClass = 'options-4col';
@@ -202,7 +242,7 @@ function renderOptions(options, correctIndex, showAnswers, exportOpts) {
     .map((opt, idx) => {
       const label = String.fromCharCode(65 + idx);
       const correct =
-        showAnswers && correctIndex !== null && Number(correctIndex) === idx
+        showAnswers && ((correctIndex !== null && Number(correctIndex) === idx) || correctIndexes.has(idx))
           ? ' <strong class="correct">✓</strong>'
           : '';
       const img = opt.image ? renderImages({ question_images: [opt.image] }, exportOpts) : '';
@@ -216,11 +256,15 @@ function renderOptions(options, correctIndex, showAnswers, exportOpts) {
 
 function getAnswerValue(q) {
   const type = normalizeQuestionType(q.question_type || 'descriptive');
+  const answerLabels = (values) => values.map((value) => {
+    const label = String(value).trim().toUpperCase();
+    return /^[A-H]$/.test(label) ? label : (Number.isInteger(Number(value)) && Number(value) >= 0 ? String.fromCharCode(65 + Number(value)) : label);
+  }).join(', ');
   
   if (type === 'MCQ_SINGLE' || type === 'MCQ_MULTIPLE') {
     if (type === 'MCQ_MULTIPLE') {
       if (Array.isArray(q.correct_answers) && q.correct_answers.length > 0) {
-        return q.correct_answers.map(idx => String.fromCharCode(65 + Number(idx))).join(', ');
+        return answerLabels(q.correct_answers);
       }
     }
     if (q.correct_option !== null && q.correct_option !== undefined && q.correct_option >= 0) {
@@ -232,6 +276,7 @@ function getAnswerValue(q) {
       return String(q.numerical_answer);
     }
   }
+  if (type === 'TRUE_FALSE' || type === 'FILL_BLANK') return q.answer_text || q.answer_key || 'No answer provided';
   if (type === 'MATCH_FOLLOWING') {
     return q.answer_text ? q.answer_text.replace(/<\/?[^>]+(>|$)/g, "") : 'Match the Following';
   }
@@ -334,11 +379,12 @@ export function buildPaperExportHtml(paper, options = {}) {
           const keyLabel = numberingMode === 'section_wise' ? `${sec.key}${sectionQNum}` : `Q${globalQNum}`;
 
           const marks = pq.custom_marks ?? q.marks ?? 4;
+          const negativeMarks = pq.custom_negative_marks ?? pq.customNegativeMarks ?? 0;
           const answerVal = getAnswerValue(q);
           allAnswerKeys.push({ qNum: displayQNum, label: keyLabel, answer: answerVal, question: q });
 
-          const showMarksForThisQuestion = showQuestionMarks || !allSameMarks;
-          const marksHtml = showMarksForThisQuestion ? `<span class="q-marks">[${marks}]</span>` : '';
+          const showMarksForThisQuestion = showQuestionMarks || !allSameMarks || negativeMarks > 0;
+          const marksHtml = showMarksForThisQuestion ? `<span class="q-marks">[${marks}${negativeMarks > 0 ? ` / −${negativeMarks}` : ''}]</span>` : '';
 
           const badges = [];
           if (includeQuestionTypeBadges) {
@@ -360,14 +406,16 @@ export function buildPaperExportHtml(paper, options = {}) {
               <span class="q-num">Q${displayQNum}.</span>
               <span class="q-stem-text">
                 ${
-                  q.question_latex && !(q.question_text || '').includes('$')
+                  q.content_blocks?.length || q.contentBlocks?.length
+                    ? renderStructuredQuestionBlocks(q.content_blocks || q.contentBlocks, exportOpts)
+                    : q.question_latex && !(q.question_text || '').includes('$')
                     ? renderRichContent('', q.question_latex) + renderBodyWithTables(q.question_text || '', q.renderingMetadata?.tables || [])
                     : renderBodyWithTables(q.question_text || '', q.renderingMetadata?.tables || [])
                 }
               </span>
             </div>
-            ${renderImages(q, exportOpts)}
-            ${renderOptions(q.options, q.correct_option, showAnswersInline, exportOpts)}
+            ${(q.content_blocks?.length || q.contentBlocks?.length) ? '' : renderImages(q, exportOpts)}
+            ${renderOptions(q.options, q.correct_option, showAnswersInline, exportOpts, q.correct_answers || q.correctAnswers || [])}
           </div>`;
         })
         .join('');

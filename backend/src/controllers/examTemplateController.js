@@ -5,7 +5,7 @@ export async function list(req, res) {
   const templates = await ExamTemplate.find({
     $or: [
       { isSystem: true },
-      { createdBy: userId }
+      { institutionId: req.institutionId, createdBy: userId }
     ]
   }).sort({ isSystem: -1, createdAt: -1 });
   
@@ -13,7 +13,7 @@ export async function list(req, res) {
 }
 
 export async function getOne(req, res) {
-  const template = await ExamTemplate.findById(req.params.id);
+  const template = await ExamTemplate.findOne({ _id: req.params.id, $or: [{ isSystem: true }, { institutionId: req.institutionId }] });
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
@@ -24,6 +24,7 @@ export async function create(req, res) {
   const payload = {
     ...req.body,
     isSystem: false,
+    institutionId: req.institutionId,
     createdBy: req.user._id
   };
   const template = await ExamTemplate.create(payload);
@@ -31,7 +32,7 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const template = await ExamTemplate.findOne({ _id: req.params.id, createdBy: req.user._id });
+  const template = await ExamTemplate.findOne({ _id: req.params.id, institutionId: req.institutionId, createdBy: req.user._id });
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found or unauthorized' });
   }
@@ -41,7 +42,7 @@ export async function update(req, res) {
 }
 
 export async function duplicate(req, res) {
-  const original = await ExamTemplate.findById(req.params.id);
+  const original = await ExamTemplate.findOne({ _id: req.params.id, $or: [{ isSystem: true }, { institutionId: req.institutionId }] });
   if (!original) {
     return res.status(404).json({ success: false, message: 'Template not found' });
   }
@@ -53,13 +54,14 @@ export async function duplicate(req, res) {
   payload.isSystem = false;
   payload.code = null;
   payload.createdBy = req.user._id;
+  payload.institutionId = req.institutionId;
 
   const copy = await ExamTemplate.create(payload);
   res.status(201).json({ success: true, data: copy });
 }
 
 export async function remove(req, res) {
-  const template = await ExamTemplate.findOneAndDelete({ _id: req.params.id, createdBy: req.user._id });
+  const template = await ExamTemplate.findOneAndDelete({ _id: req.params.id, institutionId: req.institutionId, createdBy: req.user._id });
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found or unauthorized' });
   }

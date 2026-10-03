@@ -1,5 +1,6 @@
 import * as paperService from '../services/paperService.js';
 import * as paperExportService from '../services/paperExportService.js';
+import { recordAudit } from '../services/auditLogService.js';
 import {
   selectQuestionsForPaper,
   countQuestionPool,
@@ -17,16 +18,19 @@ export async function getOne(req, res) {
 
 export async function create(req, res) {
   const data = await paperService.createPaper(req.body, req.user);
+  await recordAudit({ req, action: 'paper_created', resource: 'paper', resourceId: data.id });
   res.status(201).json({ success: true, data });
 }
 
 export async function update(req, res) {
   const data = await paperService.updatePaper(req.params.id, req.body, req.user);
+  if (req.body.status === 'published') await recordAudit({ req, action: 'paper_published', resource: 'paper', resourceId: req.params.id });
   res.json({ success: true, data });
 }
 
 export async function remove(req, res) {
   await paperService.deletePaper(req.params.id, req.user);
+  await recordAudit({ req, action: 'paper_deleted', resource: 'paper', resourceId: req.params.id });
   res.json({ success: true, message: 'Paper deleted' });
 }
 
@@ -36,12 +40,12 @@ export async function generate(req, res) {
 }
 
 export async function selectQuestions(req, res) {
-  const data = await selectQuestionsForPaper(req.body);
+  const data = await selectQuestionsForPaper({ ...req.body, institutionId: req.institutionId });
   res.json({ success: true, data });
 }
 
 export async function poolStats(req, res) {
-  const data = await countQuestionPool(req.body);
+  const data = await countQuestionPool({ ...req.body, institutionId: req.institutionId });
   res.json({ success: true, data });
 }
 

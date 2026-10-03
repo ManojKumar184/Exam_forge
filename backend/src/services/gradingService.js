@@ -1,7 +1,7 @@
 import { OnlineTest } from '../models/OnlineTest.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { AppError } from '../utils/AppError.js';
-import { mapTestAttempt } from '../utils/examMapper.js';
+import { mapTestAttempt, removeAnswersFromAttempt } from '../utils/examMapper.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
 import { getQuestionCategory as getNormalizedCategory } from '../utils/questionTypeNormalizer.js';
 
@@ -88,12 +88,13 @@ export function recomputeAttemptTotals(attempt, questionMap) {
 }
 
 export async function getGradingQueue(testId, user) {
-  const test = await OnlineTest.findById(testId);
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   assertFacultyOwnsTest(test, user);
 
   const attempts = await TestAttempt.find({
     testId,
+    institutionId: test.institutionId,
     status: { $in: ['submitted', 'auto_submitted'] },
     gradingStatus: { $in: ['pending', 'partial'] },
   })
@@ -104,20 +105,22 @@ export async function getGradingQueue(testId, user) {
 }
 
 export async function getAttemptDetail(testId, attemptId, user) {
-  const test = await OnlineTest.findById(testId).populate({
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
 
-  const attempt = await TestAttempt.findOne({ _id: attemptId, testId })
+  const attempt = await TestAttempt.findOne({ _id: attemptId, testId, institutionId: test.institutionId })
     .populate('userId', 'fullName email role')
     .populate({ path: 'answers.questionId' });
 
   if (!attempt) throw new AppError('Attempt not found', 404, 'NOT_FOUND');
 
-  if (user.role === 'student' && attempt.userId._id.toString() !== user._id.toString()) {
-    throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  if (user.role === 'student') {
+    if (attempt.userId._id.toString() !== user._id.toString() || !['submitted', 'auto_submitted'].includes(attempt.status) || !test.allowReview) {
+      throw new AppError('Attempt not found', 404, 'NOT_FOUND');
+    }
   }
   if (user.role === 'faculty') assertFacultyOwnsTest(test, user);
 
@@ -129,14 +132,14 @@ export async function getAttemptDetail(testId, attemptId, user) {
 
   return {
     test_id: test._id.toString(),
-    attempt: mapTestAttempt(attempt),
+    attempt: user.role === 'student' && !test.showAnswers ? removeAnswersFromAttempt(mapTestAttempt(attempt)) : mapTestAttempt(attempt),
     show_answers: test.showAnswers,
     allow_review: test.allowReview,
   };
 }
 
 export async function gradeAttemptAnswers(testId, attemptId, body, user) {
-  const test = await OnlineTest.findById(testId).populate({
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
   });
@@ -146,6 +149,7 @@ export async function gradeAttemptAnswers(testId, attemptId, body, user) {
   const attempt = await TestAttempt.findOne({
     _id: attemptId,
     testId,
+    institutionId: test.institutionId,
     status: { $in: ['submitted', 'auto_submitted'] },
   });
   if (!attempt) throw new AppError('Attempt not found', 404, 'NOT_FOUND');

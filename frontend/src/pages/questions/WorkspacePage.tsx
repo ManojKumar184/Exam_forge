@@ -5,7 +5,7 @@ import { Search, Trash2, Edit, ArrowRight, Lock, Share2 } from 'lucide-react';
 import { useDataStore } from '../../stores/dataStore';
 import { useAuth } from '../../hooks/useAuth';
 import { fetchQuestionBanksApi, assignQuestionsToBankApi, type QuestionBank } from '../../api/questionBanks';
-import { Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader, OnboardingTip } from '../../components/ui';
+import { Card, Button, Badge, Input, Select, Modal, Alert, PageHeader, OnboardingTip } from '../../components/ui';
 import { QuestionContentPreview } from '../../components/content/RichContent';
 import { QuestionList } from '../../components/questions/QuestionList';
 
@@ -78,12 +78,6 @@ export function WorkspacePage() {
     }, filters.search ? 400 : 0);
     return () => clearTimeout(timer);
   }, [filters.search]);
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
 
   const toggleSelectAll = () => {
     if (selectedIds.length === questions.length) {

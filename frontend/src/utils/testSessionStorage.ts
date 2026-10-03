@@ -6,6 +6,7 @@ export interface TestSessionSnapshot {
   updatedAt: number;
   answers?: Record<string, {
     user_answer?: number;
+    user_answers?: number[];
     text_answer?: string;
     numerical_answer?: number | string;
     is_marked?: boolean;

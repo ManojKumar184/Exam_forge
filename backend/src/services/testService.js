@@ -3,19 +3,20 @@ import { Paper } from '../models/Paper.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { Leaderboard } from '../models/Leaderboard.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
-import { getQuestionCategory as getNormalizedCategory } from '../utils/questionTypeNormalizer.js';
+import { getQuestionCategory as getNormalizedCategory, normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 import { AppError } from '../utils/AppError.js';
-import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry } from '../utils/examMapper.js';
+import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry, removeAnswersFromOnlineTest } from '../utils/examMapper.js';
 import {
   computeGradingStatus,
   recomputeAttemptTotals,
 } from './gradingService.js';
+import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
 async function buildTestFilter(query, user) {
-  const filter = {};
+  const filter = { institutionId: user.activeInstitutionId || user.defaultInstitutionId };
   if (user.role === 'student') {
     filter.status = { $in: ['active', 'scheduled'] };
-  } else if (user.role === 'faculty') {
+  } else if (user.role === 'faculty' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     filter.createdBy = user._id;
   }
   if (query.status) filter.status = query.status;
@@ -70,6 +71,10 @@ async function buildTestFilter(query, user) {
 
     if (filterByQuestions) {
       const { Question } = await import('../models/Question.js');
+      questionFilter.$or = [
+        { institutionId: user.activeInstitutionId || user.defaultInstitutionId },
+        { institutionId: null, visibility: 'public' },
+      ];
       const matchingQuestions = await Question.find(questionFilter).select('_id').lean();
       const matchingIds = matchingQuestions.map(q => q._id);
       paperFilter['questions.questionId'] = { $in: matchingIds };
@@ -77,6 +82,7 @@ async function buildTestFilter(query, user) {
 
     if (Object.keys(paperFilter).length > 0) {
       const { Paper } = await import('../models/Paper.js');
+      paperFilter.institutionId = user.activeInstitutionId || user.defaultInstitutionId;
       const matchingPapers = await Paper.find(paperFilter).select('_id').lean();
       const paperIds = matchingPapers.map(p => p._id);
       filter.paperId = { $in: paperIds };
@@ -93,25 +99,35 @@ export async function listTests(query, user) {
       populate: [{ path: 'questions.questionId' }],
     })
     .sort({ createdAt: -1 });
-  return tests.map(mapOnlineTest);
+  return tests.map((test) => {
+    const mapped = mapOnlineTest(test);
+    return user.role === 'student' ? removeAnswersFromOnlineTest(mapped) : mapped;
+  });
 }
 
 export async function getTestById(id, user) {
-  const test = await OnlineTest.findById(id).populate({
+  const studentFilter = user.role === 'student' ? { status: { $in: ['active', 'scheduled'] } } : {};
+  const test = await OnlineTest.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId, ...studentFilter }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString()) {
+
+  if (user.role === 'student' && !['active', 'scheduled'].includes(test.status)) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  if (user.role === 'student' && !test.isPublic && !test.allowedUsers.some((id) => id.toString() === user._id.toString())) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
-  return mapOnlineTest(test);
+  const mapped = mapOnlineTest(test);
+  return user.role === 'student' ? removeAnswersFromOnlineTest(mapped) : mapped;
 }
 
 export async function createTest(body, user) {
-  const paper = await Paper.findById(body.paper_id || body.paperId);
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  if (institutionId) await assertWithinEntitlement(institutionId, 'onlineExams');
+  const paper = await Paper.findOne({ _id: body.paper_id || body.paperId, institutionId });
   if (!paper) throw new AppError('Paper not found', 404, 'PAPER_NOT_FOUND');
-  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
@@ -122,6 +138,7 @@ export async function createTest(body, user) {
   }
 
   const doc = await OnlineTest.create({
+    institutionId,
     paperId: paper._id,
     testCode: body.test_code || body.testCode,
     startTime: startTime,
@@ -139,14 +156,15 @@ export async function createTest(body, user) {
     status: body.status || 'scheduled',
     createdBy: user._id,
   });
+  if (institutionId) await recordUsage(institutionId, 'onlineExams');
   await doc.populate('paperId');
   return mapOnlineTest(doc);
 }
 
 export async function updateTest(id, body, user) {
-  const test = await OnlineTest.findById(id);
+  const test = await OnlineTest.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
@@ -173,9 +191,9 @@ export async function updateTest(id, body, user) {
 }
 
 export async function deleteTest(id, user) {
-  const test = await OnlineTest.findById(id);
+  const test = await OnlineTest.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
-  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString()) {
+  if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
   await OnlineTest.findByIdAndDelete(id);
@@ -184,11 +202,17 @@ export async function deleteTest(id, user) {
 }
 
 export async function startAttempt(testId, user, accessCode = null) {
-  const test = await OnlineTest.findById(testId).populate({
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+
+  if (user.role === 'student' && !['active', 'scheduled'].includes(test.status)) throw new AppError('Test not found', 404, 'NOT_FOUND');
+
+  if (user.role === 'student' && !test.isPublic && !test.allowedUsers.some((id) => id.toString() === user._id.toString())) {
+    throw new AppError('Test not found', 404, 'NOT_FOUND');
+  }
 
   const now = Date.now();
   if (test.startTime && now < new Date(test.startTime).getTime()) {
@@ -221,6 +245,7 @@ export async function startAttempt(testId, user, accessCode = null) {
     attempt = await TestAttempt.create({
       testId: test._id,
       userId: user._id,
+      institutionId: test.institutionId,
       attemptNumber: count + 1,
       status: 'in_progress',
       maxScore: shuffledQuestions.reduce((sum, q) => sum + Number(q.customMarks || 0), 0),
@@ -237,7 +262,7 @@ export async function startAttempt(testId, user, accessCode = null) {
 
   await attempt.populate('testId');
   return {
-    test: mapOnlineTest(test),
+    test: user.role === 'student' ? removeAnswersFromOnlineTest(mapOnlineTest(test)) : mapOnlineTest(test),
     attempt: mapTestAttempt(attempt),
   };
 }
@@ -250,6 +275,17 @@ export async function autosaveAttempt(testId, user, payload) {
   });
   if (!attempt) throw new AppError('Active attempt not found', 404, 'ATTEMPT_NOT_FOUND');
 
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).select('durationMinutes endTime').lean();
+  if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const endsAt = Math.min(
+    attempt.startedAt.getTime() + Number(test.durationMinutes) * 60000,
+    test.endTime ? new Date(test.endTime).getTime() : Number.POSITIVE_INFINITY,
+  );
+  if (Date.now() >= endsAt) {
+    await submitAttempt(testId, user, { auto: true });
+    throw new AppError('The exam time has expired and your attempt was submitted.', 409, 'TEST_TIME_EXPIRED');
+  }
+
   if (Array.isArray(payload.answers)) {
     const existing = new Map(attempt.answers.map((a) => [a.questionId.toString(), a]));
     for (const incoming of payload.answers) {
@@ -258,6 +294,7 @@ export async function autosaveAttempt(testId, user, payload) {
       const row = existing.get(key);
       if (!row) continue;
       if (incoming.selected_option !== undefined) row.selectedOption = incoming.selected_option;
+      if (incoming.selected_options !== undefined) row.selectedOptions = Array.isArray(incoming.selected_options) ? incoming.selected_options.map(Number).filter(Number.isInteger) : [];
       if (incoming.numerical_answer !== undefined) {
         row.numericalAnswer = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
       }
@@ -282,10 +319,20 @@ function getQuestionCategory(type) {
   return getNormalizedCategory(type);
 }
 
-function scoreAnswer(answer, question, marks, negativeMarks = 0) {
+export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   if (!question) return { isCorrect: null, marks: 0, skipped: true };
   const category = getQuestionCategory(question.questionType);
   if (category === 'mcq') {
+    if (normalizeQuestionType(question.questionType) === 'MCQ_MULTIPLE') {
+      const selected = (answer.selectedOptions?.length ? answer.selectedOptions : (answer.selectedOption == null ? [] : [answer.selectedOption])).map(Number).sort((a, b) => a - b);
+      if (!selected.length) return { isCorrect: null, marks: 0, skipped: true };
+      const correct = (question.correctAnswers || []).map((value) => {
+        const label = String(value).trim().toUpperCase();
+        return /^[A-H]$/.test(label) ? label.charCodeAt(0) - 65 : Number(label);
+      }).filter(Number.isInteger).sort((a, b) => a - b);
+      const isCorrect = correct.length > 0 && selected.length === correct.length && selected.every((value, index) => value === correct[index]);
+      return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
+    }
     if (answer.selectedOption === null || answer.selectedOption === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
@@ -301,6 +348,17 @@ function scoreAnswer(answer, question, marks, negativeMarks = 0) {
       Math.abs(Number(answer.numericalAnswer) - Number(question.numericalAnswer)) <= tolerance;
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
+  if (category === 'fill_blank') {
+    const response = String(answer.textAnswer || '').trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase();
+    if (!response) return { isCorrect: null, marks: 0, skipped: true };
+    const acceptedAnswers = [
+      ...(question.correctAnswers || []),
+      question.answerText,
+      question.answerKey,
+    ].filter(Boolean).map(value => String(value).trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase());
+    const isCorrect = acceptedAnswers.length > 0 && acceptedAnswers.includes(response);
+    return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
+  }
   // descriptive evaluated later by faculty; keep pending
   if (!answer.textAnswer) return { isCorrect: null, marks: 0, skipped: true };
   return { isCorrect: null, marks: 0, skipped: false };
@@ -310,15 +368,25 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
   const attempt = await TestAttempt.findOne({
     testId,
     userId: user._id,
+    institutionId: user.activeInstitutionId || user.defaultInstitutionId,
     status: 'in_progress',
   });
-  if (!attempt) throw new AppError('Active attempt not found', 404, 'ATTEMPT_NOT_FOUND');
+  if (!attempt) {
+    const alreadySubmitted = await TestAttempt.findOne({ testId, userId: user._id, institutionId: user.activeInstitutionId || user.defaultInstitutionId, status: { $in: ['submitted', 'auto_submitted'] } }).sort({ submittedAt: -1 });
+    if (alreadySubmitted) return mapTestAttempt(alreadySubmitted);
+    throw new AppError('Active attempt not found', 404, 'ATTEMPT_NOT_FOUND');
+  }
 
-  const test = await OnlineTest.findById(testId).populate({
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const serverEnd = Math.min(
+    attempt.startedAt.getTime() + Number(test.durationMinutes) * 60000,
+    test.endTime ? new Date(test.endTime).getTime() : Number.POSITIVE_INFINITY,
+  );
+  const timedOut = Date.now() >= serverEnd;
 
   const questionMap = new Map(
     (test.paperId?.questions || []).map((pq) => {
@@ -367,7 +435,7 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
     ? [...questionMap.values()].reduce((sum, q) => sum + q.marks, 0)
     : attempt.maxScore;
 
-  attempt.status = auto ? 'auto_submitted' : 'submitted';
+  attempt.status = auto || timedOut ? 'auto_submitted' : 'submitted';
   attempt.submittedAt = new Date();
   attempt.correctAnswers = correct;
   attempt.wrongAnswers = wrong;
@@ -385,13 +453,16 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
 }
 
 export async function getAttemptHistory(user, testId = null) {
-  const filter = user.role === 'student' ? { userId: user._id } : {};
+  const filter = { institutionId: user.activeInstitutionId || user.defaultInstitutionId };
+  if (user.role === 'student') filter.userId = user._id;
   if (testId) filter.testId = testId;
   const attempts = await TestAttempt.find(filter).populate('testId').sort({ createdAt: -1 });
   return attempts.map(mapTestAttempt);
 }
 
-export async function getLeaderboard(testId) {
+export async function getLeaderboard(testId, user) {
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).select('_id status').lean();
+  if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   const rows = await Leaderboard.find({ testId })
     .populate('userId')
     .sort({ rank: 1, score: -1 });

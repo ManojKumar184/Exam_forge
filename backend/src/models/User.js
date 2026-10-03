@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema(
     },
     avatarUrl: { type: String, default: null },
     schoolInstitute: { type: String, default: null },
+    defaultInstitutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     phone: { type: String, default: null },
     isActive: { type: Boolean, default: true },
     approvalStatus: {

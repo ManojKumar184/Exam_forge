@@ -8,10 +8,11 @@ import { createTestSchema, updateTestSchema, autosaveSchema } from '../validator
 import { gradeAttemptSchema } from '../validators/gradingValidators.js';
 import { z } from 'zod';
 import * as testController from '../controllers/testController.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get(
   '/',

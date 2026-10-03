@@ -1,4 +1,4 @@
-import { Card, Loading, EmptyState } from '../ui';
+import { Loading, EmptyState } from '../ui';
 
 interface QuestionListProps<T = any> {
   questions: T[];

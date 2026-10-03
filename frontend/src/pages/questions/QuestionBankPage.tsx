@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 import { fetchQuestionBanksApi, assignQuestionsToBankApi, removeQuestionsFromBankApi, type QuestionBank } from '../../api/questionBanks';
 import {
-  Card, Button, Badge, Input, Select, Modal, Loading, EmptyState, Alert, PageHeader
+  Card, Button, Badge, Input, Select, Modal, Alert, PageHeader
 } from '../../components/ui';
 import { Link } from 'react-router-dom';
 import { Search, Eye, Check, X, Trash2, Edit, Plus } from 'lucide-react';
@@ -357,28 +357,6 @@ export function QuestionBankPage() {
               }}
             />
           </div>
-          <div className="w-full sm:w-36 shrink-0">
-            <Select
-              className="h-8 text-xs py-1"
-              placeholder="Topic"
-              options={[
-                { value: '', label: 'All Topics' },
-                ...(((((syllabusTree.find(n => n._id === filters.syllabus_exam_pattern_id)?.children || [])
-                  .find(n => n._id === filters.syllabus_class_id)?.children || [])
-                  .find(n => n._id === filters.syllabus_subject_id)?.children || [])
-                  .find(n => n._id === filters.syllabus_chapter_id)?.children || [])
-                  .find(n => n._id === filters.syllabus_topic_id)?.children || []).map(n => ({ value: n._id, label: n.name }))
-              ]}
-              value={filters.syllabus_subtopic_id}
-              disabled={!filters.syllabus_topic_id}
-              onChange={(e) => {
-                setFilters(prev => ({
-                  ...prev,
-                  syllabus_subtopic_id: e.target.value,
-                }));
-              }}
-            />
-          </div>
         </div>
       </Card>
 
@@ -464,7 +442,13 @@ export function QuestionBankPage() {
                         <div
                           key={idx}
                           className={`text-xs sm:text-sm px-3 py-1.5 rounded-lg border transition-colors ${
-                            question.correct_option === idx
+                            (
+                              question.correct_option === idx ||
+                              (question.correct_answers && Array.isArray(question.correct_answers) && question.correct_answers.some(ans => {
+                                const s = String(ans).trim().toUpperCase();
+                                return s === String(idx) || s === String.fromCharCode(65 + idx);
+                              }))
+                            )
                               ? 'bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40 font-medium'
                               : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                           }`}

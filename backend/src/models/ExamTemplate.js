@@ -23,8 +23,11 @@ const examTemplateSchema = new mongoose.Schema({
   },
   exportDefaults: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
   isSystem: { type: Boolean, default: false }
 }, { timestamps: true });
+
+examTemplateSchema.index({ institutionId: 1, createdBy: 1, updatedAt: -1 });
 
 examTemplateSchema.pre('save', function (next) {
   const code = (this.code || '').toLowerCase();

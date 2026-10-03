@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import mammoth from 'mammoth';
 import { splitTextIntoBlocks, normalizeQuestions, preprocessDocumentText } from './normalizeQuestions.js';
 import {
@@ -14,6 +15,41 @@ import {
 } from './docxAdvancedParser.js';
 import { enrichBlockFromHtml } from './docxMathHtml.js';
 import { semanticDocumentFromDocxStructure } from './documentIntelligence/semanticDocumentModel.js';
+
+const SAFE_ASSET_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tif', 'tiff', 'emf', 'wmf', 'bin', 'ole']);
+
+async function materializeRelationshipAssets(structure, filePath, context) {
+  const urlByRelationship = new Map();
+  for (const [relationshipId, asset] of structure.relationshipAssets || []) {
+    const extension = SAFE_ASSET_EXTENSIONS.has(asset.extension) ? asset.extension : (asset.type === 'image' ? 'png' : 'bin');
+    const isImage = asset.type === 'image';
+    const directory = isImage
+      ? (context.imageDir || path.join(path.dirname(filePath), '..', 'images'))
+      : (context.equationDir || path.join(path.dirname(filePath), '..', 'equations'));
+    const fileName = `${crypto.randomUUID()}.${extension}`;
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(path.join(directory, fileName), asset.data, { flag: 'wx' });
+    urlByRelationship.set(relationshipId, `${isImage ? '/uploads/images' : '/uploads/equations'}/${fileName}`);
+  }
+  const visit = (blocks = []) => {
+    for (const block of blocks) {
+      if (block.relationshipId && urlByRelationship.has(block.relationshipId)) block.assetUrl = urlByRelationship.get(block.relationshipId);
+      if (block.type === 'equation' && block.originalAsset && urlByRelationship.has(block.originalAsset)) {
+        block.originalAssetUrl = urlByRelationship.get(block.originalAsset);
+      }
+      if (block.previewRelationshipIds) {
+        block.previewAssetUrls = block.previewRelationshipIds.map((id) => urlByRelationship.get(id)).filter(Boolean);
+      }
+      for (const row of block.rows || []) {
+        for (const cell of row || []) visit(cell?.contentBlocks || []);
+      }
+    }
+  };
+  for (const paragraph of structure.paragraphs || []) visit(paragraph.contentBlocks || []);
+  for (const table of structure.tables || []) visit([{ type: 'table', ...table.tableModel }]);
+  structure.relationshipAssets = undefined;
+  return [...urlByRelationship.values()].filter((url) => url.startsWith('/uploads/images/'));
+}
 
 export async function extractDocxQuestions(filePath, context = {}) {
   const buffer = await fs.readFile(filePath);
@@ -38,6 +74,9 @@ export async function extractDocxQuestions(filePath, context = {}) {
     ),
     parseDocxXmlStructure(buffer).catch(() => ({ paragraphs: [], tables: [], rawText: '' })),
   ]);
+
+  const relationshipImages = await materializeRelationshipAssets(structure, filePath, context);
+  for (const url of relationshipImages) if (!images.includes(url)) images.push(url);
 
   const rawTextFallback = await mammoth.extractRawText({ buffer });
   const xmlOrdered =

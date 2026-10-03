@@ -572,6 +572,9 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         latex: o.latex || null,
         image: o.image || null,
       }));
+      if (questionType === 'TRUE_FALSE' && finalOptions.length === 0) {
+        finalOptions.push({ text: 'True', latex: null, image: null }, { text: 'False', latex: null, image: null });
+      }
 
       const tags = [
         ...new Set([
@@ -586,8 +589,9 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
       const warnings = [...(block.extractionWarnings || []), ...pipeline.warnings];
 
       let correctOption = block.correctOption !== undefined ? block.correctOption : null;
-      let answerText = block.answerKey || null;
+      let answerText = block.answerText || block.answerKey || null;
       let numericalAnswer = block.numericalAnswer !== undefined ? block.numericalAnswer : null;
+      let detectedCorrectAnswers = [];
 
       // Parse raw answerKey (e.g., "Answer: A" → correctOption=0, "Answer: 101" → numericalAnswer=101)
       // This handles blocks from the boundary detector where answerKey is set as raw text
@@ -598,6 +602,11 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
           correctOption = ansResult.correctOption;
           numericalAnswer = ansResult.numericalAnswer;
           answerText = ansResult.answerText;
+          if (ansResult.correctAnswers && ansResult.correctAnswers.length > 0) {
+            detectedCorrectAnswers = ansResult.correctAnswers.map(ans => 
+              typeof ans === 'number' ? String.fromCharCode(65 + ans) : ans
+            );
+          }
         }
       }
 
@@ -627,10 +636,22 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
                             (pipeline.mathPreservationConfidence < 0.70) ||
                             (pipeline.metadataConfidence < 0.70);
 
-      const status = (warnings.length > 0 || lowConfidence || hasMalformedOrUnresolved) ? 'needs_review' : 'pending';
+      const actualWarnings = warnings.filter(w => !/refinement skipped/i.test(w));
+      const contentBlocks = Array.isArray(block.contentBlocks) ? block.contentBlocks : [];
+      const fidelity = block.fidelity || {};
+      const allContentBlocks = contentBlocks.flatMap((item) => [item, ...(item.rows || []).flatMap((row) => (row || []).flatMap((cell) => cell?.contentBlocks || []))]);
+      const tableFidelityReview = allContentBlocks.some((item) => item.type === 'table' && (item.fidelity ?? 0) < 0.8);
+      const fidelityReview = allContentBlocks.some((item) =>
+        (item.type === 'equation' && (!item.latex || (item.fidelity ?? 0) < 0.7)) ||
+        (item.type === 'embedded') ||
+        (item.type === 'image' && (!item.assetUrl || (item.fidelity ?? 0) < 0.8))
+      ) || tableFidelityReview || (fidelity.textFidelity ?? 1) < 0.8;
+      if (fidelityReview) warnings.push('Imported equation or embedded content needs fidelity review');
+      const status = (actualWarnings.length > 0 || lowConfidence || hasMalformedOrUnresolved || fidelityReview) ? 'needs_review' : 'pending';
 
       const base = {
         questionText: finalQuestionText,
+        contentBlocks,
         questionType,
         questionLatex: block.questionLatex || (pipeline.questionType !== 'MCQ_SINGLE' && pipeline.questionType !== 'MCQ_MULTIPLE' ? (finalQuestionText.match(/\$([^$]+?)\$/) || [])[1] || null : null),
         options: finalOptions,
@@ -659,6 +680,15 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
           questionNumber: block.questionNumber || null,
           subtype: pipeline.subtype || null,
           tables: block.renderingMetadata?.tables || pipeline.tables || [],
+          fidelity: {
+            boundaryConfidence: fidelity.boundaryConfidence ?? block.parserConfidence ?? null,
+            classificationConfidence: fidelity.classificationConfidence ?? null,
+            answerConfidence: fidelity.answerConfidence ?? null,
+            textFidelity: fidelity.textFidelity ?? 1,
+            equationFidelity: fidelity.equationFidelity ?? 1,
+            tableFidelity: fidelity.tableFidelity ?? (block.hasTable ? 0.8 : 1),
+            imageFidelity: fidelity.imageFidelity ?? 1,
+          },
         },
         
         // Year extracted from question text — full bracket preserved (e.g. [April 8, 2025 (II)])
@@ -669,7 +699,13 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         yearBracket: extractBracketYear(questionText) || extractBracketYear(pipeline.stem) || null,
 
         // SaaS semantic fields
-        correctAnswers: pipeline.correctAnswers || [],
+        correctAnswers: (block.correctAnswers && block.correctAnswers.length > 0)
+          ? block.correctAnswers.map(ans => typeof ans === 'number' ? String.fromCharCode(65 + ans) : ans)
+          : (detectedCorrectAnswers && detectedCorrectAnswers.length > 0)
+            ? detectedCorrectAnswers
+            : (pipeline.correctAnswers && pipeline.correctAnswers.length > 0)
+              ? pipeline.correctAnswers
+              : (correctOption !== null ? [String.fromCharCode(65 + correctOption)] : []),
         figures: pipeline.figures || [],
         formulas: pipeline.formulas || [],
         semanticBlocks: pipeline.semanticBlocks || [],
@@ -680,6 +716,7 @@ export async function normalizeQuestions(rawBlocks, context = {}) {
         semanticConfidence: pipeline.semanticConfidence || 1.0,
         mathPreservationConfidence: pipeline.mathPreservationConfidence || 1.0,
         metadataConfidence: pipeline.metadataConfidence || 1.0,
+        debugInfo: pipeline.debugInfo || null,
       };
 
       if (base.questionLatex) {

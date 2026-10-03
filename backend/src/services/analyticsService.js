@@ -89,10 +89,10 @@ export async function getAdminAnalytics() {
   };
 }
 
-export async function getFacultyAnalytics(facultyId) {
+export async function getFacultyAnalytics(facultyId, institutionId) {
   const [paperCount, testCount, attemptsAgg, avgScoreAgg] = await Promise.all([
-    Paper.countDocuments({ createdBy: facultyId }),
-    OnlineTest.countDocuments({ createdBy: facultyId }),
+    Paper.countDocuments({ createdBy: facultyId, institutionId }),
+    OnlineTest.countDocuments({ createdBy: facultyId, institutionId }),
     TestAttempt.aggregate([
       {
         $lookup: {
@@ -103,7 +103,7 @@ export async function getFacultyAnalytics(facultyId) {
         },
       },
       { $unwind: '$test' },
-      { $match: { 'test.createdBy': facultyId } },
+      { $match: { 'test.createdBy': facultyId, 'test.institutionId': institutionId } },
       { $group: { _id: null, total: { $sum: 1 } } },
     ]),
     TestAttempt.aggregate([
@@ -116,7 +116,7 @@ export async function getFacultyAnalytics(facultyId) {
         },
       },
       { $unwind: '$test' },
-      { $match: { 'test.createdBy': facultyId, status: { $in: ['submitted', 'auto_submitted'] } } },
+      { $match: { 'test.createdBy': facultyId, 'test.institutionId': institutionId, status: { $in: ['submitted', 'auto_submitted'] } } },
       { $group: { _id: null, avg: { $avg: '$percentage' } } },
     ]),
   ]);
@@ -129,8 +129,9 @@ export async function getFacultyAnalytics(facultyId) {
   };
 }
 
-export async function getTestPerformanceAnalytics(testId, facultyId = null) {
-  const testFilter = facultyId ? { _id: testId, createdBy: facultyId } : { _id: testId };
+export async function getTestPerformanceAnalytics(testId, facultyId = null, institutionId = null) {
+  const testFilter = { _id: testId, institutionId };
+  if (facultyId) testFilter.createdBy = facultyId;
   const test = await OnlineTest.findOne(testFilter).populate({
     path: 'paperId',
     populate: [{ path: 'questions.questionId' }],
@@ -139,6 +140,7 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null) {
 
   const attempts = await TestAttempt.find({
     testId,
+    institutionId: test.institutionId,
     status: { $in: ['submitted', 'auto_submitted'] },
   }).populate({ path: 'answers.questionId' });
 
@@ -234,8 +236,8 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null) {
   };
 }
 
-export async function getStudentAnalytics(studentId) {
-  const attempts = await TestAttempt.find({ userId: studentId }).sort({ createdAt: -1 }).limit(50);
+export async function getStudentAnalytics(studentId, institutionId) {
+  const attempts = await TestAttempt.find({ userId: studentId, institutionId }).sort({ createdAt: -1 }).limit(50);
   const completed = attempts.filter((a) => ['submitted', 'auto_submitted'].includes(a.status));
   const avg = completed.length
     ? completed.reduce((sum, a) => sum + Number(a.percentage || 0), 0) / completed.length

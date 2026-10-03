@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger.js';
 import { BaseAIProvider } from './baseProvider.js';
 import { SpaceProvider } from './spaceProvider.js';
 import { extractJSON } from './shared.js';
+import { normalizeQuestionType } from '../../utils/questionTypeNormalizer.js';
 
 // Helper to build a batch prompt with a tiny‑cleanup instruction.
 function buildBatchPrompt(questions, catalog = {}) {
@@ -78,7 +79,7 @@ export class NvidiaProvider extends BaseAIProvider {
     const body = JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.0,
+      temperature: 0.1,
       max_tokens: 1024,
     });
     const controller = new AbortController();
@@ -100,6 +101,12 @@ export class NvidiaProvider extends BaseAIProvider {
     }
   }
 
+  // Classify a single question.
+  async classify(question, catalog, docMeta = {}) {
+    const results = await this.classifyBatch([question], catalog, docMeta);
+    return results?.[0] || null;
+  }
+
   // Attempt classification with fast models in order; fallback to SpaceProvider if all fail.
   async classifyBatch(questions, catalog, docMeta = {}) {
     if (!questions?.length) return [];
@@ -113,12 +120,28 @@ export class NvidiaProvider extends BaseAIProvider {
         const jsonStr = extractJSON(response);
         const classifications = JSON.parse(jsonStr);
         logger.info(`[NVIDIA] Success model=${model} duration=${Date.now() - start}ms`);
-        return classifications.map((c, idx) => ({
-          class: c.class,
-          difficulty: c.difficulty,
-          questionType: questions[idx].questionType,
-          hints: { subject: c.subject, topic: c.chapter || c.topic },
-        }));
+
+        if (!Array.isArray(classifications)) {
+          throw new Error('Response was not a JSON array');
+        }
+
+        return classifications.map((c, idx) => {
+          if (!c) return null;
+          const classStr = String(c.class || '');
+          const classNum = parseInt(classStr.replace(/[^0-9]/g, ''), 10) || undefined;
+          const difficulty = (c.difficulty || 'medium').toLowerCase();
+          return {
+            class: (classNum >= 6 && classNum <= 12) ? classNum : undefined,
+            difficulty: ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium',
+            questionType: normalizeQuestionType(questions[idx].questionType || ''),
+            confidence: 0.85,
+            hints: {
+              subject: c.subject || null,
+              topic: c.chapter || c.topic || null,
+              examType: null,
+            },
+          };
+        });
       } catch (err) {
         logger.warn(`[NVIDIA] Model ${model} failed for upload=${uploadId}: ${err.message}`);
         // Continue to next model

@@ -5,7 +5,7 @@ import { LatexToolbar } from './LatexToolbar';
 import { RichQuestionEditor } from './RichQuestionEditor';
 import { ReconstructionPreview } from './ReconstructionPreview';
 import { OptionRichFields } from './OptionRichFields';
-import type { Question, QuestionOption, QuestionType } from '../../types';
+import type { ContentBlock, Question, QuestionOption, QuestionType } from '../../types';
 import { detectVmlEquationImages, type EditorSubtype } from '../../utils/questionPasteDetect';
 import {
   runQuestionReconstruction,
@@ -13,11 +13,24 @@ import {
 } from '../../utils/questionReconstruct';
 import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAutoWrap';
 import type { SemanticBlock } from '../../utils/clipboardIngestion';
-import { useAuth } from '../../hooks/useAuth';
 import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
 
 const DRAFT_KEY = 'examforge_question_draft';
+
+function findPathInTree(nodes: SyllabusNode[], targetId: string, currentPath: string[] = []): string[] | null {
+  for (const node of nodes) {
+    const path = [...currentPath, node._id];
+    if (node._id === targetId) {
+      return path;
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findPathInTree(node.children, targetId, path);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 interface QuestionEditorFormProps {
   initial?: Partial<Question>;
@@ -29,11 +42,15 @@ interface QuestionEditorFormProps {
 const SUBTYPE_OPTIONS: { value: EditorSubtype; label: string; questionType: QuestionType }[] = [
   { value: 'mcq_single', label: 'MCQ (Single)', questionType: 'mcq' },
   { value: 'mcq_multiple', label: 'MCQ (Multiple)', questionType: 'mcq' },
+  { value: 'true_false', label: 'True / False', questionType: 'TRUE_FALSE' },
+  { value: 'fill_blank', label: 'Fill in the Blank', questionType: 'FILL_BLANK' },
+  { value: 'assertion_reason', label: 'Assertion / Reason', questionType: 'ASSERTION_REASON' },
+  { value: 'unclassified', label: 'Unclassified (needs review)', questionType: 'UNCLASSIFIED' },
   { value: 'integer', label: 'Integer', questionType: 'numerical' },
   { value: 'numerical', label: 'Numerical', questionType: 'numerical' },
   { value: 'descriptive', label: 'Descriptive', questionType: 'descriptive' },
   { value: 'comprehension', label: 'Comprehension', questionType: 'descriptive' },
-  { value: 'match_following', label: 'Match Columns', questionType: 'descriptive' },
+  { value: 'match_following', label: 'Match Columns', questionType: 'MATCH_FOLLOWING' },
 ];
 
 function defaultOptions(): QuestionOption[] {
@@ -55,6 +72,19 @@ function stemToEditorHtml(text: string): string {
     .filter((l) => l.trim())
     .map((l) => `<p>${l.trim()}</p>`)
     .join('');
+}
+
+function parseAnswerToNumber(ans: any): number | null {
+  if (ans === null || ans === undefined) return null;
+  const s = String(ans).trim().toUpperCase();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) {
+    return parseInt(s, 10);
+  }
+  if (s.length === 1 && s >= 'A' && s <= 'Z') {
+    return s.charCodeAt(0) - 65;
+  }
+  return null;
 }
 
 function applyReconstructResult(
@@ -108,16 +138,39 @@ function applyReconstructResult(
   });
 }
 
+function getSubtypeFromQuestion(q: Partial<Question> | undefined): EditorSubtype {
+  if (!q) return 'mcq_single';
+  const tagSub = q.tags?.find((t) => SUBTYPE_OPTIONS.some((o) => o.value === t)) as EditorSubtype | undefined;
+  if (tagSub) return tagSub;
+
+  const type = q.question_type;
+  if (!type) return 'mcq_single';
+
+  const upper = type.toUpperCase().trim();
+  if (upper === 'MCQ_MULTIPLE' || upper === 'MCQ_MULTI') return 'mcq_multiple';
+  if (upper === 'MCQ_SINGLE' || upper === 'MCQ') return 'mcq_single';
+  if (upper === 'TRUE_FALSE') return 'true_false';
+  if (upper === 'FILL_BLANK') return 'fill_blank';
+  if (upper === 'ASSERTION_REASON') return 'assertion_reason';
+  if (upper === 'UNCLASSIFIED') return 'unclassified';
+  if (upper === 'NUMERICAL_INTEGER' || upper === 'INTEGER') return 'integer';
+  if (upper === 'NUMERICAL') return 'numerical';
+  if (upper === 'MATCH_FOLLOWING' || upper === 'MATCH_COLUMNS') return 'match_following';
+  if (upper === 'COMPREHENSION') return 'comprehension';
+  if (upper === 'DESCRIPTIVE') return 'descriptive';
+  return 'unclassified';
+}
+
 export function QuestionEditorForm({
   initial,
   onSubmit,
   onCancel,
   submitLabel = 'Save question',
 }: QuestionEditorFormProps) {
-  const { isFaculty } = useAuth();
-  const [subtype, setSubtype] = useState<EditorSubtype>('mcq_single');
+  const [subtype, setSubtype] = useState<EditorSubtype>(() => getSubtypeFromQuestion(initial));
   const [bodyHtml, setBodyHtml] = useState('');
   const [bodyPlain, setBodyPlain] = useState('');
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>(initial?.content_blocks || []);
   const [questionLatex, setQuestionLatex] = useState('');
   const [questionImages, setQuestionImages] = useState<string[]>([]);
   const [ocrText, setOcrText] = useState('');
@@ -129,10 +182,25 @@ export function QuestionEditorForm({
   const [customChapterName, setCustomChapterName] = useState('');
   const [isCustomChapter, setIsCustomChapter] = useState(false);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [correctOption, setCorrectOption] = useState<number | null>(0);
+  const [correctOption, setCorrectOption] = useState<number | null>(() => {
+    if (initial?.correct_option !== undefined && initial.correct_option !== null) {
+      return parseAnswerToNumber(initial.correct_option);
+    }
+    return 0;
+  });
+  const [correctOptions, setCorrectOptions] = useState<number[]>(() => {
+    if (initial?.correct_answers && initial.correct_answers.length > 0) {
+      return initial.correct_answers
+        .map(parseAnswerToNumber)
+        .filter((val): val is number => val !== null);
+    }
+    const single = initial?.correct_option !== null && initial?.correct_option !== undefined
+      ? parseAnswerToNumber(initial.correct_option)
+      : null;
+    return single !== null ? [single] : [];
+  });
   const [numericalAnswer, setNumericalAnswer] = useState('');
   const [tagsInput, setTagsInput] = useState('');
-  const [marks, setMarks] = useState<number | null>(null);
 
   const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
   const [selectedExamPattern, setSelectedExamPattern] = useState('');
@@ -171,13 +239,8 @@ export function QuestionEditorForm({
     fetchQuestionBanksApi().then(setQuestionBanks).catch((err) => console.error('Failed to load question banks:', err));
   }, []);
 
-  useEffect(() => {
-    if (initial?.id) {
-      setMarks(initial.marks !== undefined ? initial.marks : null);
-    } else {
-      setMarks(isFaculty ? 4 : null);
-    }
-  }, [initial, isFaculty]);
+  const lastInitializedId = useRef<string | null>(null);
+  const isTreeLoadedRef = useRef<boolean>(false);
   const [showPreview, setShowPreview] = useState(true);
   const [showAdvancedMath, setShowAdvancedMath] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -190,11 +253,20 @@ export function QuestionEditorForm({
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconstructTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const isMcq = subtype === 'mcq_single' || subtype === 'mcq_multiple';
+  const isMcq = ['mcq_single', 'mcq_multiple', 'assertion_reason', 'true_false'].includes(subtype);
 
   const selectSubtype = (val: EditorSubtype) => {
     setSubtype(val);
     setAutosaveStatus('saving');
+    if (val === 'mcq_multiple') {
+      if (correctOption !== null && !correctOptions.includes(correctOption)) {
+        setCorrectOptions([correctOption]);
+      }
+    } else if (val === 'mcq_single') {
+      if (correctOptions.length > 0) {
+        setCorrectOption(correctOptions[0]);
+      }
+    }
   };
 
   useEffect(() => {
@@ -205,6 +277,7 @@ export function QuestionEditorForm({
           const d = JSON.parse(draft);
           setBodyHtml(d.bodyHtml || '');
           setBodyPlain(d.bodyPlain || '');
+          setContentBlocks(d.contentBlocks || initial?.content_blocks || []);
           setQuestionImages(d.questionImages || []);
           setOptions(d.options || defaultOptions());
           setSubtype(d.subtype || 'mcq_single');
@@ -213,10 +286,25 @@ export function QuestionEditorForm({
           setYear(d.year ?? null);
           setOcrText(d.ocrText || '');
           setAnswerText(d.answerText || '');
+          setCorrectOption(d.correctOption !== undefined ? d.correctOption : 0);
+          setCorrectOptions(d.correctOptions || []);
+          
+          if (d.syllabusMapping) {
+            setSelectedExamPattern(d.syllabusMapping.examPatternId || '');
+            setSelectedClassNode(d.syllabusMapping.classId || '');
+            setSelectedSubjectNode(d.syllabusMapping.subjectId || '');
+            setSelectedChapterNode(d.syllabusMapping.chapterId || '');
+            setSelectedTopicNode(d.syllabusMapping.topicId || '');
+          }
         } catch {
           /* ignore */
         }
       }
+      return;
+    }
+
+    const isTreeLoaded = syllabusTree.length > 0;
+    if (lastInitializedId.current === initial.id && (isTreeLoadedRef.current || !isTreeLoaded)) {
       return;
     }
 
@@ -233,6 +321,7 @@ export function QuestionEditorForm({
     }
 
     const text = d?.bodyHtml || initial.question_text || '';
+    setContentBlocks(d?.contentBlocks || initial.content_blocks || []);
     setBodyHtml(text);
     setBodyPlain(text.replace(/<[^>]+>/g, ' '));
     setQuestionLatex(d?.questionLatex || initial.question_latex || '');
@@ -250,7 +339,13 @@ export function QuestionEditorForm({
     setCustomChapterName(d?.customChapterName || '');
     setIsCustomChapter(d?.isCustomChapter || false);
     setDifficulty(d?.difficulty || initial.difficulty || 'medium');
-    setCorrectOption(d?.correctOption !== undefined ? d.correctOption : (initial.correct_option ?? 0));
+    setCorrectOption(d?.correctOption !== undefined ? d.correctOption : (initial.correct_option !== undefined && initial.correct_option !== null ? parseAnswerToNumber(initial.correct_option) : 0));
+    setCorrectOptions(
+      d?.correctOptions ||
+      (initial.correct_answers && initial.correct_answers.length > 0
+        ? initial.correct_answers.map(parseAnswerToNumber).filter((v): v is number => v !== null)
+        : (initial.correct_option !== null && initial.correct_option !== undefined ? [parseAnswerToNumber(initial.correct_option)].filter((v): v is number => v !== null) : []))
+    );
     setNumericalAnswer(
       d?.numericalAnswer != null
         ? String(d.numericalAnswer)
@@ -260,20 +355,38 @@ export function QuestionEditorForm({
       d?.tagsInput ||
       (initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', ')
     );
-    const sub = d?.subtype || (initial.tags?.find((t) =>
-      SUBTYPE_OPTIONS.some((o) => o.value === t)
-    ) as EditorSubtype | undefined);
+    const sub = d?.subtype || getSubtypeFromQuestion(initial);
     if (sub) setSubtype(sub);
 
     setSelectedBankId(d?.selectedBankId || initial.bank_ids?.[0] || '');
 
     const mapping = initial?.syllabus_mappings?.[0] || d?.syllabusMapping;
     if (mapping) {
-      setSelectedExamPattern(mapping.examPatternId || '');
-      setSelectedClassNode(mapping.classId || '');
-      setSelectedSubjectNode(mapping.subjectId || '');
-      setSelectedChapterNode(mapping.chapterId || '');
-      setSelectedTopicNode(mapping.topicId || '');
+      let resolvedExamPattern = mapping.examPatternId || '';
+      let resolvedClass = mapping.classId || '';
+      let resolvedSubject = mapping.subjectId || '';
+      let resolvedChapter = mapping.chapterId || '';
+      let resolvedTopic = mapping.topicId || '';
+
+      if (syllabusTree.length > 0) {
+        const deepestId = resolvedTopic || resolvedChapter || resolvedSubject || resolvedClass;
+        if (deepestId) {
+          const path = findPathInTree(syllabusTree, deepestId);
+          if (path && path.length > 0) {
+            resolvedExamPattern = path[0] || '';
+            resolvedClass = path[1] || '';
+            resolvedSubject = path[2] || '';
+            resolvedChapter = path[3] || '';
+            resolvedTopic = path[4] || '';
+          }
+        }
+      }
+
+      setSelectedExamPattern(resolvedExamPattern);
+      setSelectedClassNode(resolvedClass);
+      setSelectedSubjectNode(resolvedSubject);
+      setSelectedChapterNode(resolvedChapter);
+      setSelectedTopicNode(resolvedTopic);
     } else {
       setSelectedExamPattern('');
       setSelectedClassNode('');
@@ -281,7 +394,10 @@ export function QuestionEditorForm({
       setSelectedChapterNode('');
       setSelectedTopicNode('');
     }
-  }, [initial?.id]);
+
+    lastInitializedId.current = initial.id;
+    isTreeLoadedRef.current = isTreeLoaded;
+  }, [initial?.id, syllabusTree]);
 
   const persistDraft = useCallback(() => {
     const key = initial?.id ? `${DRAFT_KEY}_${initial.id}` : DRAFT_KEY;
@@ -291,6 +407,7 @@ export function QuestionEditorForm({
       JSON.stringify({
         bodyHtml,
         bodyPlain,
+        contentBlocks,
         questionImages,
         options,
         subtype,
@@ -303,6 +420,7 @@ export function QuestionEditorForm({
         year,
         difficulty,
         correctOption,
+        correctOptions,
         numericalAnswer,
         tagsInput,
         selectedBankId,
@@ -316,7 +434,7 @@ export function QuestionEditorForm({
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
+  }, [initial?.id, bodyHtml, bodyPlain, contentBlocks, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, correctOptions, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -456,14 +574,16 @@ export function QuestionEditorForm({
     if (isMcq) {
       const filled = options.filter((o) => o.text?.trim()).length;
       if (filled < 2) errs.push('MCQ needs at least 2 options');
-      if (subtype === 'mcq_single' && correctOption === null) errs.push('Select correct option');
+      if (['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption === null) errs.push('Select correct option');
+      if (subtype === 'mcq_multiple' && correctOptions.length === 0) errs.push('Select at least one correct option');
     }
     return errs;
   };
 
   const buildPayload = (): Record<string, unknown> => {
     const sub = SUBTYPE_OPTIONS.find((s) => s.value === subtype)!;
-    const displayText = bodyHtml.trim() || autoWrapEquations(bodyPlain.trim());
+    const structuredText = contentBlocks.map((block) => block.type === 'equation' ? block.latex || '' : block.type === 'text' ? block.text || '' : '').filter(Boolean).join(' ').trim();
+    const displayText = contentBlocks.length ? structuredText : (bodyHtml.trim() || autoWrapEquations(bodyPlain.trim()));
     const autoLatex = extractPrimaryLatex(displayText);
     const tags = [
       subtype,
@@ -484,6 +604,7 @@ export function QuestionEditorForm({
     const derivedClass = selectedClassNode ? getClassFromNode() : classLevel;
 
     return {
+      content_blocks: contentBlocks,
       question_text: displayText,
       question_latex: questionLatex.trim() || autoLatex || null,
       question_images: questionImages,
@@ -492,15 +613,15 @@ export function QuestionEditorForm({
       year: year || null,
       chapter_name: (isCustomChapter && !selectedChapterNode) ? customChapterName || null : null,
       difficulty,
-      marks: isFaculty ? (marks ?? 4) : null,
       options: isMcq ? options.filter((o) => o.text?.trim()) : [],
-      correct_option: isMcq ? correctOption : null,
+      correct_option: isMcq ? (subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption) : null,
+      correct_answers: isMcq && subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
       numerical_answer:
         sub.questionType === 'numerical' && numericalAnswer
           ? Number(numericalAnswer)
           : null,
       answer_text:
-        sub.questionType === 'descriptive'
+        ['descriptive', 'FILL_BLANK'].includes(sub.questionType)
           ? answerText.trim() || null
           : null,
       explanation: explanation.trim() || null,
@@ -516,16 +637,18 @@ export function QuestionEditorForm({
   const previewQuestion: Question = {
     id: 'preview',
     question_text: bodyPlain.trim() || bodyHtml,
+    content_blocks: contentBlocks,
     question_latex: questionLatex || extractPrimaryLatex(bodyHtml || bodyPlain) || null,
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
     question_images: questionImages,
     options: isMcq ? options.filter((o) => o.text?.trim()) : [],
-    correct_option: correctOption,
+    correct_option: subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption,
+    correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
     numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
     numerical_tolerance: 0,
     answer_text: answerText || null,
     difficulty,
-    marks: isFaculty ? (marks ?? 4) : null,
+    marks: null,
     class: classLevel,
     year: year || null,
     explanation: explanation || null,
@@ -660,6 +783,27 @@ export function QuestionEditorForm({
             ))}
           </div>
 
+          {contentBlocks.length > 0 ? (
+            <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Structured document content</p>
+                <p className="text-xs text-slate-500">Edit text and normalized equations in place. Original equation source, images, and table layout stay attached.</p>
+              </div>
+              {contentBlocks.map((block, index) => (
+                <div key={`${block.type}-${index}`} className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                  {block.type === 'text' ? (
+                    <textarea aria-label={`Text block ${index + 1}`} className="w-full rounded border border-slate-200 p-2 text-sm dark:border-slate-700 dark:bg-slate-800" rows={Math.min(5, Math.max(2, (block.text || '').split('\n').length))} value={block.text || ''} onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} />
+                  ) : block.type === 'equation' ? (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">{block.source === 'mathtype' ? 'MathType equation (original object retained)' : 'Equation LaTeX'}</label>
+                      <textarea aria-label={`Equation ${index + 1} LaTeX`} className="w-full rounded border border-slate-200 p-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800" rows={2} value={block.latex || ''} placeholder="Enter a reviewed LaTeX equivalent if automatic conversion was unavailable" onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, latex: event.target.value || null, warning: item.source === 'mathtype' && event.target.value ? 'Manual normalization entered; compare with original MathType object' : item.warning, fidelity: event.target.value ? 0.8 : item.fidelity } : item))} />
+                      {block.warning && <p className="text-xs text-amber-700">{block.warning}</p>}
+                    </div>
+                  ) : <p className="text-xs text-slate-600 dark:text-slate-300">{block.type === 'image' ? 'Original image retained and rendered below.' : block.type === 'table' ? 'Structured table retained and rendered below.' : 'Embedded source retained for review.'}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
           <RichQuestionEditor
             value={bodyHtml}
             images={questionImages}
@@ -678,6 +822,7 @@ export function QuestionEditorForm({
             }}
             onPastePayload={triggerReconstruction}
           />
+          )}
           <details
             className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/20"
             open={showAdvancedMath}
@@ -711,12 +856,17 @@ export function QuestionEditorForm({
               options={options}
               subtype={subtype as 'mcq_single' | 'mcq_multiple'}
               correctOption={correctOption}
+              correctOptions={correctOptions}
               onOptionsChange={(opts) => {
                 setOptions(opts);
                 setAutosaveStatus('saving');
               }}
               onCorrectChange={(idx) => {
                 setCorrectOption(idx);
+                setAutosaveStatus('saving');
+              }}
+              onCorrectOptionsChange={(indices) => {
+                setCorrectOptions(indices);
                 setAutosaveStatus('saving');
               }}
             />
@@ -880,19 +1030,6 @@ export function QuestionEditorForm({
             placeholder="[2024] or [Jan 2024]"
             className="py-1 text-xs"
           />
-          {isFaculty && (
-            <Input
-              label="Marks"
-              type="number"
-              value={marks === null ? '' : String(marks)}
-              onChange={(e) => {
-                const val = e.target.value;
-                setMarks(val === '' ? null : Number(val));
-                setAutosaveStatus('saving');
-              }}
-              className="py-1 text-xs"
-            />
-          )}
           <Select
             label="Question Bank"
             value={selectedBankId}

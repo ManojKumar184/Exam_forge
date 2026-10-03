@@ -13,14 +13,21 @@ export function errorHandler(err, req, res, next) {
       message: err.message,
       path: req.originalUrl,
       method: req.method,
+      requestId: req.id,
+      userId: req.user?._id?.toString(),
+      institutionId: req.institutionId?.toString(),
     });
   }
 
+  const message = statusCode >= 500 && process.env.NODE_ENV === 'production'
+    ? 'An unexpected server error occurred.'
+    : (err.message || 'Internal server error');
   res.status(statusCode).json({
     success: false,
     error: {
-      message: err.message || 'Internal server error',
+      message,
       code,
+      requestId: req.id,
     },
   });
 }

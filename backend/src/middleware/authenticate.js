@@ -5,7 +5,7 @@ import { AppError } from '../utils/AppError.js';
 export async function authenticate(req, res, next) {
   try {
     const header = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : req.cookies?.accessToken || null;
 
     if (!token) {
       throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -18,6 +18,7 @@ export async function authenticate(req, res, next) {
     }
 
     req.user = user;
+    req.authToken = token;
     next();
   } catch (error) {
     if (error instanceof AppError) return next(error);

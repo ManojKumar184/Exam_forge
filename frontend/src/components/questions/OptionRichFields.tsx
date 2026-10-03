@@ -9,18 +9,24 @@ interface OptionRichFieldsProps {
   options: QuestionOption[];
   subtype: 'mcq_single' | 'mcq_multiple';
   correctOption: number | null;
+  correctOptions?: number[];
   onOptionsChange: (options: QuestionOption[]) => void;
   onCorrectChange: (idx: number | null) => void;
+  onCorrectOptionsChange?: (indices: number[]) => void;
 }
 
 export function OptionRichFields({
   options,
   subtype,
   correctOption,
+  correctOptions,
   onOptionsChange,
   onCorrectChange,
+  onCorrectOptionsChange,
 }: OptionRichFieldsProps) {
   const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Resolve correct options for MCQ multiple selection; fallback to empty array
+  const effectiveCorrectOptions = correctOptions ?? [];
 
   const updateOption = (idx: number, patch: Partial<QuestionOption>) => {
     const next = [...options];
@@ -46,10 +52,18 @@ export function OptionRichFields({
     if (options.length > 2) {
       const next = options.filter((_, i) => i !== idx);
       onOptionsChange(next);
+      
       if (correctOption === idx) {
         onCorrectChange(0);
       } else if (correctOption !== null && correctOption > idx) {
         onCorrectChange(correctOption - 1);
+      }
+
+      if (onCorrectOptionsChange && correctOptions) {
+        const updatedOptions = correctOptions
+          .filter(i => i !== idx)
+          .map(i => (i > idx ? i - 1 : i));
+        onCorrectOptionsChange(updatedOptions);
       }
     }
   };
@@ -117,9 +131,19 @@ export function OptionRichFields({
             {subtype === 'mcq_multiple' && (
               <input
                 type="checkbox"
-                className="mt-2.5 h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
-                checked={correctOption === idx}
-                onChange={() => onCorrectChange(idx)}
+                className="mt-2.5 h-4 w-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                checked={effectiveCorrectOptions.includes(idx)}
+                onChange={() => {
+                  if (onCorrectOptionsChange && correctOptions) {
+                    if (correctOptions.includes(idx)) {
+                      onCorrectOptionsChange(correctOptions.filter(i => i !== idx));
+                    } else {
+                      onCorrectOptionsChange([...correctOptions, idx].sort());
+                    }
+                  } else {
+                    onCorrectChange(idx);
+                  }
+                }}
                 title="Mark as Correct Option"
               />
             )}

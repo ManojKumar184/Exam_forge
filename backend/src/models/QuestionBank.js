@@ -11,6 +11,7 @@ const questionBankSchema = new mongoose.Schema(
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     institution: { type: String, default: null },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     visibility: {
       type: String,
       enum: ['public', 'institution', 'private'],
@@ -28,6 +29,7 @@ questionBankSchema.index({ type: 1 });
 questionBankSchema.index({ createdBy: 1 });
 questionBankSchema.index({ visibility: 1 });
 questionBankSchema.index({ institution: 1 });
+questionBankSchema.index({ institutionId: 1, visibility: 1, type: 1 });
 questionBankSchema.index({ isPinned: -1, pinnedOrder: 1 });
 
 export const QuestionBank = mongoose.model('QuestionBank', questionBankSchema);

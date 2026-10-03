@@ -9,13 +9,24 @@
 
 import { SyllabusNode } from '../models/SyllabusNode.js';
 
+let cachedCatalog = null;
+
+/**
+ * Clear the in-memory syllabus catalog cache.
+ */
+export function clearSyllabusCache() {
+  cachedCatalog = null;
+}
+
 /**
  * Load all active SyllabusNodes and organize them into a structured catalog.
  * @returns {Promise<Object>} syllabus catalog with typed node arrays and tree helpers
  */
 export async function loadSyllabusCatalog() {
+  if (cachedCatalog) return cachedCatalog;
   const nodes = await SyllabusNode.find({ isActive: true }).lean();
-  return buildSyllabusCatalogFromNodes(nodes);
+  cachedCatalog = buildSyllabusCatalogFromNodes(nodes);
+  return cachedCatalog;
 }
 
 /**
@@ -172,8 +183,55 @@ export function resolveHintsToSyllabusMappings(hints, syllabusCatalog) {
 
   // Resolve subject
   if (hints.subject) {
-    const subjectNode = findNodeByName(hints.subject, syllabusCatalog.subjects)
-      || null;
+    let subjectNode = null;
+    const matchingSubjects = syllabusCatalog.subjects.filter(
+      (s) => normalize(s.name) === normalize(hints.subject)
+    );
+    const candidates = matchingSubjects.length ? matchingSubjects : syllabusCatalog.subjects.filter(
+      (s) => normalize(s.name).includes(normalize(hints.subject)) || normalize(hints.subject).includes(normalize(s.name))
+    );
+
+    console.log(`[RESOLVE_DEBUG] hints.subject="${hints.subject}" classId="${mapping.classId}" candidates=${candidates.length}`);
+    if (candidates.length) {
+      let scopedCandidates = candidates;
+      if (mapping.classId) {
+        scopedCandidates = candidates.filter(s => s.parentId?.toString() === mapping.classId.toString());
+      }
+      
+      // If we have a chapter/topic hint, try to match it within the candidates to select the correct subject tree
+      if (scopedCandidates.length > 0 && (hints.topic || hints.chapter)) {
+        const chapterName = hints.chapter || hints.topic;
+        for (const s of scopedCandidates) {
+          const childChapters = syllabusCatalog.getChildren(s._id.toString())
+            .filter(c => c.type === 'chapter');
+          let chapterNode = findNodeByName(chapterName, childChapters);
+          if (!chapterNode && hints.topic) {
+            for (const ch of childChapters) {
+              const childTopics = syllabusCatalog.getChildren(ch._id.toString()).filter(t => t.type === 'topic');
+              if (findNodeByName(hints.topic, childTopics)) {
+                chapterNode = ch;
+                break;
+              }
+            }
+          }
+          if (chapterNode) {
+            subjectNode = s;
+            console.log(`[RESOLVE_DEBUG] selected subject node by chapter/topic match:`, s._id);
+            break;
+          }
+        }
+      }
+      
+      if (!subjectNode && scopedCandidates.length > 0) {
+        subjectNode = scopedCandidates[0];
+        console.log(`[RESOLVE_DEBUG] selected fallback subject node:`, subjectNode._id);
+      }
+      if (!subjectNode && candidates.length > 0) {
+        subjectNode = candidates[0];
+        console.log(`[RESOLVE_DEBUG] selected absolute fallback subject node:`, subjectNode._id);
+      }
+    }
+
     if (subjectNode) {
       mapping.subjectId = subjectNode._id;
 
@@ -230,5 +288,13 @@ export function resolveHintsToSyllabusMappings(hints, syllabusCatalog) {
   const hasMapping = Object.values(mapping).some(v => v !== null);
   return hasMapping ? [mapping] : null;
 }
+
+// Invalidate in-memory cache when syllabus is updated
+SyllabusNode.schema.post('save', () => { clearSyllabusCache(); });
+SyllabusNode.schema.post('remove', () => { clearSyllabusCache(); });
+SyllabusNode.schema.post('updateOne', () => { clearSyllabusCache(); });
+SyllabusNode.schema.post('updateMany', () => { clearSyllabusCache(); });
+SyllabusNode.schema.post('deleteOne', () => { clearSyllabusCache(); });
+SyllabusNode.schema.post('deleteMany', () => { clearSyllabusCache(); });
 
 

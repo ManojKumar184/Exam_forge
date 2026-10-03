@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { authenticate } from '../middleware/authenticate.js';
 import * as questionBankController from '../controllers/questionBankController.js';
+import { resolveTenantContext, requireInstitutionContext } from '../middleware/tenantContext.js';
 
 const router = Router();
 
 // All question bank routes require authentication
-router.use(authenticate);
+router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', asyncHandler(questionBankController.list));
 router.get('/:id', asyncHandler(questionBankController.getOne));

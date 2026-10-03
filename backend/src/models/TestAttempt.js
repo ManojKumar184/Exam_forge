@@ -4,6 +4,7 @@ const testAnswerSchema = new mongoose.Schema(
   {
     questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
     selectedOption: { type: Number, default: null },
+    selectedOptions: { type: [Number], default: [] },
     numericalAnswer: { type: Number, default: null },
     textAnswer: { type: String, default: null },
     isCorrect: { type: Boolean, default: null },
@@ -24,6 +25,7 @@ const testAttemptSchema = new mongoose.Schema(
   {
     testId: { type: mongoose.Schema.Types.ObjectId, ref: 'OnlineTest', required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
     attemptNumber: { type: Number, default: 1 },
     startedAt: { type: Date, default: Date.now },
     submittedAt: { type: Date, default: null },
@@ -53,5 +55,7 @@ const testAttemptSchema = new mongoose.Schema(
 );
 
 testAttemptSchema.index({ testId: 1, userId: 1 });
+testAttemptSchema.index({ institutionId: 1, userId: 1, createdAt: -1 });
+testAttemptSchema.index({ testId: 1, userId: 1, attemptNumber: 1 }, { unique: true });
 
 export const TestAttempt = mongoose.model('TestAttempt', testAttemptSchema);

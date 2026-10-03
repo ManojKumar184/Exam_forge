@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(12).max(128).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/, 'Password must include lowercase, uppercase, a number, and a symbol.'),
   fullName: z.string().min(2).max(120),
   role: z.enum(['faculty', 'student']),
   schoolInstitute: z.string().max(200).optional(),
@@ -19,7 +19,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(6),
+  password: z.string().min(12).max(128).regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/, 'Password must include lowercase, uppercase, a number, and a symbol.'),
 });
 
 export const updateProfileSchema = z.object({

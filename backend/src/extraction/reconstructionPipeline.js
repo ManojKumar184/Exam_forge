@@ -2002,12 +2002,14 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   };
 
   // Log 3: Stage-by-stage outputs
-  for (const [key, stage] of Object.entries(stages)) {
-    logger.info(`[FORENSIC_LOG] 3. Stage-by-stage outputs - ${key} (${stage.title})`, {
-      stageKey: key,
-      title: stage.title,
-      output: JSON.parse(JSON.stringify(stage))
-    });
+  if (process.env.NODE_ENV !== 'production') {
+    for (const [key, stage] of Object.entries(stages)) {
+      logger.debug(`[FORENSIC_LOG] Stage output - ${key} (${stage.title})`, {
+        stageKey: key,
+        title: stage.title,
+        output: JSON.parse(JSON.stringify(stage))
+      });
+    }
   }
 
   return {

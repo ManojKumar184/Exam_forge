@@ -29,6 +29,7 @@ interface QuestionWithOrder {
   order_index: number;
   shuffled_options?: number[];
   user_answer?: number;
+  user_answers?: number[];
   text_answer?: string;
   numerical_answer?: number | string;
   is_marked: boolean;
@@ -201,9 +202,10 @@ export function TestTakingPage() {
     const hasNum = saved?.numerical_answer !== null && saved?.numerical_answer !== undefined;
     return {
       user_answer: hasMcq ? saved!.selected_option! : undefined,
+      user_answers: saved?.selected_options || [],
       text_answer: saved?.text_answer ?? undefined,
       numerical_answer: hasNum ? saved!.numerical_answer! : undefined,
-      is_visited: hasMcq || hasText || hasNum,
+      is_visited: hasMcq || Boolean(saved?.selected_options?.length) || hasText || hasNum,
       time_spent_seconds: saved?.time_spent_seconds ?? 0,
       is_correct: saved?.is_correct ?? null,
       marks_obtained: saved?.marks_obtained ?? 0,
@@ -259,6 +261,7 @@ export function TestTakingPage() {
       return {
         question_id: q.id,
         selected_option: typeof q.user_answer === 'number' ? q.user_answer : null,
+        selected_options: q.user_answers || [],
         text_answer: textVal,
         numerical_answer: numericalVal,
         is_marked_for_review: q.is_marked,
@@ -329,6 +332,7 @@ export function TestTakingPage() {
         const localSaved = session?.answers?.[pq.question_id];
         if (localSaved) {
           if (localSaved.user_answer !== undefined) mapped.user_answer = localSaved.user_answer;
+          if (localSaved.user_answers !== undefined) mapped.user_answers = localSaved.user_answers;
           if (localSaved.text_answer !== undefined) mapped.text_answer = localSaved.text_answer;
           if (localSaved.numerical_answer !== undefined) mapped.numerical_answer = localSaved.numerical_answer as any;
           if (localSaved.is_visited !== undefined) mapped.is_visited = localSaved.is_visited;
@@ -519,6 +523,7 @@ export function TestTakingPage() {
     questions.forEach((q) => {
       answersBackup[q.id] = {
         user_answer: q.user_answer,
+        user_answers: q.user_answers,
         text_answer: q.text_answer,
         numerical_answer: q.numerical_answer,
         is_marked: q.is_marked,
@@ -622,7 +627,13 @@ export function TestTakingPage() {
   };
 
   const handleAnswer = (optionIndex: number) => {
-    syncAnswer({ user_answer: optionIndex });
+    if (currentQuestion.question.question_type === 'MCQ_MULTIPLE') {
+      const selected = currentQuestion.user_answers || [];
+      const next = selected.includes(optionIndex) ? selected.filter((index) => index !== optionIndex) : [...selected, optionIndex];
+      syncAnswer({ user_answers: next, user_answer: next.length === 1 ? next[0] : undefined });
+      return;
+    }
+    syncAnswer({ user_answer: optionIndex, user_answers: [] });
   };
 
   const handleNumericalAnswer = (value: string) => {
@@ -641,6 +652,7 @@ export function TestTakingPage() {
 
   const isAnswered = (q: QuestionWithOrder) =>
     q.user_answer !== undefined ||
+    Boolean(q.user_answers?.length) ||
     Boolean(q.text_answer?.trim()) ||
     (q.numerical_answer !== undefined && q.numerical_answer !== '');
 
@@ -905,8 +917,16 @@ export function TestTakingPage() {
           {getQuestionCategory(currentQuestion.question.question_type) === 'mcq' && options && (
             <div className="space-y-3">
               {displayOptions.map(({ originalIndex, option }, index) => {
-                const isSelected = currentQuestion.user_answer === originalIndex;
-                const isCorrect = currentQuestion.question.correct_option === originalIndex;
+                const isSelected = currentQuestion.question.question_type === 'MCQ_MULTIPLE'
+                  ? (currentQuestion.user_answers || []).includes(originalIndex)
+                  : currentQuestion.user_answer === originalIndex;
+                const correctAnswers = (currentQuestion.question.correct_answers || []).map((value) => {
+                  const label = String(value).trim().toUpperCase();
+                  return /^[A-H]$/.test(label) ? label.charCodeAt(0) - 65 : Number(label);
+                }).filter(Number.isInteger);
+                const isCorrect = currentQuestion.question.question_type === 'MCQ_MULTIPLE'
+                  ? correctAnswers.includes(originalIndex)
+                  : currentQuestion.question.correct_option === originalIndex;
                 let optionStyle = 'border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500';
                 
                 if (isReviewMode) {

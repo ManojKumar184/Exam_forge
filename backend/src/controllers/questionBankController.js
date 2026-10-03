@@ -3,17 +3,11 @@ import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 
 export async function list(req, res) {
-  const query = {};
-  if (req.user.role !== 'super_admin') {
-    const userConditions = [
-      { visibility: 'public' },
-      { createdBy: req.user._id }
-    ];
-    if (req.user.schoolInstitute) {
-      userConditions.push({ visibility: 'institution', institution: req.user.schoolInstitute });
-    }
-    query.$or = userConditions;
-  }
+  const query = { $or: [
+    { type: 'system', visibility: 'public' },
+    { institutionId: req.institutionId, visibility: 'institution' },
+    { institutionId: req.institutionId, createdBy: req.user._id },
+  ] };
 
   if (req.query.type) {
     query.type = req.query.type;
@@ -25,7 +19,7 @@ export async function list(req, res) {
 
   const populatedBanks = await Promise.all(
     banks.map(async (bank) => {
-      const questionCount = await Question.countDocuments({ bankIds: bank._id });
+      const questionCount = await Question.countDocuments({ bankIds: bank._id, $or: [{ institutionId: req.institutionId }, { institutionId: null, visibility: 'public' }] });
       return {
         ...bank.toObject(),
         questionCount,
@@ -37,13 +31,17 @@ export async function list(req, res) {
 }
 
 export async function getOne(req, res) {
-  const bank = await QuestionBank.findById(req.params.id);
+  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [
+    { type: 'system', visibility: 'public' },
+    { institutionId: req.institutionId, visibility: 'institution' },
+    { institutionId: req.institutionId, createdBy: req.user._id },
+  ] });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (req.user.role !== 'super_admin') {
     const hasAccess =
       bank.visibility === 'public' ||
-      (bank.visibility === 'institution' && bank.institution === req.user.schoolInstitute) ||
+      (bank.visibility === 'institution' && String(bank.institutionId) === String(req.institutionId)) ||
       (bank.createdBy && bank.createdBy.toString() === req.user._id.toString());
     if (!hasAccess) {
       throw new AppError('You do not have access to this question bank', 403, 'FORBIDDEN');
@@ -63,6 +61,8 @@ export async function create(req, res) {
   if (type === 'system' && req.user.role !== 'super_admin') {
     throw new AppError('Only super admin can create system question banks', 403, 'FORBIDDEN');
   }
+  if (visibility === 'public' && req.user.role !== 'super_admin') throw new AppError('Only platform administrators can publish a global bank', 403, 'FORBIDDEN');
+  if (type === 'institution' && !['INSTITUTION_ADMIN', 'SUPER_ADMIN'].includes(req.membership?.role || (req.user.role === 'super_admin' ? 'SUPER_ADMIN' : ''))) throw new AppError('Institution administrator access required', 403, 'FORBIDDEN');
 
   let bankInst = institution || null;
   if (req.user.role !== 'super_admin') {
@@ -77,6 +77,7 @@ export async function create(req, res) {
     type,
     visibility,
     institution: bankInst,
+    institutionId: type === 'system' ? null : req.institutionId,
     createdBy: req.user._id,
   });
 
@@ -84,7 +85,7 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const bank = await QuestionBank.findById(req.params.id);
+  const bank = await QuestionBank.findOne({ _id: req.params.id, institutionId: req.institutionId });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (req.user.role !== 'super_admin' && (!bank.createdBy || bank.createdBy.toString() !== req.user._id.toString())) {
@@ -100,6 +101,8 @@ export async function update(req, res) {
   if (description !== undefined) bank.description = description;
   if (type !== undefined) bank.type = type;
   if (visibility !== undefined) bank.visibility = visibility;
+  if (visibility === 'public' && req.user.role !== 'super_admin') throw new AppError('Only platform administrators can publish globally', 403, 'FORBIDDEN');
+  if (type === 'system' && req.user.role !== 'super_admin') throw new AppError('Only platform administrators can manage system banks', 403, 'FORBIDDEN');
   if (institution !== undefined) {
     if (req.user.role === 'super_admin') {
       bank.institution = institution;
@@ -118,7 +121,7 @@ export async function update(req, res) {
 }
 
 export async function remove(req, res) {
-  const bank = await QuestionBank.findById(req.params.id);
+  const bank = await QuestionBank.findOne({ _id: req.params.id, institutionId: req.institutionId });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (bank.type === 'system') {
@@ -131,7 +134,7 @@ export async function remove(req, res) {
 
   // Pull this bank ID from all questions that reference it
   await Question.updateMany(
-    { bankIds: bank._id },
+    { bankIds: bank._id, institutionId: req.institutionId },
     { $pull: { bankIds: bank._id } }
   );
 
@@ -140,7 +143,7 @@ export async function remove(req, res) {
 }
 
 export async function assignQuestions(req, res) {
-  const bank = await QuestionBank.findById(req.params.id);
+  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [{ institutionId: req.institutionId }, { type: 'system' }] });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (req.user.role !== 'super_admin') {
@@ -165,6 +168,7 @@ export async function assignQuestions(req, res) {
   }
 
   const filter = { _id: { $in: questionIds } };
+  filter.institutionId = req.institutionId;
   if (req.user.role !== 'super_admin') {
     filter.ownerId = req.user._id;
   }
@@ -181,7 +185,7 @@ export async function assignQuestions(req, res) {
 }
 
 export async function removeQuestions(req, res) {
-  const bank = await QuestionBank.findById(req.params.id);
+  const bank = await QuestionBank.findOne({ _id: req.params.id, institutionId: req.institutionId });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (req.user.role !== 'super_admin' && (!bank.createdBy || bank.createdBy.toString() !== req.user._id.toString())) {
@@ -194,6 +198,7 @@ export async function removeQuestions(req, res) {
   }
 
   const filter = { _id: { $in: questionIds } };
+  filter.institutionId = req.institutionId;
   if (req.user.role !== 'super_admin') {
     filter.ownerId = req.user._id;
   }

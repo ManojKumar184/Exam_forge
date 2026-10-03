@@ -1,7 +1,7 @@
 import { detectSource } from './sourceDetection.js';
 import { SOURCE_TYPES, semanticDocumentFromLegacyBlocks } from './semanticDocumentModel.js';
 import { detectQuestionBoundaries, segmentToLegacyBlock } from './boundaryDetector.js';
-import { detectAnswer } from './answerDetectionEngine.js';
+import { detectAnswer, extractSeparateAnswerKey, mapSeparateAnswerKey } from './answerDetectionEngine.js';
 import { detectExplanation } from './explanationDetectionEngine.js';
 import { classifyQuestion } from './questionTypeClassifier.js';
 import { validateQuestionObject } from './validationEngine.js';
@@ -22,12 +22,22 @@ export class DocumentIntelligencePipeline {
         sourceDetection: source,
       });
 
+    const separateAnswerKey = extractSeparateAnswerKey(semanticDocument.blocks || []);
+    if (separateAnswerKey.found) {
+      const excluded = new Set(separateAnswerKey.sourceBlockIndexes);
+      semanticDocument.blocks = semanticDocument.blocks.filter((_, index) => !excluded.has(index));
+    }
     const segments = detectQuestionBoundaries(semanticDocument);
+    const answerKeyMapping = mapSeparateAnswerKey(separateAnswerKey, segments);
+    const globalAnswerKeyWarnings = answerKeyMapping.issues
+      .filter((issue) => !issue.questionNumber || !segments.some((segment) => segment.questionNumber === issue.questionNumber))
+      .map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`);
     const blocks = segments.map(segmentToLegacyBlock);
 
     if (context.returnRawBlocks) {
       return {
         ...extraction,
+        warnings: [...(extraction.warnings || []), ...globalAnswerKeyWarnings],
         blocks,
         semanticDocument,
         sourceDetection: source,
@@ -47,11 +57,25 @@ export class DocumentIntelligencePipeline {
       const segment = segmentId ? (segments.find(s => s.id === segmentId) || {}) : {};
       const block = segmentId ? (blocks.find(b => b.segmentId === segmentId) || {}) : {};
       const answer = detectAnswer(segment, question.options || block.options || []);
+      if (segment.answerMapping) {
+        answer.answerText = segment.answerMapping.answer.join(',');
+        answer.answerKey = answer.answerText;
+        answer.correctAnswers = segment.answerMapping.answer.filter((label) => /^[A-H]$/.test(label));
+        answer.correctOption = answer.correctAnswers.length === 1 ? answer.correctAnswers[0].charCodeAt(0) - 65
+          : (segment.answerMapping.answer.length === 1 && ['TRUE', 'T'].includes(segment.answerMapping.answer[0]) ? 0
+            : (segment.answerMapping.answer.length === 1 && ['FALSE', 'F'].includes(segment.answerMapping.answer[0]) ? 1 : null));
+        if (segment.answerMapping.answer.length === 1 && /^-?\d+(?:\.\d+)?$/.test(segment.answerMapping.answer[0])) answer.numericalAnswer = Number(segment.answerMapping.answer[0]);
+        answer.confidence = segment.answerMapping.confidence;
+        answer.method = 'separate_answer_key';
+        answer.warnings = [];
+      }
+      if (segment.answerMappingIssues?.length) answer.warnings.push(...segment.answerMappingIssues.map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`));
       const explanation = detectExplanation(segment);
       const classification = classifyQuestion(segment, block, answer);
 
       const enriched = {
         ...question,
+        options: question.options?.length ? question.options : (classification.questionType === 'TRUE_FALSE' ? [{ text: 'True' }, { text: 'False' }] : []),
         questionType: classification.questionType,
         answerText: answer.answerText || question.answerText,
         answerKey: answer.answerKey || question.answerKey,
@@ -68,6 +92,13 @@ export class DocumentIntelligencePipeline {
           ...(question.renderingMetadata || {}),
           sourceDetection: source,
           answerDetection: { level: answer.level, method: answer.method, confidence: answer.confidence },
+          answerKeyValidation: segment.answerMappingIssues || [],
+          fidelity: {
+            ...(question.renderingMetadata?.fidelity || {}),
+            boundaryConfidence: segment.confidence ?? null,
+            classificationConfidence: classification.confidence ?? null,
+            answerConfidence: answer.confidence ?? null,
+          },
           explanationDetection: { confidence: explanation.confidence },
           semanticDocumentVersion: semanticDocument.version,
         },
@@ -91,6 +122,7 @@ export class DocumentIntelligencePipeline {
 
     return {
       ...extraction,
+      warnings: [...(extraction.warnings || []), ...globalAnswerKeyWarnings],
       questions,
       blocks,
       semanticDocument,

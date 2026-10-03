@@ -22,6 +22,7 @@ const onlineTestSchema = new mongoose.Schema(
       default: 'draft',
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
   },
   { timestamps: true }
 );

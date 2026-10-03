@@ -116,12 +116,10 @@ export function estimateDifficulty(question, context = {}) {
 
   const text = `${question.questionText || ''} ${(question.options || []).map((o) => o.text).join(' ')}`;
   const len = text.length;
-  const marks = Number(question.marks || context.marks || 4);
-
   if (DIFFICULTY_HINTS.easy.test(text)) return 'easy';
   if (DIFFICULTY_HINTS.hard.test(text)) return 'hard';
-  if (marks >= 8 || len > 450) return 'hard';
-  if (marks <= 2 || len < 120) return 'easy';
+  if (len > 450) return 'hard';
+  if (len < 120) return 'easy';
   return 'medium';
 }
 
@@ -134,14 +132,18 @@ export function parseDocumentMetadata(rawText, catalog = {}, uploadContext = {},
   // Class is auto-detected from document text; no manual override
   const defaultClass = classesFound[0] || detectClassFromText(header, 11);
 
+  const activeSyllabus = syllabusCatalog || catalog?.syllabus || null;
+  const subjectsList = (catalog.subjects?.length ? catalog.subjects : (activeSyllabus?.subjects || []));
+  const examTypesList = (catalog.examTypes?.length ? catalog.examTypes : (activeSyllabus?.examPatterns || []));
+
   // Subject is auto-detected from document text + filename; no manual override
-  const subject = detectSubjectFromText(`${header} ${uploadContext.filename || ''}`, catalog.subjects || []);
+  const subject = detectSubjectFromText(`${header} ${uploadContext.filename || ''}`, subjectsList);
 
   // Exam type is selected by faculty during upload (only manual selection)
   const examType =
-    uploadContext.examTypeId
-      ? catalog.examTypes?.find((e) => e._id.toString() === uploadContext.examTypeId)
-      : detectExamTypeFromText(header, catalog.examTypes || []);
+    (uploadContext.examTypeId || uploadContext.exam_type_id)
+      ? examTypesList.find((e) => e._id.toString() === (uploadContext.examTypeId || uploadContext.exam_type_id).toString())
+      : detectExamTypeFromText(header, examTypesList);
 
   const isMixed = classesFound.length > 1;
   const warnings = [];
@@ -184,8 +186,12 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
     ? blockClass  // Use per-question detection when document has no explicit class
     : (docMeta.isMixed ? blockClass : docMeta.defaultClass || blockClass);
 
-  const detectedSubject = detectSubjectFromText(text, catalog.subjects || []);
-  const detectedExamType = detectExamTypeFromText(text, catalog.examTypes || []);
+  const activeSyllabus = syllabusCatalog || catalog?.syllabus || null;
+  const subjectsList = (catalog.subjects?.length ? catalog.subjects : (activeSyllabus?.subjects || []));
+  const examTypesList = (catalog.examTypes?.length ? catalog.examTypes : (activeSyllabus?.examPatterns || []));
+
+  const detectedSubject = detectSubjectFromText(text, subjectsList);
+  const detectedExamType = detectExamTypeFromText(text, examTypesList);
 
   // Class and subject are auto-detected; no manual overrides from uploadContext
   const subjectId = docMeta.subjectId || detectedSubject?._id || null;
@@ -195,19 +201,20 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
   // When examTypeId is set (from upload form dropdown), resolve names from catalog
   // so syllabus mapping can match via name in resolveHintsToSyllabusMappings
   let resolvedSubjectName = detectedSubject?.name || null;
-  if (!resolvedSubjectName && subjectId && catalog?.subjects) {
+  if (!resolvedSubjectName && subjectId) {
     // Resolve subject name from catalog by ID for syllabus mapping
-    const subj = catalog.subjects.find(s => s._id.toString() === subjectId.toString());
+    const subj = subjectsList.find(s => s._id.toString() === subjectId.toString());
     if (subj) resolvedSubjectName = subj.name;
   }
   let resolvedExamTypeName = detectedExamType?.name || null;
-  if (!resolvedExamTypeName && examTypeId && catalog?.examTypes) {
-    const et = catalog.examTypes.find(e => e._id.toString() === examTypeId.toString());
+  if (!resolvedExamTypeName && examTypeId) {
+    const et = examTypesList.find(e => e._id.toString() === examTypeId.toString());
     if (et) resolvedExamTypeName = et.name;
   }
 
   // Try topic detection first with the scoped class
-  let topic = detectTopicFromText(text, catalog.topics || [], subjectId, classLevel);
+  const topicsList = (catalog.topics?.length ? catalog.topics : [...(activeSyllabus?.chapters || []), ...(activeSyllabus?.topics || [])]);
+  let topic = detectTopicFromText(text, topicsList, subjectId, classLevel);
   
   // Keep track of whether cross-class inference changed the class
   let crossClassDetected = null;
@@ -217,15 +224,15 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
   // but the topic content reveals it (e.g., "Coulomb's Law" → Class 12 Physics)
   if (!topic && subjectId) {
     // Use syllabus tree to find the exam pattern's available classes
-    if (syllabusCatalog && resolvedSubjectName) {
+    if (activeSyllabus && resolvedSubjectName) {
       // Find syllabus subject node by name (IDs differ from flat Subject model)
-      const subjectSyllabusNode = syllabusCatalog.subjects.find(
+      const subjectSyllabusNode = activeSyllabus.subjects.find(
         s => s.name?.toLowerCase() === (resolvedSubjectName || '').toLowerCase()
       );
       if (subjectSyllabusNode?.parentId) {
-        const examPatternId = syllabusCatalog.byId[subjectSyllabusNode.parentId.toString()]?.parentId;
+        const examPatternId = activeSyllabus.byId[subjectSyllabusNode.parentId.toString()]?.parentId;
         if (examPatternId) {
-          const examPatternChildren = syllabusCatalog.getChildren(examPatternId.toString());
+          const examPatternChildren = activeSyllabus.getChildren(examPatternId.toString());
           const otherClasses = examPatternChildren.filter(c => c.type === 'class');
           for (const otherClass of otherClasses) {
             const otherClassNum = parseInt(otherClass.name.replace(/\D/g, ''), 10);
@@ -240,7 +247,7 @@ export function classifyExtractedQuestion(question, catalog, docMeta = {}, uploa
         }
       }
     }
-    
+  
     // Final fallback: try all common Indian education classes
     if (!topic) {
       const commonClasses = [12, 11, 10].filter(c => c !== classLevel);

@@ -69,7 +69,7 @@ export function SyllabusManagerPage() {
       case 'class': return 'subject';
       case 'subject': return 'chapter';
       case 'chapter': return 'topic';
-      case 'topic': return 'subtopic';
+      case 'topic': return 'topic';
       default: return 'exam_pattern';
     }
   };
@@ -196,7 +196,6 @@ export function SyllabusManagerPage() {
       case 'subject': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
       case 'chapter': return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
       case 'topic': return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300';
-      case 'subtopic': return 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300';
       default: return 'bg-slate-100 text-slate-800';
     }
   };
