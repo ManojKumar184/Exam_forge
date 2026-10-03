@@ -64,6 +64,14 @@ export function canonicalContentFromLegacy(question = {}) {
         ]
       : []),
   }));
+  const legacyAnswer = question.answer ??
+    (question.correctAnswers?.length ? question.correctAnswers : null) ??
+    (question.correct_answers?.length ? question.correct_answers : null) ??
+    question.correctOption ?? question.correct_option ?? question.numericalAnswer ?? question.numerical_answer ?? question.answerText ?? question.answer_text ?? question.answerKey ?? question.answer_key ?? null;
+  const questionType = String(question.questionType || question.question_type || '').toUpperCase();
+  const answer = ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(questionType) && legacyAnswer != null
+    ? { value: legacyAnswer, tolerance: Number(question.numericalTolerance ?? question.numerical_tolerance ?? 0) }
+    : legacyAnswer;
   return createCanonicalQuestionContent({
     stem,
     options,
@@ -73,7 +81,7 @@ export function canonicalContentFromLegacy(question = {}) {
           ...(question.explanation_latex ? [{ type: 'equation', latex: question.explanation_latex }] : []),
         ]
       : []),
-    answer: question.answer ?? question.correctAnswers ?? question.correct_answers ?? null,
+    answer,
     provenance: question.provenance ?? {
       source: question.source || null,
       sourceFile: question.sourceFile || question.source_file || null,
@@ -131,9 +139,66 @@ export function reconcileCanonicalQuestionContent(existingQuestion, updates = {}
     ...(updates.explanation ? [{ type: 'text', text: updates.explanation }] : []),
     ...(updates.explanationLatex ? [{ type: 'equation', latex: updates.explanationLatex }] : []),
   ] : base.explanation;
-  const answerTouched = ['correctOption', 'numericalAnswer', 'answerText', 'correctAnswers'].some((field) => Object.hasOwn(updates, field));
-  const answer = answerTouched
-    ? (updates.correctAnswers ?? updates.correctOption ?? updates.numericalAnswer ?? updates.answerText ?? null)
-    : base.answer;
+  const answerTouched = ['correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'correctAnswers'].some((field) => Object.hasOwn(updates, field));
+  let answer = base.answer;
+  if (answerTouched) {
+    const priorValue = base.answer && typeof base.answer === 'object' && !Array.isArray(base.answer) ? base.answer.value : base.answer;
+    const value = updates.correctAnswers ?? updates.correctOption ?? updates.numericalAnswer ?? updates.answerText ?? updates.answerKey ?? priorValue ?? null;
+    answer = ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(String(existingQuestion.questionType || '').toUpperCase()) || Object.hasOwn(updates, 'numericalTolerance')
+      ? { value, tolerance: Object.hasOwn(updates, 'numericalTolerance') ? Number(updates.numericalTolerance || 0) : Number(base.answer?.tolerance ?? existingQuestion.numericalTolerance ?? 0) }
+      : value;
+  }
   return createCanonicalQuestionContent({ ...base, stem, options, explanation, answer });
+}
+
+/** Derive legacy Question fields for consumers that have not moved to the IR. */
+export function projectCanonicalContentToLegacyFields(content, questionType, base = {}) {
+  const canonical = createCanonicalQuestionContent(content);
+  const textOf = (blocks) => blocks.filter((block) => block.type === 'text').map((block) => block.text || '').join('\n');
+  const equationsOf = (blocks) => blocks.filter((block) => block.type === 'equation' && block.latex).map((block) => block.latex);
+  const imagesOf = (blocks) => blocks.filter((block) => block.type === 'image').map((block) => block.assetUrl || block.url).filter(Boolean);
+  const options = canonical.options.map((option) => ({
+    text: textOf(option.content),
+    latex: equationsOf(option.content).join('\n') || null,
+    image: imagesOf(option.content)[0] || null,
+  }));
+  const answer = canonical.answer && typeof canonical.answer === 'object' && !Array.isArray(canonical.answer)
+    ? canonical.answer
+    : { value: canonical.answer };
+  const type = String(questionType || '').toUpperCase();
+  const optionIndex = (value) => {
+    const numeric = Number(value);
+    if (Number.isInteger(numeric) && String(value).trim() !== '') return numeric;
+    const label = String(value ?? '').trim().toUpperCase();
+    const index = canonical.options.findIndex((option, optionPosition) => String(option.label || String.fromCharCode(65 + optionPosition)).toUpperCase() === label);
+    return index >= 0 ? index : null;
+  };
+  const fields = {
+    ...base,
+    canonicalContent: canonical,
+    contentBlocks: canonical.stem,
+    questionText: textOf(canonical.stem),
+    questionLatex: equationsOf(canonical.stem).join('\n') || null,
+    questionImages: imagesOf(canonical.stem),
+    options,
+    explanation: textOf(canonical.explanation) || null,
+    explanationLatex: equationsOf(canonical.explanation).join('\n') || null,
+    explanationImages: imagesOf(canonical.explanation),
+  };
+  if (type === 'MCQ_MULTIPLE') {
+    const answers = Array.isArray(answer.value) ? answer.value : [];
+    fields.correctAnswers = answers.map(String);
+    fields.correctOption = answers.length ? optionIndex(answers[0]) : null;
+  } else if (['MCQ_SINGLE', 'ASSERTION_REASON', 'TRUE_FALSE'].includes(type)) {
+    const value = answer.value;
+    fields.correctOption = value == null ? null : optionIndex(value);
+    fields.correctAnswers = value == null ? [] : [String(value)];
+  } else if (['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type)) {
+    fields.numericalAnswer = answer.value == null ? null : Number(answer.value);
+    if (answer.tolerance !== undefined) fields.numericalTolerance = Number(answer.tolerance);
+  } else if (['FILL_BLANK', 'MATCH_FOLLOWING'].includes(type)) {
+    fields.answerText = answer.value == null ? null : String(answer.value);
+    fields.correctAnswers = Array.isArray(answer.acceptedAnswers) ? answer.acceptedAnswers.map(String) : [];
+  }
+  return fields;
 }

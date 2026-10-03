@@ -12,7 +12,8 @@ const questionOptionSchema = new mongoose.Schema(
 
 const questionSchema = new mongoose.Schema(
   {
-    questionText: { type: String, required: true },
+    // Compatibility projection; canonicalContent is the authoritative stem.
+    questionText: { type: String, default: '' },
     questionType: {
       type: String,
       enum: [

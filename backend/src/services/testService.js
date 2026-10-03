@@ -371,11 +371,15 @@ function getQuestionCategory(type) {
 export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   if (!question) return { isCorrect: null, marks: 0, skipped: true };
   const category = getQuestionCategory(question.questionType);
+  const canonicalAnswer = question.canonicalContent?.answer;
+  const canonicalValue = canonicalAnswer && typeof canonicalAnswer === 'object' && !Array.isArray(canonicalAnswer)
+    ? canonicalAnswer.value
+    : canonicalAnswer;
   if (category === 'mcq') {
     if (normalizeQuestionType(question.questionType) === 'MCQ_MULTIPLE') {
       const selected = (answer.selectedOptions?.length ? answer.selectedOptions : (answer.selectedOption == null ? [] : [answer.selectedOption])).map(Number).sort((a, b) => a - b);
       if (!selected.length) return { isCorrect: null, marks: 0, skipped: true };
-      const correct = (question.correctAnswers || []).map((value) => {
+      const correct = (Array.isArray(canonicalAnswer) ? canonicalAnswer : question.correctAnswers || []).map((value) => {
         const label = String(value).trim().toUpperCase();
         return /^[A-H]$/.test(label) ? label.charCodeAt(0) - 65 : Number(label);
       }).filter(Number.isInteger).sort((a, b) => a - b);
@@ -385,24 +389,30 @@ export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
     if (answer.selectedOption === null || answer.selectedOption === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
-    const isCorrect = Number(question.correctOption) === Number(answer.selectedOption);
+    const expected = canonicalAnswer !== undefined && canonicalAnswer !== null ? canonicalValue : question.correctOption;
+    const expectedLabel = String(expected ?? '').trim().toUpperCase();
+    const expectedIndex = Number.isInteger(Number(expected)) && String(expected).trim() !== ''
+      ? Number(expected)
+      : (question.canonicalContent?.options || question.options || []).findIndex((option, index) => String(option.label || String.fromCharCode(65 + index)).toUpperCase() === expectedLabel);
+    const isCorrect = expected !== null && expected !== undefined && expectedIndex >= 0 && expectedIndex === Number(answer.selectedOption);
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   if (category === 'numerical') {
     if (answer.numericalAnswer === null || answer.numericalAnswer === undefined) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
-    const tolerance = Number(question.numericalTolerance || 0);
+    const tolerance = Number(canonicalAnswer?.tolerance ?? question.numericalTolerance ?? 0);
     const isCorrect =
-      Math.abs(Number(answer.numericalAnswer) - Number(question.numericalAnswer)) <= tolerance;
+      Math.abs(Number(answer.numericalAnswer) - Number(canonicalValue ?? question.numericalAnswer)) <= tolerance;
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   if (category === 'fill_blank') {
     const response = String(answer.textAnswer || '').trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase();
     if (!response) return { isCorrect: null, marks: 0, skipped: true };
     const acceptedAnswers = [
-      ...(question.correctAnswers || []),
-      question.answerText,
+      ...(Array.isArray(canonicalAnswer) ? canonicalAnswer : question.correctAnswers || []),
+      ...(canonicalAnswer && typeof canonicalAnswer === 'object' ? (canonicalAnswer.acceptedAnswers || []) : []),
+      canonicalAnswer != null && !Array.isArray(canonicalAnswer) && typeof canonicalAnswer !== 'object' ? canonicalAnswer : question.answerText,
       question.answerKey,
     ].filter(Boolean).map(value => String(value).trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase());
     const isCorrect = acceptedAnswers.length > 0 && acceptedAnswers.includes(response);

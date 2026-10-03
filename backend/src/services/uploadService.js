@@ -15,8 +15,8 @@ import { retryAsync } from '../utils/retry.js';
 import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
-import { validateQuestionForApproval } from './questionService.js';
-import { canonicalContentFromLegacy, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
+import { assertCoreV1QuestionType, validateQuestionForApproval } from './questionService.js';
+import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 
 /**
  * Atomic heartbeat/stage update — no version conflicts.
@@ -798,9 +798,16 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
     'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
     'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
     'canonicalContent', 'tags', 'correctAnswers', 'figures', 'formulas', 'semanticBlocks', 'statementGroups',
-    'syllabusMappings',
+    'syllabusMappings', 'bankIds',
   ]));
-  mappedFields.canonicalContent = reconcileCanonicalQuestionContent(current, mappedFields);
+  if (mappedFields.bankIds) {
+    const { validateQuestionBankIds } = await import('./questionBankMembershipService.js');
+    mappedFields.bankIds = await validateQuestionBankIds(mappedFields.bankIds, user);
+  }
+  if (mappedFields.questionType) mappedFields.questionType = assertCoreV1QuestionType(mappedFields.questionType);
+  const currentFields = current.toObject ? current.toObject() : current;
+  mappedFields.canonicalContent = reconcileCanonicalQuestionContent({ ...currentFields, questionType: mappedFields.questionType || current.questionType }, mappedFields);
+  Object.assign(mappedFields, projectCanonicalContentToLegacyFields(mappedFields.canonicalContent, mappedFields.questionType || current.questionType, mappedFields));
 
   upload.stagedQuestions[idx] = {
     ...current,
@@ -836,7 +843,12 @@ export async function rejectStagedQuestion(uploadId, index, user) {
   q.isRejected = !q.isRejected;
   if (q.isRejected) {
     q.isApproved = false;
+    q.status = 'rejected';
+  } else {
+    q.status = q.validationResult?.valid === false ? 'needs_review' : 'pending';
   }
+  q.canonicalContent = canonicalContentFromLegacy(q);
+  q.canonicalContent.validation = { ...q.canonicalContent.validation, status: q.status };
 
   upload.markModified('stagedQuestions');
   await upload.save();
@@ -863,6 +875,9 @@ export async function bulkRejectStagedQuestions(uploadId, indices, user) {
     const q = upload.stagedQuestions[idx];
     q.isRejected = true;
     q.isApproved = false;
+    q.status = 'rejected';
+    q.canonicalContent = canonicalContentFromLegacy(q);
+    q.canonicalContent.validation = { ...q.canonicalContent.validation, status: 'rejected' };
   }
 
   upload.markModified('stagedQuestions');
@@ -905,7 +920,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     if (numIdx < 0 || numIdx >= upload.stagedQuestions.length) continue;
 
     const q = upload.stagedQuestions[numIdx];
-    if (q.isApproved) continue;
+    if (q.isApproved || q.isRejected) continue;
 
     try {
       validateQuestionForApproval(q);
@@ -917,11 +932,16 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       continue;
     }
 
+    const canonicalContent = canonicalContentFromLegacy(q);
+    const projectedContent = projectCanonicalContentToLegacyFields(canonicalContent, q.questionType, q);
+    const questionBankIds = q.bankIds?.length
+      ? await (await import('./questionBankMembershipService.js')).validateQuestionBankIds(q.bankIds, user)
+      : defaultBankIds;
     docsToCreate.push({
-      questionText: q.questionText,
-      contentBlocks: q.contentBlocks || [],
+      questionText: projectedContent.questionText,
+      contentBlocks: projectedContent.contentBlocks,
       canonicalContent: {
-        ...canonicalContentFromLegacy(q),
+        ...canonicalContent,
         validation: {
           ...(q.canonicalContent?.validation || {}),
           status: 'approved',
@@ -934,20 +954,20 @@ export async function commitStagedQuestions(uploadId, indices, user) {
         },
       },
       questionType: q.questionType,
-      questionLatex: q.questionLatex || null,
-      questionImages: q.questionImages || [],
-      options: q.options || [],
-      correctOption: q.correctOption,
-      correctAnswers: q.correctAnswers || [],
-      numericalAnswer: q.numericalAnswer,
-      numericalTolerance: q.numericalTolerance || 0,
-      answerText: q.answerText || q.answerKey || null,
+      questionLatex: projectedContent.questionLatex,
+      questionImages: projectedContent.questionImages,
+      options: projectedContent.options,
+      correctOption: projectedContent.correctOption,
+      correctAnswers: projectedContent.correctAnswers || [],
+      numericalAnswer: projectedContent.numericalAnswer,
+      numericalTolerance: projectedContent.numericalTolerance ?? q.numericalTolerance ?? 0,
+      answerText: projectedContent.answerText || q.answerKey || null,
       difficulty: q.difficulty || 'medium',
       class: q.class || 11,
       year: q.year || null,
-      explanation: q.explanation || null,
-      explanationLatex: q.explanationLatex || null,
-      explanationImages: q.explanationImages || [],
+      explanation: projectedContent.explanation,
+      explanationLatex: projectedContent.explanationLatex,
+      explanationImages: projectedContent.explanationImages,
       diagrams: q.diagrams || [],
       imageMetadata: q.imageMetadata || [],
       hasDiagram: q.hasDiagram || false,
@@ -968,7 +988,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       ownerId: upload.uploadedBy,
       isPrivate: user.role === 'faculty',
       visibility: user.role === 'faculty' ? 'private' : 'public',
-      bankIds: defaultBankIds,
+      bankIds: questionBankIds,
       syllabusMappings: q.syllabusMappings || [],
     });
     validStagedQuestions.push(q);
@@ -994,6 +1014,8 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       q.isApproved = true;
       q.isRejected = false;
       q.status = 'approved';
+      q.canonicalContent = canonicalContentFromLegacy(q);
+      q.canonicalContent.validation = { ...q.canonicalContent.validation, status: 'approved' };
       q.savedQuestionId = created._id;
       questionIds.push(created._id);
     }

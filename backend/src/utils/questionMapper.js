@@ -1,4 +1,4 @@
-import { canonicalContentFromLegacy } from './canonicalQuestionContent.js';
+import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields } from './canonicalQuestionContent.js';
 
 function idStr(v) {
   return v?.toString?.() ?? v;
@@ -8,30 +8,31 @@ export function mapQuestion(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject({ virtuals: true }) : doc;
   const canonicalContent = d.canonicalContent || canonicalContentFromLegacy(d);
+  const projected = projectCanonicalContentToLegacyFields(canonicalContent, d.questionType, d);
 
   return {
     id: idStr(d._id),
     serial_id: d.serialId ?? null,
-    question_text: d.questionText,
+    question_text: projected.questionText,
     question_type: d.questionType,
     context_type: d.contextType || null,
-    question_latex: d.questionLatex,
-    question_images: d.questionImages || [],
-    options: (d.options || []).map((option, index) => ({
+    question_latex: projected.questionLatex,
+    question_images: projected.questionImages || [],
+    options: projected.options.map((option, index) => ({
       ...option,
       contentBlocks: canonicalContent.options[index]?.content || [],
     })),
-    correct_option: d.correctOption,
-    numerical_answer: d.numericalAnswer,
-    numerical_tolerance: d.numericalTolerance,
-    answer_text: d.answerText,
+    correct_option: projected.correctOption,
+    numerical_answer: projected.numericalAnswer,
+    numerical_tolerance: projected.numericalTolerance ?? d.numericalTolerance,
+    answer_text: projected.answerText,
     difficulty: d.difficulty,
     source_marks: d.sourceMarks ?? d.marks ?? null,
     class: d.class,
     year: d.year ?? null,
-    explanation: d.explanation,
-    explanation_latex: d.explanationLatex,
-    explanation_images: d.explanationImages || [],
+    explanation: projected.explanation,
+    explanation_latex: projected.explanationLatex,
+    explanation_images: projected.explanationImages || [],
     diagrams: d.diagrams || [],
     image_metadata: (d.imageMetadata || []).map((img) => ({
       url: img.url,
@@ -66,7 +67,7 @@ export function mapQuestion(doc) {
     updated_at: d.updatedAt?.toISOString?.(),
     
     // SaaS semantic metadata fields mapping
-    correct_answers: d.correctAnswers || [],
+    correct_answers: projected.correctAnswers || [],
     figures: d.figures || [],
     formulas: d.formulas || [],
     semantic_blocks: d.semanticBlocks || [],

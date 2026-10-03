@@ -6,7 +6,7 @@ import { AppError } from '../utils/AppError.js';
 import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
-import { canonicalContentFromLegacy, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
+import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
@@ -26,7 +26,7 @@ const QUESTION_CREATE_FIELDS = new Set([
   'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
   'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
   'canonicalContent', 'tags', 'correctAnswers', 'figures', 'formulas', 'semanticBlocks', 'statementGroups',
-  'syllabusMappings',
+  'syllabusMappings', 'bankIds',
 ]);
 const QUESTION_UPDATE_FIELDS = new Set([...QUESTION_CREATE_FIELDS, 'isPrivate', 'visibility']);
 
@@ -41,20 +41,23 @@ export function validateQuestionForApproval(question) {
   if (!hasStem && !question.questionText?.trim() && !question.questionLatex && !question.questionImages?.length) {
     throw new AppError('Question content is required before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  const options = content?.options?.length ? content.options : (question.options || []);
-  const answer = content?.answer ?? question.correctAnswers ?? question.correctOption ?? question.numericalAnswer ?? question.answerText ?? question.answerKey;
+  const options = content ? (content.options || []) : (question.options || []);
+  const canonicalAnswer = content?.answer;
+  const answer = canonicalAnswer !== undefined && canonicalAnswer !== null
+    ? canonicalAnswer
+    : (question.correctAnswers?.length ? question.correctAnswers : question.correctOption ?? question.numericalAnswer ?? question.answerText ?? question.answerKey);
   if (['MCQ_SINGLE', 'MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type) && options.length < 2) {
     throw new AppError('At least two options are required before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  const singleAnswer = question.correctOption ?? answer;
+  const singleAnswer = content ? answer : (question.correctOption ?? answer);
   if (type === 'MCQ_SINGLE' && (singleAnswer == null || singleAnswer === '' || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
     throw new AppError('Select a valid correct option before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (type === 'MCQ_MULTIPLE' && !(Array.isArray(question.correctAnswers ?? answer) && (question.correctAnswers ?? answer).length)) {
+  if (type === 'MCQ_MULTIPLE' && !(Array.isArray(answer) && answer.length)) {
     throw new AppError('Select one or more correct options before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   if (['MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type)) {
-    const refs = question.correctAnswers ?? (Array.isArray(answer) ? answer : []);
+    const refs = Array.isArray(answer) ? answer : [];
     const validRef = (ref) => {
       if (Number.isInteger(Number(ref)) && String(ref).trim() !== '') return Number(ref) >= 0 && Number(ref) < options.length;
       const label = String(ref).trim().toUpperCase();
@@ -65,9 +68,15 @@ export function validateQuestionForApproval(question) {
   if (type === 'ASSERTION_REASON' && (singleAnswer == null || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
     throw new AppError('Select a valid assertion/reason answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  const numericalAnswer = question.numericalAnswer ?? answer;
+  const numericalAnswer = content && answer && typeof answer === 'object' ? answer.value : (content ? answer : question.numericalAnswer ?? answer);
   if (['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type) && (numericalAnswer == null || numericalAnswer === '' || !Number.isFinite(Number(numericalAnswer)))) {
     throw new AppError('Enter a valid numerical answer before approval', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (type === 'NUMERICAL_INTEGER' && !Number.isInteger(Number(numericalAnswer))) {
+    throw new AppError('Integer questions require an integer answer', 400, 'INVALID_QUESTION_CONTENT');
+  }
+  if (content && typeof content.answer === 'object' && Number(content.answer.tolerance ?? 0) < 0) {
+    throw new AppError('Numerical tolerance cannot be negative', 400, 'INVALID_QUESTION_CONTENT');
   }
   if (['TRUE_FALSE', 'FILL_BLANK'].includes(type) && (answer == null || String(answer).trim() === '')) {
     throw new AppError('Provide the correct answer before approval', 400, 'INVALID_QUESTION_CONTENT');
@@ -322,6 +331,7 @@ export async function createQuestion(body, user) {
   const fields = bodyToQuestionFields(body, QUESTION_CREATE_FIELDS);
   fields.questionType = assertCoreV1QuestionType(fields.questionType);
   fields.canonicalContent = canonicalContentFromLegacy(fields);
+  Object.assign(fields, projectCanonicalContentToLegacyFields(fields.canonicalContent, fields.questionType, fields));
   fields.source = 'manual';
   fields.canonicalContent.provenance = { kind: 'manual' };
   fields.createdBy = user._id;
@@ -331,7 +341,6 @@ export async function createQuestion(body, user) {
   if (user.role === 'faculty') {
     fields.isPrivate = true;
     fields.visibility = 'private';
-    fields.bankIds = [];
   } else if (user.role === 'super_admin') {
     fields.isPrivate = body.is_private !== undefined ? (body.is_private === 'true' || body.is_private === true) : false;
     fields.visibility = body.visibility || 'public';
@@ -399,10 +408,10 @@ export async function createQuestion(body, user) {
     snapshot
   }];
 
-  if (!fields.bankIds?.length) {
-    const { resolveDefaultQuestionBankIds } = await import('./questionBankMembershipService.js');
-    fields.bankIds = await resolveDefaultQuestionBankIds(user);
-  }
+  const { resolveDefaultQuestionBankIds, validateQuestionBankIds } = await import('./questionBankMembershipService.js');
+  fields.bankIds = fields.bankIds?.length
+    ? await validateQuestionBankIds(fields.bankIds, user)
+    : await resolveDefaultQuestionBankIds(user);
 
   const doc = await Question.create(fields);
   if (tenantId) await recordUsage(tenantId, 'questions');
@@ -428,9 +437,17 @@ export async function updateQuestion(id, body, user) {
 
   const fields = bodyToQuestionFields(body, QUESTION_UPDATE_FIELDS);
   if (Object.hasOwn(fields, 'questionType')) fields.questionType = assertCoreV1QuestionType(fields.questionType);
-  const touchesContent = ['questionText', 'questionLatex', 'questionImages', 'options', 'explanation', 'explanationLatex', 'contentBlocks', 'canonicalContent']
+  if (fields.bankIds) {
+    const { validateQuestionBankIds } = await import('./questionBankMembershipService.js');
+    fields.bankIds = await validateQuestionBankIds(fields.bankIds, user);
+  }
+  const touchesContent = ['questionText', 'questionLatex', 'questionImages', 'options', 'explanation', 'explanationLatex', 'contentBlocks', 'canonicalContent', 'correctOption', 'correctAnswers', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey']
     .some((key) => Object.hasOwn(fields, key));
   if (touchesContent) fields.canonicalContent = reconcileCanonicalQuestionContent(question.toObject(), fields);
+  if (fields.canonicalContent || fields.questionType) {
+    const canonical = fields.canonicalContent || canonicalContentFromLegacy(question);
+    Object.assign(fields, projectCanonicalContentToLegacyFields(canonical, fields.questionType || question.questionType, fields));
+  }
   for (const key of ['status', 'createdBy', 'ownerId', 'institutionId', 'reviewedBy', 'reviewedAt', 'reviewNotes', 'auditHistory', 'enrichmentAttempts', 'semanticEnriched']) delete fields[key];
   if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     delete fields.isPrivate;
@@ -515,6 +532,8 @@ export async function approveQuestion(id, user) {
   
   // syllabusMappings required before approving — flat Subject/ExamType collections were dropped
   existing.status = 'approved';
+  existing.canonicalContent = canonicalContentFromLegacy(existing);
+  existing.canonicalContent.validation = { ...existing.canonicalContent.validation, status: 'approved' };
   existing.reviewedBy = user._id;
   existing.reviewedAt = new Date();
   existing.reviewNotes = null;
@@ -550,6 +569,8 @@ export async function rejectQuestion(id, user, notes) {
   }
 
   existing.status = 'rejected';
+  existing.canonicalContent = canonicalContentFromLegacy(existing);
+  existing.canonicalContent.validation = { ...existing.canonicalContent.validation, status: 'rejected' };
   existing.reviewedBy = user._id;
   existing.reviewedAt = new Date();
   existing.reviewNotes = notes;
@@ -591,6 +612,8 @@ export async function bulkApprove(ids, user) {
   }
   for (const q of questions) {
     q.status = 'approved';
+    q.canonicalContent = canonicalContentFromLegacy(q);
+    q.canonicalContent.validation = { ...q.canonicalContent.validation, status: 'approved' };
     q.reviewedBy = user._id;
     q.reviewedAt = new Date();
     q.auditHistory = [
@@ -620,6 +643,8 @@ export async function bulkReject(ids, user, notes) {
   const questions = await Question.find(filter);
   for (const q of questions) {
     q.status = 'rejected';
+    q.canonicalContent = canonicalContentFromLegacy(q);
+    q.canonicalContent.validation = { ...q.canonicalContent.validation, status: 'rejected' };
     q.reviewedBy = user._id;
     q.reviewedAt = new Date();
     q.reviewNotes = notes;

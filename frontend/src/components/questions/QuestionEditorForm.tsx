@@ -224,7 +224,9 @@ function initialCanonicalContent(question?: Partial<Question>) {
     stem: structuredClone(legacyStem),
     options,
     explanation: question?.explanation ? [{ type: 'text' as const, text: question.explanation }] : [],
-    answer: question?.correct_answers?.length ? question.correct_answers : question?.correct_option ?? question?.numerical_answer ?? question?.answer_text ?? null,
+    answer: ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(String(question?.question_type || '').toUpperCase())
+      ? { value: question?.numerical_answer ?? null, tolerance: question?.numerical_tolerance ?? 0 }
+      : question?.correct_answers?.length ? question.correct_answers : question?.correct_option ?? question?.answer_text ?? null,
     provenance: { kind: question?.source || 'manual', sourceFile: question?.source_file || null },
     validation: { status: question?.status || 'pending', warnings: question?.extraction_warnings || [] },
   };
@@ -313,6 +315,7 @@ export function QuestionEditorForm({
     return single !== null ? [single] : [];
   });
   const [numericalAnswer, setNumericalAnswerState] = useState('');
+  const [numericalTolerance, setNumericalToleranceState] = useState('0');
   const setCorrectOption = (value: number | null) => {
     setCorrectOptionState(value);
     setCanonicalContent((previous) => ({ ...previous, answer: value }));
@@ -324,6 +327,13 @@ export function QuestionEditorForm({
   const setNumericalAnswer = (value: string) => {
     setNumericalAnswerState(value);
     setCanonicalContent((previous) => ({ ...previous, answer: value.trim() ? Number(value) : null }));
+  };
+  const setNumericalTolerance = (value: string) => {
+    setNumericalToleranceState(value);
+    setCanonicalContent((previous) => ({
+      ...previous,
+      answer: { value: numericalAnswer.trim() ? Number(numericalAnswer) : null, tolerance: value.trim() ? Number(value) : 0 },
+    }));
   };
   const setAnswerText = (value: string) => {
     setAnswerTextState(value);
@@ -480,6 +490,7 @@ export function QuestionEditorForm({
         ? String(d.numericalAnswer)
         : (initial.numerical_answer != null ? String(initial.numerical_answer) : '')
     );
+    setNumericalToleranceState(String(d?.numericalTolerance ?? initial.numerical_tolerance ?? 0));
     setTagsInput(
       d?.tagsInput ||
       (initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', ')
@@ -551,6 +562,7 @@ export function QuestionEditorForm({
         correctOption,
         correctOptions,
         numericalAnswer,
+        numericalTolerance,
         tagsInput,
         selectedBankId,
         syllabusMapping: {
@@ -563,7 +575,7 @@ export function QuestionEditorForm({
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, contentBlocks, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, correctOptions, numericalAnswer, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
+  }, [initial?.id, bodyHtml, bodyPlain, contentBlocks, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, correctOptions, numericalAnswer, numericalTolerance, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -708,6 +720,7 @@ export function QuestionEditorForm({
       if (subtype === 'mcq_multiple' && correctOptions.length === 0) errs.push('Select at least one correct option');
     }
     if (['integer', 'numerical'].includes(subtype) && (!numericalAnswer || !Number.isFinite(Number(numericalAnswer)))) errs.push('Enter a valid numerical answer');
+    if (['integer', 'numerical'].includes(subtype) && (!Number.isFinite(Number(numericalTolerance)) || Number(numericalTolerance) < 0)) errs.push('Tolerance must be a non-negative number');
     if (['fill_blank', 'match_following'].includes(subtype) && !answerText.trim()) errs.push('Correct answer is required');
     return errs;
   };
@@ -750,7 +763,9 @@ export function QuestionEditorForm({
           content: canonicalOptionBlocks(option),
         })) : [],
         explanation: canonicalExplanationBlocks(initial?.canonical_content?.explanation, explanation.trim()),
-        answer: canonicalAnswer,
+        answer: ['integer', 'numerical'].includes(subtype)
+          ? { value: canonicalAnswer, tolerance: Number(numericalTolerance || 0) }
+          : canonicalAnswer,
         provenance: canonicalContent.provenance || { kind: initial?.source || 'manual', sourceFile: initial?.source_file || null },
         validation: canonicalContent.validation || {},
       },
@@ -770,6 +785,7 @@ export function QuestionEditorForm({
         ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(sub.questionType) && numericalAnswer
           ? Number(numericalAnswer)
           : null,
+      numerical_tolerance: ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(sub.questionType) ? Number(numericalTolerance || 0) : 0,
       answer_text:
         ['FILL_BLANK', 'MATCH_FOLLOWING'].includes(sub.questionType)
           ? answerText.trim() || null
@@ -1084,6 +1100,18 @@ export function QuestionEditorForm({
               value={numericalAnswer}
               onChange={(e) => {
                 setNumericalAnswer(e.target.value);
+                setAutosaveStatus('saving');
+              }}
+              className="py-1 text-sm"
+            />
+            <Input
+              label="Accepted tolerance"
+              type="number"
+              min="0"
+              step="any"
+              value={numericalTolerance}
+              onChange={(e) => {
+                setNumericalTolerance(e.target.value);
                 setAutosaveStatus('saving');
               }}
               className="py-1 text-sm"

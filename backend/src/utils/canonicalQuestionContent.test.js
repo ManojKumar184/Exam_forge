@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   canonicalContentFromLegacy,
   createCanonicalQuestionContent,
+  projectCanonicalContentToLegacyFields,
   reconcileCanonicalQuestionContent,
   CANONICAL_QUESTION_CONTENT_VERSION,
 } from './canonicalQuestionContent.js';
@@ -41,6 +42,23 @@ test('legacy question fields map to canonical content without dropping options o
   assert.equal(content.stem[0].text, 'Legacy stem');
   assert.deepEqual(content.options[0].content.map((block) => block.type), ['text', 'equation', 'image']);
   assert.equal(content.explanation[0].text, 'because');
+});
+
+test('canonical projections retain structured answers for legacy question consumers', () => {
+  const multiple = canonicalContentFromLegacy({
+    questionType: 'MCQ_MULTIPLE', correctAnswers: ['0', '2'],
+    options: [{ text: 'A' }, { text: 'B' }, { text: 'C' }],
+  });
+  assert.deepEqual(multiple.answer, ['0', '2']);
+  assert.deepEqual(projectCanonicalContentToLegacyFields(multiple, 'MCQ_MULTIPLE').correctAnswers, ['0', '2']);
+
+  const numerical = canonicalContentFromLegacy({
+    questionType: 'NUMERICAL', numericalAnswer: 3.5, numericalTolerance: 0.25,
+  });
+  const projected = projectCanonicalContentToLegacyFields(numerical, 'NUMERICAL');
+  assert.deepEqual(numerical.answer, { value: 3.5, tolerance: 0.25 });
+  assert.equal(projected.numericalAnswer, 3.5);
+  assert.equal(projected.numericalTolerance, 0.25);
 });
 
 test('canonical content rejects unknown versions and malformed blocks', () => {

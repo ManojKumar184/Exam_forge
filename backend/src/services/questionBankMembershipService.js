@@ -1,4 +1,26 @@
 import { QuestionBank } from '../models/QuestionBank.js';
+import mongoose from 'mongoose';
+import { AppError } from '../utils/AppError.js';
+
+export async function validateQuestionBankIds(ids, user) {
+  const values = Array.isArray(ids) ? ids : ids ? [ids] : [];
+  if (!values.length) return [];
+  if (values.some((id) => !mongoose.isValidObjectId(id)) || new Set(values.map(String)).size !== values.length) {
+    throw new AppError('Question bank IDs are invalid', 400, 'INVALID_QUESTION_BANKS');
+  }
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
+  const allowed = user.role === 'super_admin'
+    ? [{ type: 'system' }, ...(institutionId ? [{ institutionId }] : [])]
+    : [
+        { institutionId, createdBy: user._id },
+        ...(user.membershipRole === 'INSTITUTION_ADMIN' ? [{ institutionId, type: 'institution', visibility: 'institution' }] : []),
+      ];
+  const banks = await QuestionBank.find({ _id: { $in: values }, $or: allowed }).select('_id').lean();
+  if (banks.length !== values.length) {
+    throw new AppError('One or more question banks are unavailable to this user', 403, 'QUESTION_BANK_FORBIDDEN');
+  }
+  return banks.map((bank) => bank._id);
+}
 
 export async function resolveDefaultQuestionBankIds(user) {
   if (user?.role === 'super_admin') {
