@@ -8,7 +8,7 @@ const optionSchema = z.object({
 
 export const createQuestionSchema = z.object({
   question_text: z.string().min(5),
-  question_type: z.enum(['mcq', 'descriptive', 'numerical', 'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'DESCRIPTIVE', 'MCQ_MULTI', 'INTEGER', 'NUMERICAL', 'MATCH_COLUMNS']).optional().default('descriptive'),
+  question_type: z.enum(['mcq', 'numerical', 'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'MCQ_MULTI', 'INTEGER', 'NUMERICAL', 'MATCH_COLUMNS']).optional().default('UNCLASSIFIED'),
   class: z.number().int().min(6).max(12),
   subject_id: z.string().optional().nullable(),
   chapter_id: z.string().optional().nullable(),
@@ -17,7 +17,7 @@ export const createQuestionSchema = z.object({
   options: z.array(optionSchema).optional(),
   correct_option: z.number().int().min(0).max(7).optional().nullable(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
-  marks: z.number().positive().optional().nullable(),
+  source_marks: z.number().positive().optional().nullable(),
   explanation: z.string().optional().nullable(),
   question_latex: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
@@ -90,7 +90,7 @@ export const reconstructQuestionSchema = z.object({
 });
 
 export const semanticQuestionSchema = z.object({
-  questionType: z.string().optional().default("DESCRIPTIVE"),
+  questionType: z.string().optional().default("UNCLASSIFIED"),
   contextType: z.string().nullable().optional(),
   stem: z.string().optional().default(""),
   options: z.array(
@@ -114,9 +114,9 @@ export const reconstructionResponsePayloadSchema = z.object({
   questionText: z.string().default(''),
   questionHtml: z.string().nullable().optional(),
   questionLatex: z.string().nullable().optional(),
-  questionType: z.string().default('descriptive'),
+  questionType: z.string().default('UNCLASSIFIED'),
   contextType: z.string().nullable().optional(),
-  subtype: z.string().default('descriptive'),
+  subtype: z.string().default('UNCLASSIFIED'),
   options: z.array(z.object({
     text: z.string().default(''),
     latex: z.string().nullable().optional(),

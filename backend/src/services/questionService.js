@@ -197,7 +197,7 @@ export async function listQuestions(query, user) {
 
   const sortField = query.sort_by || 'createdAt';
   const sortOrder = query.sort_order === 'asc' ? 1 : -1;
-  const allowedSort = ['createdAt', 'updatedAt', 'marks', 'class', 'aiConfidence'];
+  const allowedSort = ['createdAt', 'updatedAt', 'sourceMarks', 'class', 'aiConfidence'];
   const sort = { [allowedSort.includes(sortField) ? sortField : 'createdAt']: sortOrder };
 
   const filter = buildListFilter(query, user);

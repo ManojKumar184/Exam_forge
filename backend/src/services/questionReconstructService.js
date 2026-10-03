@@ -65,7 +65,7 @@ function resolveSubtype(row) {
   );
   if (tag === 'integer_type') return 'integer';
   if (tag === 'numerical') return 'numerical';
-  return tag || 'descriptive';
+  return tag || 'UNCLASSIFIED';
 }
 
 function calculateParserConfidence(row, warnings) {
@@ -161,7 +161,7 @@ function toEditorPayload(row, cleanedHtml, imageUrls, sources, extraWarnings = [
     questionText: row.questionText || '',
     questionHtml: cleanedHtml && cleanedHtml.length > 10 ? cleanedHtml : null,
     questionLatex: row.questionLatex || null,
-    questionType: row.questionType || 'descriptive',
+    questionType: row.questionType || 'UNCLASSIFIED',
     subtype,
     options: (row.options || []).map((o) => ({
       text: o.text || '',
@@ -232,8 +232,8 @@ export async function reconstructQuestionInput(body) {
     return {
       questionText: '',
       questionHtml: cleaned.html || null,
-      questionType: 'descriptive',
-      subtype: 'descriptive',
+      questionType: 'UNCLASSIFIED',
+      subtype: 'UNCLASSIFIED',
       options: [],
       tags: [],
       questionImages: imageUrls,

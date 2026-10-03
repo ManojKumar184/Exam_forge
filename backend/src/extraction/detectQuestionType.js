@@ -31,9 +31,9 @@ const CANONICAL_TYPE_MAP = {
   'match_following': 'MATCH_FOLLOWING',
   'assertion_reason': 'ASSERTION_REASON',
   'comprehension': 'COMPREHENSION',
-  'descriptive': 'DESCRIPTIVE',
-  'short_answer': 'DESCRIPTIVE',
-  'long_answer': 'DESCRIPTIVE',
+  'descriptive': 'UNCLASSIFIED',
+  'short_answer': 'UNCLASSIFIED',
+  'long_answer': 'UNCLASSIFIED',
   'mcq_incomplete': 'MCQ_SINGLE',
 };
 
@@ -41,7 +41,7 @@ const CANONICAL_TYPE_MAP = {
  * Map a subtype to its canonical question type.
  */
 export function toCanonicalType(subtype) {
-  return CANONICAL_TYPE_MAP[subtype] || subtype || 'DESCRIPTIVE';
+  return CANONICAL_TYPE_MAP[subtype] || subtype || 'UNCLASSIFIED';
 }
 
 /**

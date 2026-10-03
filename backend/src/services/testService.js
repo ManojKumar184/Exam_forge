@@ -412,7 +412,7 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
         (pq.questionId?._id || pq.questionId).toString(),
         {
           question: pq.questionId,
-          marks: Number(pq.customMarks || 0),
+          marks: Number(pq.customMarks !== null && pq.customMarks !== undefined ? pq.customMarks : (sectionObj?.marksPerQuestion ?? 4)),
           negativeMarks: Number(negativeMarks || 0),
         },
       ];

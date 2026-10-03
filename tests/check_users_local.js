@@ -6,7 +6,7 @@ const puppeteer = require('../frontend/node_modules/puppeteer');
 const mongoose = require('../backend/node_modules/mongoose');
 const path = require('path');
 require('../backend/node_modules/dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/examforge_test';
 
 (async () => {
   console.log('🟢 Connecting to MongoDB to retrieve target question ID...');

@@ -152,6 +152,10 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null, inst
     const q = pq.questionId;
     if (!q) continue;
     const qid = q._id.toString();
+    const sectionObj = test.paperId?.sections?.find(s => s.name === pq.section);
+    const defaultMarks = sectionObj?.marksPerQuestion ?? 4;
+    const maxMarks = Number(pq.customMarks !== null && pq.customMarks !== undefined ? pq.customMarks : defaultMarks);
+
     questionStats.set(qid, {
       question_id: qid,
       question_type: q.questionType,
@@ -161,7 +165,7 @@ export async function getTestPerformanceAnalytics(testId, facultyId = null, inst
         ? (q.syllabusMappings[0].chapterIdName || 'Chapter ' + q.syllabusMappings[0].chapterId.toString().slice(-6))
         : 'Unknown',
       tags: q.tags || [],
-      max_marks: Number(pq.customMarks || q.marks || 0),
+      max_marks: maxMarks,
       attempts: 0,
       correct: 0,
       wrong: 0,

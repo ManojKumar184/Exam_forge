@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Upload } from '../src/models/Upload.js';
 
 async function main() {
-  await mongoose.connect('mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test', { serverSelectionTimeoutMS: 15000 });
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/examforge_test', { serverSelectionTimeoutMS: 15000 });
   console.log('Connected to MongoDB (test)');
 
   const latestUpload = await Upload.findOne().sort({ createdAt: -1 });

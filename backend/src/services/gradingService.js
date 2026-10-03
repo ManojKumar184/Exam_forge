@@ -13,13 +13,21 @@ function assertFacultyOwnsTest(test, user) {
 
 function buildQuestionMap(paper) {
   return new Map(
-    (paper?.questions || []).map((pq) => [
-      (pq.questionId?._id || pq.questionId).toString(),
-      {
-        question: pq.questionId,
-        marks: Number(pq.customMarks || pq.questionId?.marks || 0),
-      },
-    ])
+    (paper?.questions || []).map((pq) => {
+      const sectionName = pq.section || 'A';
+      const sectionObj = paper?.sections?.find(s => s.name === sectionName);
+      const defaultMarks = sectionObj?.marksPerQuestion ?? 4;
+      const customMarks = pq.customMarks ?? pq.custom_marks;
+      const effectiveMarks = customMarks !== null && customMarks !== undefined ? Number(customMarks) : defaultMarks;
+
+      return [
+        (pq.questionId?._id || pq.questionId).toString(),
+        {
+          question: pq.questionId,
+          marks: Number(effectiveMarks || 0),
+        },
+      ];
+    })
   );
 }
 

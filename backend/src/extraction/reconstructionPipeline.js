@@ -706,10 +706,10 @@ function semanticClassify(stemText, optionsCount) {
     return { type: 'MATCH_FOLLOWING', contextType: 'MATCH_FOLLOWING' };
   }
   if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lower)) {
-    return { type: 'DESCRIPTIVE', contextType: 'COMPREHENSION' };
+    return { type: 'UNCLASSIFIED', contextType: 'COMPREHENSION' };
   }
   if (/case\s*study|read\s+the\s+following\s+case/i.test(lower)) {
-    return { type: 'DESCRIPTIVE', contextType: 'CASE_STUDY' };
+    return { type: 'UNCLASSIFIED', contextType: 'CASE_STUDY' };
   }
   if (/matrix\s*match/i.test(lower)) {
     return { type: 'MCQ_SINGLE', contextType: 'MATRIX_MATCH' };
@@ -740,7 +740,7 @@ function semanticClassify(stemText, optionsCount) {
     return { type: 'NUMERICAL_INTEGER' };
   }
   
-  return { type: 'DESCRIPTIVE' };
+  return { type: 'UNCLASSIFIED' };
 }
 
 /**
@@ -1819,7 +1819,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   stages.stage9.explanation = explanation;
 
   // Stage 10: Question Type Classification (canonical)
-  let questionType = 'DESCRIPTIVE';
+  let questionType = 'UNCLASSIFIED';
   let contextType = null;
   const lowerStem = stem.toLowerCase();
 
@@ -1837,10 +1837,10 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
     questionType = 'MCQ_SINGLE';
     contextType = 'TRUE_FALSE';
   } else if (/comprehension|passage\s*based|read\s+the\s+following\s+passage/i.test(lowerStem)) {
-    questionType = 'DESCRIPTIVE';
+    questionType = 'UNCLASSIFIED';
     contextType = 'COMPREHENSION';
   } else if (/case\s*study|read\s+the\s+following\s+case/i.test(lowerStem)) {
-    questionType = 'DESCRIPTIVE';
+    questionType = 'UNCLASSIFIED';
     contextType = 'CASE_STUDY';
   } else if (options.length >= 2) {
     // Check for multiple correct indicators in stem AND options
@@ -1865,7 +1865,7 @@ export async function runStagesReconstruction(plainText, htmlText = null, ocrTex
   questionType = normalizeQuestionType(questionType);
 
   // 3. AI Verification for uncertain cases
-  const isUncertain = questionType === 'DESCRIPTIVE' || optionConfidence < 0.70;
+  const isUncertain = questionType === 'UNCLASSIFIED' || optionConfidence < 0.70;
   if (isUncertain && getLlmProvider() && !shouldSkipLlm) {
     try {
       const llmProvider = getLlmProvider();

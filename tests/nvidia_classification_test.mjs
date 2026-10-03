@@ -1,7 +1,13 @@
 import OpenAI from 'openai';
 
+const apiKey = process.env.NVIDIA_API_KEY;
+if (!apiKey) {
+  console.log('Skipping classification test: NVIDIA_API_KEY environment variable is not set.');
+  process.exit(0);
+}
+
 const openai = new OpenAI({
-  apiKey: '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',
+  apiKey: apiKey,
   baseURL: 'https://integrate.api.nvidia.com/v1',
 });
 

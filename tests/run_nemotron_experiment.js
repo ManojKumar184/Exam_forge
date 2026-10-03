@@ -18,7 +18,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', 'backend', '.env') });
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/examforge_test';
 
 // Settings
 const docxPath = path.join(__dirname, 'Physics_cleaned_dataset.docx');

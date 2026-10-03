@@ -355,9 +355,10 @@ export function buildPaperExportHtml(paper, options = {}) {
   const bodySections = showQuestions ? sections
     .map((sec) => {
       const qCount = sec.items.length;
-      const totalMarks = sec.items.reduce((sum, item) => sum + (item.custom_marks ?? item.question?.marks ?? 4), 0);
-      const marksPerQuestion = qCount > 0 ? (sec.items[0].custom_marks ?? sec.items[0].question?.marks ?? 4) : 4;
-      const allSameMarks = sec.items.every(item => (item.custom_marks ?? item.question?.marks ?? 4) === marksPerQuestion);
+      const secMarks = sec.marksPerQuestion ?? 4;
+      const totalMarks = sec.items.reduce((sum, item) => sum + (item.custom_marks ?? item.customMarks ?? secMarks), 0);
+      const marksPerQuestion = qCount > 0 ? (sec.items[0].custom_marks ?? sec.items[0].customMarks ?? secMarks) : secMarks;
+      const allSameMarks = sec.items.every(item => (item.custom_marks ?? item.customMarks ?? secMarks) === marksPerQuestion);
       
       let statsLine = '';
       if (allSameMarks && qCount > 0) {
@@ -378,7 +379,7 @@ export function buildPaperExportHtml(paper, options = {}) {
           const displayQNum = numberingMode === 'section_wise' ? sectionQNum : globalQNum;
           const keyLabel = numberingMode === 'section_wise' ? `${sec.key}${sectionQNum}` : `Q${globalQNum}`;
 
-          const marks = pq.custom_marks ?? q.marks ?? 4;
+          const marks = pq.custom_marks ?? pq.customMarks ?? sec.marksPerQuestion ?? 4;
           const negativeMarks = pq.custom_negative_marks ?? pq.customNegativeMarks ?? 0;
           const answerVal = getAnswerValue(q);
           allAnswerKeys.push({ qNum: displayQNum, label: keyLabel, answer: answerVal, question: q });

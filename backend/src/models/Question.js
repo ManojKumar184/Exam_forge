@@ -56,7 +56,7 @@ const questionSchema = new mongoose.Schema(
       enum: ['easy', 'medium', 'hard'],
       default: 'medium',
     },
-    marks: { type: Number, default: null },
+    sourceMarks: { type: Number, default: null },
     class: { type: Number, required: true, min: 6, max: 12 },
     year: { type: String, default: null },
     explanation: { type: String, default: null },

@@ -20,7 +20,7 @@ async function main() {
   // Connect to MongoDB
   console.log('Connecting to MongoDB...');
   try {
-    const uri = process.env.MONGODB_URI || 'mongodb+srv://admin-examforge:admin123@exam-forge.rv32zqk.mongodb.net/test';
+    const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/examforge_test';
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
     console.log('MONGO: connected');
   } catch(err) { 

@@ -1,4 +1,8 @@
-const apiKey = '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';
+const apiKey = process.env.NVIDIA_API_KEY;
+if (!apiKey) {
+  console.log('Skipping test: NVIDIA_API_KEY environment variable is not set.');
+  process.exit(0);
+}
 const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
 async function testModel(model) {

@@ -297,7 +297,7 @@ export async function selectQuestionsForPaper(config) {
       marksPerQuestion: Number(spec.marksPerQuestion || spec.marks_per_question || 4),
       questions: picked.map((q, orderIndex) => ({
         ...mapQuestion(q),
-        custom_marks: Number(spec.marksPerQuestion || spec.marks_per_question || q.marks || 4),
+        custom_marks: Number(spec.marksPerQuestion || spec.marks_per_question || 4),
         custom_negative_marks: Number(spec.negativeMarksPerQuestion || spec.negative_marks_per_question || 0),
         section_id: spec.id || spec.sectionId,
         order_index: orderIndex,
