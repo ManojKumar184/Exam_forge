@@ -16,6 +16,7 @@ import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 import { validateQuestionForApproval } from './questionService.js';
+import { canonicalContentFromLegacy, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 
 /**
  * Atomic heartbeat/stage update — no version conflicts.
@@ -790,7 +791,15 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
   }
 
   const current = upload.stagedQuestions[idx];
-  const mappedFields = bodyToQuestionFields(questionFields);
+  const mappedFields = bodyToQuestionFields(questionFields, new Set([
+    'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
+    'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
+    'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
+    'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
+    'canonicalContent', 'tags', 'correctAnswers', 'figures', 'formulas', 'semanticBlocks', 'statementGroups',
+    'syllabusMappings',
+  ]));
+  mappedFields.canonicalContent = reconcileCanonicalQuestionContent(current, mappedFields);
 
   upload.stagedQuestions[idx] = {
     ...current,
@@ -910,6 +919,19 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     docsToCreate.push({
       questionText: q.questionText,
       contentBlocks: q.contentBlocks || [],
+      canonicalContent: {
+        ...canonicalContentFromLegacy(q),
+        validation: {
+          ...(q.canonicalContent?.validation || {}),
+          status: 'approved',
+          warnings: q.extractionWarnings || [],
+          fidelity: {
+            parser: q.parserConfidence ?? null,
+            reconstruction: q.reconstructionFidelity ?? null,
+            math: q.mathPreservationConfidence ?? null,
+          },
+        },
+      },
       questionType: q.questionType,
       questionLatex: q.questionLatex || null,
       questionImages: q.questionImages || [],

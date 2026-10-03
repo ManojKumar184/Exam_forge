@@ -10,6 +10,10 @@ import { extractSeparateAnswerKey, mapSeparateAnswerKey } from './documentIntell
 
 const fixtures = path.resolve('src/extraction/fixtures');
 
+test('DOCX parser rejects oversized archives before parsing document XML', async () => {
+  await assert.rejects(parseDocxXmlStructure(Buffer.alloc(50 * 1024 * 1024 + 1)), /supported size limit/);
+});
+
 test('actual DOCX fixture preserves OMML inside structured table cells and normalizes it', async () => {
   const structure = await parseDocxXmlStructure(await fs.readFile(path.join(fixtures, 'equation_table.docx')));
   const blocks = structure.tables.flatMap((table) => table.tableModel.rows.flatMap((row) => row.flatMap((cell) => cell?.contentBlocks || [])));

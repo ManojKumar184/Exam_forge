@@ -6,6 +6,7 @@ import { AppError } from '../utils/AppError.js';
 import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
+import { canonicalContentFromLegacy, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
@@ -13,6 +14,16 @@ export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
   'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
 ]);
+
+const QUESTION_CREATE_FIELDS = new Set([
+  'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
+  'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
+  'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
+  'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
+  'canonicalContent', 'tags', 'correctAnswers', 'figures', 'formulas', 'semanticBlocks', 'statementGroups',
+  'syllabusMappings',
+]);
+const QUESTION_UPDATE_FIELDS = new Set([...QUESTION_CREATE_FIELDS, 'isPrivate', 'visibility']);
 
 export function validateQuestionForApproval(question) {
   if (!CORE_OBJECTIVE_QUESTION_TYPES.has(normalizeQuestionType(question.questionType))) {
@@ -262,7 +273,10 @@ export async function getQuestionById(id, user) {
 export async function createQuestion(body, user) {
   const tenantId = user.activeInstitutionId || user.defaultInstitutionId;
   if (tenantId) await assertWithinEntitlement(tenantId, 'questions');
-  const fields = bodyToQuestionFields(body);
+  const fields = bodyToQuestionFields(body, QUESTION_CREATE_FIELDS);
+  fields.canonicalContent = canonicalContentFromLegacy(fields);
+  fields.source = 'manual';
+  fields.canonicalContent.provenance = { kind: 'manual' };
   fields.createdBy = user._id;
   fields.institutionId = user.activeInstitutionId || user.defaultInstitutionId || null;
   fields.ownerId = user._id;
@@ -306,6 +320,16 @@ export async function createQuestion(body, user) {
   } else {
     fields.status = 'pending';
   }
+  fields.canonicalContent.validation = {
+    ...(fields.canonicalContent.validation || {}),
+    status: fields.status,
+    warnings: fields.extractionWarnings || [],
+    fidelity: {
+      parser: fields.parserConfidence ?? null,
+      reconstruction: fields.reconstructionFidelity ?? null,
+      math: fields.mathPreservationConfidence ?? null,
+    },
+  };
 
   const snapshot = {
     questionText: fields.questionText,
@@ -355,7 +379,10 @@ export async function updateQuestion(id, body, user) {
     }
   }
 
-  const fields = bodyToQuestionFields(body);
+  const fields = bodyToQuestionFields(body, QUESTION_UPDATE_FIELDS);
+  const touchesContent = ['questionText', 'questionLatex', 'questionImages', 'options', 'explanation', 'explanationLatex', 'contentBlocks', 'canonicalContent']
+    .some((key) => Object.hasOwn(fields, key));
+  if (touchesContent) fields.canonicalContent = reconcileCanonicalQuestionContent(question.toObject(), fields);
   for (const key of ['status', 'createdBy', 'ownerId', 'institutionId', 'reviewedBy', 'reviewedAt', 'reviewNotes', 'auditHistory', 'enrichmentAttempts', 'semanticEnriched']) delete fields[key];
   if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
     delete fields.isPrivate;

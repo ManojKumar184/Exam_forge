@@ -161,6 +161,10 @@ function getSubtypeFromQuestion(q: Partial<Question> | undefined): EditorSubtype
   return 'unclassified';
 }
 
+function hasOptionContent(option: QuestionOption) {
+  return Boolean(option.text?.trim() || option.image || option.latex || option.contentBlocks?.length);
+}
+
 export function QuestionEditorForm({
   initial,
   onSubmit,
@@ -170,7 +174,7 @@ export function QuestionEditorForm({
   const [subtype, setSubtype] = useState<EditorSubtype>(() => getSubtypeFromQuestion(initial));
   const [bodyHtml, setBodyHtml] = useState('');
   const [bodyPlain, setBodyPlain] = useState('');
-  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>(initial?.content_blocks || []);
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>(initial?.canonical_content?.stem || initial?.content_blocks || []);
   const [questionLatex, setQuestionLatex] = useState('');
   const [questionImages, setQuestionImages] = useState<string[]>([]);
   const [ocrText, setOcrText] = useState('');
@@ -277,7 +281,7 @@ export function QuestionEditorForm({
           const d = JSON.parse(draft);
           setBodyHtml(d.bodyHtml || '');
           setBodyPlain(d.bodyPlain || '');
-          setContentBlocks(d.contentBlocks || initial?.content_blocks || []);
+          setContentBlocks(d.contentBlocks || initial?.canonical_content?.stem || initial?.content_blocks || []);
           setQuestionImages(d.questionImages || []);
           setOptions(d.options || defaultOptions());
           setSubtype(d.subtype || 'mcq_single');
@@ -321,7 +325,7 @@ export function QuestionEditorForm({
     }
 
     const text = d?.bodyHtml || initial.question_text || '';
-    setContentBlocks(d?.contentBlocks || initial.content_blocks || []);
+    setContentBlocks(d?.contentBlocks || initial.canonical_content?.stem || initial.content_blocks || []);
     setBodyHtml(text);
     setBodyPlain(text.replace(/<[^>]+>/g, ' '));
     setQuestionLatex(d?.questionLatex || initial.question_latex || '');
@@ -572,7 +576,7 @@ export function QuestionEditorForm({
     if (!selectedExamPattern) errs.push('Exam pattern is required (select from Classification tree)');
     if (!selectedSubjectNode) errs.push('Subject is required (select from Classification tree)');
     if (isMcq) {
-      const filled = options.filter((o) => o.text?.trim()).length;
+      const filled = options.filter(hasOptionContent).length;
       if (filled < 2) errs.push('MCQ needs at least 2 options');
       if (['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption === null) errs.push('Select correct option');
       if (subtype === 'mcq_multiple' && correctOptions.length === 0) errs.push('Select at least one correct option');
@@ -605,6 +609,31 @@ export function QuestionEditorForm({
 
     return {
       content_blocks: contentBlocks,
+      canonical_content: {
+        version: 'examforge-question-content/v1',
+        stem: contentBlocks.length ? contentBlocks : [{ type: 'text', text: bodyPlain.trim() }],
+        options: isMcq ? options.filter(hasOptionContent).map((option, index) => ({
+          label: String.fromCharCode(65 + index),
+          content: (() => {
+            const blocks = option.contentBlocks || [];
+            const projectedText = blocks.filter((block) => block.type === 'text').map((block) => block.text || '').join('');
+            const projectedLatex = blocks.find((block) => block.type === 'equation')?.latex || undefined;
+            const projectedImage = blocks.find((block) => block.type === 'image')?.assetUrl || undefined;
+            if (blocks.length && projectedText === (option.text || '') && projectedLatex === option.latex && projectedImage === option.image) return blocks;
+            return [
+              ...(option.text ? [{ type: 'text', text: option.text }] : []),
+              ...(option.latex ? [{ type: 'equation', latex: option.latex }] : []),
+              ...(option.image ? [{ type: 'image', assetUrl: option.image }] : []),
+            ];
+          })(),
+        })) : [],
+        explanation: explanation === (initial?.explanation || '') && initial?.canonical_content?.explanation
+          ? initial.canonical_content.explanation
+          : [...(explanation.trim() ? [{ type: 'text', text: explanation.trim() }] : [])],
+        answer: subtype === 'mcq_multiple' ? correctOptions : correctOption,
+        provenance: { kind: 'manual' },
+        validation: {},
+      },
       question_text: displayText,
       question_latex: questionLatex.trim() || autoLatex || null,
       question_images: questionImages,
@@ -613,7 +642,7 @@ export function QuestionEditorForm({
       year: year || null,
       chapter_name: (isCustomChapter && !selectedChapterNode) ? customChapterName || null : null,
       difficulty,
-      options: isMcq ? options.filter((o) => o.text?.trim()) : [],
+      options: isMcq ? options.filter(hasOptionContent) : [],
       correct_option: isMcq ? (subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption) : null,
       correct_answers: isMcq && subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
       numerical_answer:
@@ -641,7 +670,7 @@ export function QuestionEditorForm({
     question_latex: questionLatex || extractPrimaryLatex(bodyHtml || bodyPlain) || null,
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
     question_images: questionImages,
-    options: isMcq ? options.filter((o) => o.text?.trim()) : [],
+    options: isMcq ? options.filter(hasOptionContent) : [],
     correct_option: subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption,
     correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
     numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
@@ -788,6 +817,12 @@ export function QuestionEditorForm({
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Structured document content</p>
                 <p className="text-xs text-slate-500">Edit text and normalized equations in place. Original equation source, images, and table layout stay attached.</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((blocks) => [...blocks, { type: 'text', text: '' }])}>Add text</button>
+                  <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((blocks) => [...blocks, { type: 'equation', latex: '', displayMode: true }])}>Add equation</button>
+                  <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((blocks) => [...blocks, { type: 'table', rows: [[{ text: '' }, { text: '' }], [{ text: '' }, { text: '' }]] }])}>Add 2 × 2 table</button>
+                  <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((blocks) => [...blocks, { type: 'image', assetUrl: '' }])}>Add image reference</button>
+                </div>
               </div>
               {contentBlocks.map((block, index) => (
                 <div key={`${block.type}-${index}`} className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
@@ -799,7 +834,20 @@ export function QuestionEditorForm({
                       <textarea aria-label={`Equation ${index + 1} LaTeX`} className="w-full rounded border border-slate-200 p-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800" rows={2} value={block.latex || ''} placeholder="Enter a reviewed LaTeX equivalent if automatic conversion was unavailable" onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, latex: event.target.value || null, warning: item.source === 'mathtype' && event.target.value ? 'Manual normalization entered; compare with original MathType object' : item.warning, fidelity: event.target.value ? 0.8 : item.fidelity } : item))} />
                       {block.warning && <p className="text-xs text-amber-700">{block.warning}</p>}
                     </div>
-                  ) : <p className="text-xs text-slate-600 dark:text-slate-300">{block.type === 'image' ? 'Original image retained and rendered below.' : block.type === 'table' ? 'Structured table retained and rendered below.' : 'Embedded source retained for review.'}</p>}
+                  ) : block.type === 'image' ? (
+                    <label className="block text-xs text-slate-600 dark:text-slate-300">Image asset URL
+                      <input aria-label={`Image asset URL ${index + 1}`} className="mt-1 w-full rounded border p-2 text-sm dark:border-slate-700 dark:bg-slate-800" value={block.assetUrl || ''} onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, assetUrl: event.target.value } : item))} />
+                    </label>
+                  ) : block.type === 'table' ? (
+                    <div className="space-y-2 overflow-x-auto">
+                      <p className="text-xs text-slate-600 dark:text-slate-300">Table cells retain their source order and spans.</p>
+                      {(block.rows || []).map((row, rowIndex) => <div key={rowIndex} className="flex gap-2">{(row || []).map((cell, cellIndex) => cell ? <input key={cellIndex} aria-label={`Table ${index + 1}, row ${rowIndex + 1}, cell ${cellIndex + 1}`} className="min-w-24 flex-1 rounded border p-2 text-sm dark:border-slate-700 dark:bg-slate-800" value={cell.text || ''} onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => {
+                        if (itemIndex !== index || item.type !== 'table') return item;
+                        const rows = (item.rows || []).map((cells, r) => r === rowIndex ? cells.map((entry, c) => c === cellIndex && entry ? { ...entry, text: event.target.value } : entry) : cells);
+                        return { ...item, rows };
+                      }))} /> : null)}</div>)}
+                    </div>
+                  ) : <p className="text-xs text-amber-700">Embedded source retained for review; this source object is read-only.</p>}
                 </div>
               ))}
             </div>

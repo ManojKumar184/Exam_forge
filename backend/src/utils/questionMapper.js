@@ -1,3 +1,5 @@
+import { canonicalContentFromLegacy } from './canonicalQuestionContent.js';
+
 function idStr(v) {
   return v?.toString?.() ?? v;
 }
@@ -5,6 +7,7 @@ function idStr(v) {
 export function mapQuestion(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject({ virtuals: true }) : doc;
+  const canonicalContent = d.canonicalContent || canonicalContentFromLegacy(d);
 
   return {
     id: idStr(d._id),
@@ -14,7 +17,10 @@ export function mapQuestion(doc) {
     context_type: d.contextType || null,
     question_latex: d.questionLatex,
     question_images: d.questionImages || [],
-    options: d.options || [],
+    options: (d.options || []).map((option, index) => ({
+      ...option,
+      contentBlocks: canonicalContent.options[index]?.content || [],
+    })),
     correct_option: d.correctOption,
     numerical_answer: d.numericalAnswer,
     numerical_tolerance: d.numericalTolerance,
@@ -37,7 +43,8 @@ export function mapQuestion(doc) {
     has_equation: d.hasEquation,
     has_table: d.hasTable ?? false,
     rendering_metadata: d.renderingMetadata || {},
-    content_blocks: d.contentBlocks || [],
+    content_blocks: canonicalContent.stem,
+    canonical_content: canonicalContent,
     tags: d.tags || [],
     ai_confidence: d.aiConfidence ?? 0,
     ai_metadata: d.aiMetadata || {},
@@ -146,7 +153,7 @@ export function mapUploadDetail(doc) {
   return base;
 }
 
-export function bodyToQuestionFields(body) {
+export function bodyToQuestionFields(body, allowedFields = null) {
   const map = {
     question_text: 'questionText',
     question_type: 'questionType',
@@ -188,6 +195,8 @@ export function bodyToQuestionFields(body) {
     rendering_metadata: 'renderingMetadata',
     content_blocks: 'contentBlocks',
     contentBlocks: 'contentBlocks',
+    canonical_content: 'canonicalContent',
+    canonicalContent: 'canonicalContent',
     debug_info: 'debugInfo',
     debugInfo: 'debugInfo',
     
@@ -227,6 +236,7 @@ export function bodyToQuestionFields(body) {
   const out = {};
   const objectIdFields = ['uploadId', 'createdBy', 'reviewedBy', 'duplicateOf', 'ownerId'];
   for (const [snake, camel] of Object.entries(map)) {
+    if (allowedFields && !allowedFields.has(camel)) continue;
     let val = undefined;
     if (body[snake] !== undefined) val = body[snake];
     if (body[camel] !== undefined) val = body[camel];

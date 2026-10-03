@@ -59,6 +59,7 @@ export interface QuestionOption {
   text: string;
   image?: string;
   latex?: string;
+  contentBlocks?: ContentBlock[];
 }
 
 export interface Question {
@@ -94,6 +95,7 @@ export interface Question {
   has_table?: boolean;
   rendering_metadata?: Record<string, unknown>;
   content_blocks?: ContentBlock[];
+  canonical_content?: CanonicalQuestionContent;
   tags: string[];
   ai_confidence: number;
   ai_metadata: Record<string, any>;
@@ -149,6 +151,16 @@ export type ContentBlock = {
   fidelity?: number;
   rows?: Array<Array<{ text?: string; html?: string; contentBlocks?: ContentBlock[]; colspan?: number; rowspan?: number } | null>>;
 };
+
+export interface CanonicalQuestionContent {
+  version: 'examforge-question-content/v1';
+  stem: ContentBlock[];
+  options: Array<{ label: string; content: ContentBlock[]; [key: string]: unknown }>;
+  explanation: ContentBlock[];
+  answer: unknown;
+  provenance: Record<string, unknown> | null;
+  validation: Record<string, unknown>;
+}
 
 // Paper types
 export type PaperStatus = 'draft' | 'published' | 'archived';

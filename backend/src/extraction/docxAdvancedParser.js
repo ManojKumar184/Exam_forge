@@ -10,7 +10,12 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   removeNSPrefix: true,
+  processEntities: false,
 });
+
+const MAX_DOCX_BYTES = 50 * 1024 * 1024;
+const MAX_DOCX_ENTRIES = 10_000;
+const MAX_DOCX_EXPANDED_BYTES = 128 * 1024 * 1024;
 
 function asArray(v) {
   if (!v) return [];
@@ -451,7 +456,14 @@ function extractTableText(tbl) {
  * Parse word/document.xml for paragraph order, numbering, tables.
  */
 export async function parseDocxXmlStructure(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > MAX_DOCX_BYTES) {
+    throw new Error('DOCX file exceeds the supported size limit');
+  }
   const zip = await JSZip.loadAsync(buffer);
+  const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+  if (entries.length > MAX_DOCX_ENTRIES) throw new Error('DOCX archive contains too many entries');
+  const expandedBytes = entries.reduce((total, entry) => total + (entry._data?.uncompressedSize || 0), 0);
+  if (expandedBytes > MAX_DOCX_EXPANDED_BYTES) throw new Error('DOCX archive exceeds the expanded size limit');
   const docXml = await zip.file('word/document.xml')?.async('string');
   if (!docXml) return { paragraphs: [], tables: [], rawText: '' };
 

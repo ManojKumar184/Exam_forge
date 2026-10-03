@@ -82,6 +82,8 @@ const questionSchema = new mongoose.Schema(
     hasEquation: { type: Boolean, default: false },
     hasTable: { type: Boolean, default: false },
     renderingMetadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Versioned canonical content IR; legacy fields remain projections for older consumers.
+    canonicalContent: { type: mongoose.Schema.Types.Mixed, default: null },
     contentBlocks: { type: [mongoose.Schema.Types.Mixed], default: [] },
     tags: { type: [String], default: [] },
     aiConfidence: { type: Number, default: 0 },

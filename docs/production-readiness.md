@@ -37,6 +37,14 @@ The database URI should point to a production MongoDB deployment with authentica
 
 At startup, the additive `migrateInstitutions()` backfill creates a legacy institution for each existing non-super-admin account and creates a membership/default institution. It associates that user's existing questions, banks, papers, uploads, exams, and attempts without deleting them. It deliberately does **not** trust the old free-form `schoolInstitute` string as proof that different accounts belong to the same tenant. Old shared school accounts therefore require institution-admin invitation/reassociation before sharing data. Take a verified database backup and test this backfill on a restored copy before production deployment. The migration is idempotent but is currently run synchronously at application startup; a separately controlled migration command is preferable for large production datasets.
 
+## Canonical question content
+
+Questions now have an additive `canonicalContent` field using `examforge-question-content/v1`. It stores ordered stem and option blocks, explanation blocks, answer data, provenance, and validation details. Existing `contentBlocks` and scalar fields remain compatibility projections for current bank, paper, export, and exam consumers. API responses derive canonical content for legacy records that do not yet have it; no backfill migration has run or is required to read those records.
+
+The existing editor can edit text/equation blocks, table cell text, and image references; embedded source objects remain preserved for review. Canonical content in options/explanations is currently persisted and rendered through the existing legacy option/explanation projections, so richer option/explanation editing is still incomplete. Do not assume every downstream export consumes the full canonical IR until its integration tests cover these blocks.
+
+The local `@xenova/transformers` dependency is not currently used to load a normalization model, and no checked-in model weights were found. Ingestion continues to use deterministic extraction/classification and human review; there is no supported local generative normalization model yet. The current benchmark report is historical and is not a validated before/after ground-truth result.
+
 ## Backup and recovery responsibilities
 
 These are infrastructure responsibilities, not implemented application guarantees:

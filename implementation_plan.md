@@ -1,101 +1,61 @@
-# Implementation Plan — High-Performance Ingestion & Local Classification
+# ExamForge Canonical Question System — Implementation Plan
 
-This plan details the phased steps to resolve structural extraction bugs, fix threshold-capping anomalies, introduce caching/bulk database operations, build benchmarking pipelines, and design local vector classification using ONNX to eliminate external API overhead.
+This plan is grounded in the current `phase3-hardening` checkout and the canonical-question brief. It replaces the older performance-focused proposal; no confidence thresholds, caching, bulk writes, or worker pools are part of this scope unless measurement later demonstrates they are necessary.
 
----
+## Current state
 
-## User Review Required
+- `semantic-document/v1` already represents document-level source blocks in `backend/src/extraction/documentIntelligence/semanticDocumentModel.js`. It is an extraction input model, not a canonical Question model.
+- `Question` stores parallel fields (`questionText`, `questionLatex`, images, `contentBlocks`, `semanticBlocks`, diagrams, formulas, and legacy answer/options fields). The rich renderer can display ordered text, equations, images, tables, and retained embedded objects.
+- `QuestionEditorForm` maintains structured and legacy state together, but derives `question_text` by flattening only text/equation blocks. Manual creation and staged edits share that form; the separate editor route does too.
+- DOCX extraction already reads OOXML structure and preserves OMML/OLE/image evidence. The document-intelligence pipeline converts that structure into segments and then legacy question objects. It does not send raw DOCX to a model.
+- The current benchmark harness has synthetic fixtures and local DOCX inputs, but its report is stale and the harness's before/after comparison uses saved output rather than independent source ground truth. Existing source-oracle evaluation code is available and should be used where it applies.
+- `@xenova/transformers` is declared, but there is no current local model inference provider found in `backend/src`; no model weights were confirmed in the repository. Deterministic classification is available. No worker pool was found to justify introducing one up front.
 
-> [!IMPORTANT]
-> **Confidence Threshold Adjustment:**
-> To solve the "100% review rate" bug, we propose raising rules-based confidence caps to values that exceed the thresholds when a deterministic match is found (e.g., matching "Class 12" exactly gets `0.95` confidence instead of `0.70`). This avoids false-positive review warnings.
-> 
-> **Syllabus Caching Strategy:**
-> Caching `SyllabusNode`s in RAM requires cache clearing whenever a node is created, updated, or deleted. We will add a hook to clear the in-memory cache upon write operations.
+## Phases and acceptance checks
 
----
+### 1. Canonical content contract and compatibility mapping
 
-## Open Questions
+Define a versioned Question-content IR distinct from the document IR. It must preserve ordered paragraphs, inline/display equations, images, tables, embedded/unsupported objects, options and option content, explanation/answer provenance, source coordinates, and fidelity/review warnings. Add normalization and legacy adapters so old records remain readable and old API consumers keep their current fields. Avoid claiming a lossy legacy projection is canonical. Add round-trip and serialization tests, including OMML and OLE retention.
 
-> [!NOTE]
-> **Dataset Selection for Benchmarking:**
-> For Phase 2, we will need sample files containing roughly 100, 500, and 1,000 questions. If large files are not available, we can duplicate the provided `Physics_cleaned_dataset.docx` (43 questions) dynamically in memory inside the benchmark runner to simulate large-scale ingestion.
+### 2. Server persistence and trust boundaries
 
----
+Persist the canonical content field additively on `Question`, map it through API serialization, and validate shape/version on create/update. Keep tenant and review fields server-controlled with explicit payload allowlists. Verify bank, paper, export, and online-test consumers still receive their expected legacy fields while canonical content is preserved.
 
-## Proposed Changes
+### 3. Ordered rich editing and manual entry
 
-### Phase 1: Ingestion Bugfixes & Database Optimizations
+Make the existing editor operate on the canonical ordered blocks instead of flattening them into one HTML/plain-text string. Support inserting/editing text, equations, images, and tables using existing components and dependencies; preserve imported unsupported objects as read-only evidence with warnings. Apply the same editor path to manual entry and staged import. Add component or API-level tests for content round-trip and ordering.
 
-#### [MODIFY] [normalizeQuestions.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/extraction/normalizeQuestions.js)
-* **CorrectAnswers Mapping**: Update the mapped output in `normalizeQuestions` (around line 672) to check for pre-extracted answers (`block.correctAnswers` or `correctOption`) from the deterministic parser, rather than depending only on the LLM's `pipeline.correctAnswers` field.
-* **Explanation Preservation**: Confirm `block.explanation || pipeline.explanation || null` is consistently assigned.
+### 4. Provenance and validation
 
-#### [MODIFY] [classificationPipeline.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/ai/classificationPipeline.js)
-* **Adjust Rules Caps**: Increase maximum confidence values in `computeFieldConfidence()` (lines 80-100) when deterministic rules return valid matches:
-  * Class match: `0.95` (above the `0.90` threshold)
-  * Subject match: `0.95` (above the `0.90` threshold)
-  * Chapter match: `0.90` (above the `0.85` threshold)
-  * Topic match: `0.85` (above the `0.80` threshold)
-* **Adjust Field Thresholds**: Set slightly more lenient thresholds for descriptive/topic mappings.
+Carry extraction provenance and fidelity into canonical content. Validate supported objective types, answer structure, required metadata, empty content, and unresolved/low-fidelity math/media. Ambiguous material stays `UNCLASSIFIED`/`needs_review`; do not infer a type or silently convert source content. Add tests for each review condition.
 
-#### [MODIFY] [syllabusCatalog.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/ai/syllabusCatalog.js)
-* **In-Memory Caching**: Cache the output of `loadSyllabusCatalog()` in a global variable `let cachedCatalog = null`.
-* **Cache Eviction**: Export a `clearSyllabusCache()` method.
-* **Mongoose Hooks**: Bind `post('save')` and `post('remove')` middleware hooks in `SyllabusNode.js` to automatically invoke `clearSyllabusCache()` on node updates.
+### 5. Ingestion integration and DOCX security
 
-#### [MODIFY] [uploadService.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/services/uploadService.js)
-* **Bulk Commits**: Refactor `commitStagedQuestions` (lines 873-925) to stack creation objects in an array and run `Question.insertMany(stagedDocs)` instead of firing sequential `Question.create()` queries inside a loop.
+Map DOCX and clipboard/manual input into the canonical IR once, then adapt to legacy consumers. Preserve OOXML structure and source references; keep raw DOCX out of any model prompt. Review ZIP/XML size, entity, path, and embedded-object handling in the DOCX path and add focused adversarial fixtures without replacing extraction with a PDF-first flow.
 
----
+### 6. Local normalization evaluation
 
-### Phase 2: Performance & Resource Profiling Harness
+Establish a repeatable, independent source-to-output benchmark using the existing evaluation modules and curated DOCX fixtures. Measure correctness, latency, CPU, and memory for the deterministic baseline. Inspect available compatible local models and weights; select one only if it is actually distributable/loadable in this environment and improves held-out results without changing source content. Keep any model an optional local normalization/classification aid with deterministic fallback and human review. No network inference or new model provider is assumed.
 
-#### [NEW] [benchmark_ingest.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/scratch/benchmark_ingest.js)
-* **Benchmark Script**: Add a test script that loads `Physics_cleaned_dataset.docx` (or replicates its content buffer to scale up to 100, 500, and 1,000 blocks).
-* **Metrics to Profile**:
-  * Total Ingestion Time (ms)
-  * Chunk Processing Latency (ms)
-  * Max Memory Heap Allocation (MB) via `process.memoryUsage()`
-  * Event Loop Lag (ms) via `perf_hooks` monitor to measure block durations.
-* **Execution**: Create a script that can be executed directly using `node backend/scratch/benchmark_ingest.js`.
+### 7. Lifecycle compatibility and regression coverage
 
----
+Exercise canonical Questions through bank moderation, paper selection/export, and online exam rendering/scoring. Add end-to-end regression fixtures proving every supported structured block survives the lifecycle and is presented in source order. Use existing MongoDB integration infrastructure for persistence and tenant checks.
 
-### Phase 3: Local ONNX Classifier Design & CPU Lag Analysis
+### 8. Documentation and final verification
 
-#### [NEW] [localEmbeddingProvider.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/ai/providers/localEmbeddingProvider.js)
-* **Transformers Integration**: Draft a local provider module using `@huggingface/transformers` to load the ONNX-optimized `all-MiniLM-L6-v2` model in-memory.
-* **Precomputed Vector Index**:
-  * Build a startup routine that loads the syllabus cache, extracts embedding vectors for each chapter and topic node, and holds them in a local cache.
-  * Implement local Cosine Similarity computation.
-* **Thread Analysis**: Run a test benchmark to evaluate the impact of ONNX inference on Express main-thread event loop lag.
+Update only architecture, operations, and readiness documentation affected by delivered behavior. Run targeted backend tests, applicable MongoDB integration tests, frontend typecheck/build when the editor changes, the independent benchmark, secret scan, and final diff review. Report exact evidence, benchmark values, limitations, and unresolved infrastructure; do not claim production-ready without supporting evidence.
 
----
+## Execution notes
 
-### Phase 4: Single-Pass Optimization & Worker Pool Implementation
+- Preserve objective-only Core v1 approval and existing paper-level marks behavior.
+- Prefer additive schema/API compatibility over one-shot migration of legacy Questions.
+- Do not add a parsing worker pool unless measurements show CPU blocking that cannot be addressed by existing queued ingestion.
+- Existing report output must not be treated as new benchmark evidence.
+- Complete and test each phase before moving dependent flows to it.
 
-#### [NEW] [parsingWorker.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/jobs/parsingWorker.js)
-* **Piscina Thread Pool**: Define a task worker file that handles document ingestion and vector classification in separate CPU threads.
-* **Express Decoupling**: Offload chunk execution from the Express process.
+## Progress in this worktree
 
-#### [MODIFY] [reconstructionPipeline.js](file:///c:/Users/manoj555/Desktop/Exam_forge/backend/src/extraction/reconstructionPipeline.js)
-* **Fast-Path Parser**: Implement a conditional branch that skips Stage 1, 2, 5, and 6 reconstruction passes if elements have already been structured by the boundary detector.
-
----
-
-## Verification Plan
-
-### Automated Tests
-Run the benchmarking script before and after Phase 1 changes to measure processing time and memory allocations:
-```bash
-node backend/scratch/benchmark_ingest.js --dataset=43
-```
-Confirm all tests pass and ensure no regressions on the physics dataset:
-```bash
-node tests/e2e_physics_test.mjs
-```
-
-### Manual Verification
-* **Answer Validation**: Verify that uploads of `Physics_cleaned_dataset.docx` populate `correctAnswers` correctly on the UI staging screen without throwing review alerts.
-* **CPU and Memory Logs**: Audit output statistics of the benchmark runs.
+- **Implemented foundations:** versioned Question content schema and legacy adapter; additive persistence and API projection; manual/staged payload allowlists; canonical rendering for stem/options/explanation; editor controls for stem text, equations, table cells, and image references; bounded DOCX archive parsing; removed the unmounted process-local classification workflow.
+- **Partially implemented:** editor preserves rich option/explanation blocks and renders them, but does not yet offer complete structured editing for those blocks. Canonical fields flow through the Question API and paper export regression coverage exists, but a full database-backed question-bank → paper → online-test lifecycle test still requires MongoDB.
+- **Not implemented:** a new local normalization model. This checkout has no model weights and no independent ground-truth benchmark dataset/runner to select a model safely. The deterministic ingestion path remains in place; do not interpret the stale synthetic report as accuracy evidence.
+- **Verification limit:** the configured backend suite skips three MongoDB integration tests when `MONGODB_TEST_URI` is unset. Frontend typecheck and production build passed in this workspace.

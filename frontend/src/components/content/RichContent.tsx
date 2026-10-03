@@ -339,7 +339,9 @@ export function RichOptionContent({ option, index, isCorrect }: { option: Questi
     <MathContentWrapper triggerText={optText} className={`flex items-start gap-2 min-w-0 w-full ${isCorrect ? 'text-green-600 dark:text-green-400 font-medium bg-green-50/50 dark:bg-green-950/10 p-1.5 rounded-lg border border-green-200/50 dark:border-green-800/30 shadow-sm' : ''}`}>
       <span className="font-semibold shrink-0">{String.fromCharCode(65 + index)}.{isCorrect && ' ✓'}</span>
       <div className="flex-1 min-w-0">
-        {hasHtml ? (
+        {option.contentBlocks?.length ? (
+          <RichContent contentBlocks={option.contentBlocks} compact />
+        ) : hasHtml ? (
           <div
             className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_td]:border [&_td]:border-slate-300 [&_td]:p-1 inline-block"
             dangerouslySetInnerHTML={{ __html: resolveHtmlMediaUrls(optText) }}
@@ -423,13 +425,14 @@ export function QuestionContentPreview({
           <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{question.answer_text}</p>
         </div>
       )}
-      {showExplanation && question.explanation && (
+      {showExplanation && (question.explanation || question.canonical_content?.explanation?.length) && (
         <div className="mt-2 p-2.5 bg-indigo-50/60 dark:bg-indigo-950/20 rounded border border-indigo-100/50 dark:border-indigo-900/40 text-xs">
           <span className="font-semibold text-indigo-900 dark:text-indigo-400 block uppercase mb-1 text-[10px]">Explanation</span>
           <RichContent
             text={question.explanation}
             latex={question.explanation_latex}
             tables={question.rendering_metadata?.tables || (question as any).renderingMetadata?.tables || []}
+            contentBlocks={question.canonical_content?.explanation}
             compact
           />
         </div>
