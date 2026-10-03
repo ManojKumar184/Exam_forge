@@ -5,7 +5,7 @@ import { LatexToolbar } from './LatexToolbar';
 import { RichQuestionEditor } from './RichQuestionEditor';
 import { ReconstructionPreview } from './ReconstructionPreview';
 import { OptionRichFields } from './OptionRichFields';
-import type { ContentBlock, Question, QuestionOption, QuestionType } from '../../types';
+import type { CanonicalQuestionContent, ContentBlock, Question, QuestionOption, QuestionType } from '../../types';
 import { detectVmlEquationImages, type EditorSubtype } from '../../utils/questionPasteDetect';
 import {
   runQuestionReconstruction,
@@ -40,16 +40,14 @@ interface QuestionEditorFormProps {
 }
 
 const SUBTYPE_OPTIONS: { value: EditorSubtype; label: string; questionType: QuestionType }[] = [
-  { value: 'mcq_single', label: 'MCQ (Single)', questionType: 'mcq' },
-  { value: 'mcq_multiple', label: 'MCQ (Multiple)', questionType: 'mcq' },
+  { value: 'mcq_single', label: 'MCQ (Single)', questionType: 'MCQ_SINGLE' },
+  { value: 'mcq_multiple', label: 'MCQ (Multiple)', questionType: 'MCQ_MULTIPLE' },
   { value: 'true_false', label: 'True / False', questionType: 'TRUE_FALSE' },
   { value: 'fill_blank', label: 'Fill in the Blank', questionType: 'FILL_BLANK' },
   { value: 'assertion_reason', label: 'Assertion / Reason', questionType: 'ASSERTION_REASON' },
   { value: 'unclassified', label: 'Unclassified (needs review)', questionType: 'UNCLASSIFIED' },
-  { value: 'integer', label: 'Integer', questionType: 'numerical' },
-  { value: 'numerical', label: 'Numerical', questionType: 'numerical' },
-  { value: 'descriptive', label: 'Descriptive', questionType: 'descriptive' },
-  { value: 'comprehension', label: 'Comprehension', questionType: 'descriptive' },
+  { value: 'integer', label: 'Integer', questionType: 'NUMERICAL_INTEGER' },
+  { value: 'numerical', label: 'Numerical', questionType: 'NUMERICAL' },
   { value: 'match_following', label: 'Match Columns', questionType: 'MATCH_FOLLOWING' },
 ];
 
@@ -94,6 +92,7 @@ function applyReconstructResult(
     setBodyPlain: (v: string) => void;
     setQuestionLatex: (v: string) => void;
     setQuestionImages: (v: string[]) => void;
+    setContentBlocks: (v: ContentBlock[]) => void;
     setOptions: (v: QuestionOption[]) => void;
     setSubtype: (v: EditorSubtype) => void;
     setNumericalAnswer: (v: string) => void;
@@ -111,6 +110,11 @@ function applyReconstructResult(
   setters.setBodyPlain(plain);
   setters.setQuestionLatex(result.questionLatex || '');
   if (result.questionImages.length) setters.setQuestionImages(result.questionImages);
+  setters.setContentBlocks([
+    ...(plain ? [{ type: 'text' as const, text: plain }] : []),
+    ...(result.questionLatex ? [{ type: 'equation' as const, latex: result.questionLatex }] : []),
+    ...result.questionImages.map((assetUrl) => ({ type: 'image' as const, assetUrl })),
+  ]);
   
   const mappedOptions = result.options.map(o => ({
     text: o.text,
@@ -127,7 +131,7 @@ function applyReconstructResult(
     ]);
   }
   
-  setters.setSubtype(result.subtype);
+  setters.setSubtype(SUBTYPE_OPTIONS.some((option) => option.value === result.subtype) ? result.subtype : 'unclassified');
   if (result.numericalAnswer != null) {
     setters.setNumericalAnswer(String(result.numericalAnswer));
   }
@@ -156,13 +160,83 @@ function getSubtypeFromQuestion(q: Partial<Question> | undefined): EditorSubtype
   if (upper === 'NUMERICAL_INTEGER' || upper === 'INTEGER') return 'integer';
   if (upper === 'NUMERICAL') return 'numerical';
   if (upper === 'MATCH_FOLLOWING' || upper === 'MATCH_COLUMNS') return 'match_following';
-  if (upper === 'COMPREHENSION') return 'comprehension';
-  if (upper === 'DESCRIPTIVE') return 'descriptive';
+  if (upper === 'COMPREHENSION' || upper === 'DESCRIPTIVE' || upper === 'SHORT_ANSWER' || upper === 'LONG_ANSWER') return 'unclassified';
   return 'unclassified';
 }
 
 function hasOptionContent(option: QuestionOption) {
   return Boolean(option.text?.trim() || option.image || option.latex || option.contentBlocks?.length);
+}
+
+function canonicalOptionBlocks(option: QuestionOption): ContentBlock[] {
+  const blocks = structuredClone(option.contentBlocks || []);
+  const text = option.text || '';
+  const textBlocks = blocks.filter((block) => block.type === 'text');
+  const projectedText = textBlocks.map((block) => block.text || '').join('');
+  if (projectedText !== text) {
+    const firstText = blocks.findIndex((block) => block.type === 'text');
+    if (firstText >= 0) blocks[firstText] = { ...blocks[firstText], text };
+    else if (text) blocks.unshift({ type: 'text', text });
+  }
+  if (option.latex) {
+    const equation = blocks.findIndex((block) => block.type === 'equation');
+    if (equation >= 0) blocks[equation] = { ...blocks[equation], latex: option.latex };
+    else blocks.push({ type: 'equation', latex: option.latex });
+  }
+  if (option.image) {
+    const image = blocks.findIndex((block) => block.type === 'image');
+    if (image >= 0) blocks[image] = { ...blocks[image], assetUrl: option.image };
+    else blocks.push({ type: 'image', assetUrl: option.image });
+  }
+  if (!blocks.length) {
+    if (text) blocks.push({ type: 'text', text });
+    if (option.latex) blocks.push({ type: 'equation', latex: option.latex });
+    if (option.image) blocks.push({ type: 'image', assetUrl: option.image });
+  }
+  return blocks;
+}
+
+function canonicalExplanationBlocks(existing: ContentBlock[] | undefined, text: string): ContentBlock[] {
+  const blocks = structuredClone(existing || []);
+  const existingText = blocks.filter((block) => block.type === 'text').map((block) => block.text || '').join('');
+  if (existingText === text) return blocks;
+  const firstText = blocks.findIndex((block) => block.type === 'text');
+  if (firstText >= 0) blocks[firstText] = { ...blocks[firstText], text };
+  else if (text) blocks.unshift({ type: 'text', text });
+  return blocks.filter((block) => block.type !== 'text' || Boolean(block.text?.trim()) || blocks.length > 1);
+}
+
+function initialCanonicalContent(question?: Partial<Question>) {
+  if (question?.canonical_content) return structuredClone(question.canonical_content);
+  const options = (question?.options?.length ? question.options : defaultOptions()).map((option, index) => ({
+    label: String.fromCharCode(65 + index),
+    content: canonicalOptionBlocks(option),
+  }));
+  const legacyStem = question?.content_blocks?.length
+    ? question.content_blocks
+    : [
+        ...(question?.question_text ? [{ type: 'text' as const, text: question.question_text }] : []),
+        ...(question?.question_latex ? [{ type: 'equation' as const, latex: question.question_latex }] : []),
+        ...(question?.question_images || []).map((assetUrl) => ({ type: 'image' as const, assetUrl })),
+      ];
+  return {
+    version: 'examforge-question-content/v1' as const,
+    stem: structuredClone(legacyStem),
+    options,
+    explanation: question?.explanation ? [{ type: 'text' as const, text: question.explanation }] : [],
+    answer: question?.correct_answers?.length ? question.correct_answers : question?.correct_option ?? question?.numerical_answer ?? question?.answer_text ?? null,
+    provenance: { kind: question?.source || 'manual', sourceFile: question?.source_file || null },
+    validation: { status: question?.status || 'pending', warnings: question?.extraction_warnings || [] },
+  };
+}
+
+function optionFromCanonical(option: CanonicalQuestionContent['options'][number]): QuestionOption {
+  return {
+    text: option.content.filter((block) => block.type === 'text').map((block) => block.text || '').join(''),
+    latex: option.content.find((block) => block.type === 'equation')?.latex || undefined,
+    image: option.content.find((block) => block.type === 'image')?.assetUrl,
+    contentBlocks: structuredClone(option.content),
+  };
 }
 
 export function QuestionEditorForm({
@@ -172,27 +246,62 @@ export function QuestionEditorForm({
   submitLabel = 'Save question',
 }: QuestionEditorFormProps) {
   const [subtype, setSubtype] = useState<EditorSubtype>(() => getSubtypeFromQuestion(initial));
+  const [canonicalContent, setCanonicalContent] = useState<CanonicalQuestionContent>(() => initialCanonicalContent(initial));
+  const [structuredEditing, setStructuredEditing] = useState(Boolean(initial?.canonical_content?.stem?.length || initial?.content_blocks?.length));
+  const contentBlocks = canonicalContent.stem;
+  const setContentBlocks = (next: ContentBlock[] | ((previous: ContentBlock[]) => ContentBlock[])) => {
+    setCanonicalContent((previous) => ({ ...previous, stem: typeof next === 'function' ? next(previous.stem) : next }));
+  };
+  const options = canonicalContent.options.map(optionFromCanonical);
+  const setOptions = (next: QuestionOption[] | ((previous: QuestionOption[]) => QuestionOption[])) => {
+    setCanonicalContent((previous) => {
+      const current = previous.options.map(optionFromCanonical);
+      const updated = typeof next === 'function' ? next(current) : next;
+      return { ...previous, options: updated.map((option, index) => ({ label: String.fromCharCode(65 + index), content: canonicalOptionBlocks(option) })) };
+    });
+  };
+  const explanation = canonicalContent.explanation.filter((block) => block.type === 'text').map((block) => block.text || '').join('');
+  const setExplanation = (text: string) => setCanonicalContent((previous) => ({
+    ...previous,
+    explanation: canonicalExplanationBlocks(previous.explanation, text),
+  }));
   const [bodyHtml, setBodyHtml] = useState('');
   const [bodyPlain, setBodyPlain] = useState('');
-  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>(initial?.canonical_content?.stem || initial?.content_blocks || []);
-  const [questionLatex, setQuestionLatex] = useState('');
-  const [questionImages, setQuestionImages] = useState<string[]>([]);
+  const [questionLatex, setQuestionLatexState] = useState('');
+  const [questionImages, setQuestionImagesState] = useState<string[]>([]);
+  const setQuestionLatex = (value: string) => {
+    setQuestionLatexState(value);
+    setCanonicalContent((previous) => {
+      const equationIndex = previous.stem.findIndex((block) => block.type === 'equation');
+      if (!value) return { ...previous, stem: previous.stem.filter((block) => block.type !== 'equation' || Boolean(block.omml || block.original)) };
+      const stem = [...previous.stem];
+      if (equationIndex >= 0) stem[equationIndex] = { ...stem[equationIndex], latex: value };
+      else stem.push({ type: 'equation', latex: value });
+      return { ...previous, stem };
+    });
+  };
+  const setQuestionImages = (images: string[]) => {
+    setQuestionImagesState(images);
+    if (!images.length) return;
+    setCanonicalContent((previous) => ({
+      ...previous,
+      stem: [...previous.stem.filter((block) => block.type !== 'image'), ...images.map((assetUrl) => ({ type: 'image' as const, assetUrl }))],
+    }));
+  };
   const [ocrText, setOcrText] = useState('');
-  const [options, setOptions] = useState<QuestionOption[]>(defaultOptions());
-  const [explanation, setExplanation] = useState('');
-  const [answerText, setAnswerText] = useState('');
+  const [answerText, setAnswerTextState] = useState('');
   const [classLevel, setClassLevel] = useState(11);
   const [year, setYear] = useState<string | null>(null);
   const [customChapterName, setCustomChapterName] = useState('');
   const [isCustomChapter, setIsCustomChapter] = useState(false);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [correctOption, setCorrectOption] = useState<number | null>(() => {
+  const [correctOption, setCorrectOptionState] = useState<number | null>(() => {
     if (initial?.correct_option !== undefined && initial.correct_option !== null) {
       return parseAnswerToNumber(initial.correct_option);
     }
     return 0;
   });
-  const [correctOptions, setCorrectOptions] = useState<number[]>(() => {
+  const [correctOptions, setCorrectOptionsState] = useState<number[]>(() => {
     if (initial?.correct_answers && initial.correct_answers.length > 0) {
       return initial.correct_answers
         .map(parseAnswerToNumber)
@@ -203,7 +312,23 @@ export function QuestionEditorForm({
       : null;
     return single !== null ? [single] : [];
   });
-  const [numericalAnswer, setNumericalAnswer] = useState('');
+  const [numericalAnswer, setNumericalAnswerState] = useState('');
+  const setCorrectOption = (value: number | null) => {
+    setCorrectOptionState(value);
+    setCanonicalContent((previous) => ({ ...previous, answer: value }));
+  };
+  const setCorrectOptions = (value: number[]) => {
+    setCorrectOptionsState(value);
+    setCanonicalContent((previous) => ({ ...previous, answer: value }));
+  };
+  const setNumericalAnswer = (value: string) => {
+    setNumericalAnswerState(value);
+    setCanonicalContent((previous) => ({ ...previous, answer: value.trim() ? Number(value) : null }));
+  };
+  const setAnswerText = (value: string) => {
+    setAnswerTextState(value);
+    setCanonicalContent((previous) => ({ ...previous, answer: value }));
+  };
   const [tagsInput, setTagsInput] = useState('');
 
   const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
@@ -249,7 +374,7 @@ export function QuestionEditorForm({
   const [showAdvancedMath, setShowAdvancedMath] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [reconstructing, setReconstructing] = useState(false);
-  const [pipelineState, setPipelineState] = useState<'idle' | 'parsing' | 'ocr' | 'equations' | 'gemini' | 'complete'>('idle');
+  const [pipelineState, setPipelineState] = useState<'idle' | 'parsing' | 'ocr' | 'equations' | 'complete'>('idle');
   const [clipboardFidelity, setClipboardFidelity] = useState<'high' | 'medium' | 'ocr' | 'low_vml' | 'low' | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [lastReconstruct, setLastReconstruct] = useState<ReconstructResult | null>(null);
@@ -475,14 +600,14 @@ export function QuestionEditorForm({
           }
           setPipelineState('equations');
           await new Promise((resolve) => setTimeout(resolve, 250));
-          setPipelineState('gemini');
+          setPipelineState('parsing');
 
           const result = await runQuestionReconstruction({
             html: rawHtml || payload.html,
             plain: payload.plain,
             ocrText,
             images: payload.images,
-            useGemini: true,
+            useGemini: false,
             blocks: payload.blocks,
           });
           
@@ -493,6 +618,7 @@ export function QuestionEditorForm({
             setBodyPlain,
             setQuestionLatex,
             setQuestionImages,
+            setContentBlocks,
             setOptions,
             setSubtype,
             setNumericalAnswer,
@@ -581,6 +707,8 @@ export function QuestionEditorForm({
       if (['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption === null) errs.push('Select correct option');
       if (subtype === 'mcq_multiple' && correctOptions.length === 0) errs.push('Select at least one correct option');
     }
+    if (['integer', 'numerical'].includes(subtype) && (!numericalAnswer || !Number.isFinite(Number(numericalAnswer)))) errs.push('Enter a valid numerical answer');
+    if (['fill_blank', 'match_following'].includes(subtype) && !answerText.trim()) errs.push('Correct answer is required');
     return errs;
   };
 
@@ -606,33 +734,25 @@ export function QuestionEditorForm({
 
     // Derive class from syllabus tree class node name (e.g., "Class 11" → 11)
     const derivedClass = selectedClassNode ? getClassFromNode() : classLevel;
+    const canonicalAnswer = subtype === 'mcq_multiple' ? correctOptions
+      : ['integer', 'numerical'].includes(subtype) ? (numericalAnswer ? Number(numericalAnswer) : null)
+        : ['fill_blank', 'match_following'].includes(subtype) ? answerText.trim() || null
+          : correctOption;
 
     return {
-      content_blocks: contentBlocks,
+      content_blocks: contentBlocks.length ? contentBlocks : [{ type: 'text', text: bodyPlain.trim() }],
       canonical_content: {
+        ...canonicalContent,
         version: 'examforge-question-content/v1',
         stem: contentBlocks.length ? contentBlocks : [{ type: 'text', text: bodyPlain.trim() }],
         options: isMcq ? options.filter(hasOptionContent).map((option, index) => ({
           label: String.fromCharCode(65 + index),
-          content: (() => {
-            const blocks = option.contentBlocks || [];
-            const projectedText = blocks.filter((block) => block.type === 'text').map((block) => block.text || '').join('');
-            const projectedLatex = blocks.find((block) => block.type === 'equation')?.latex || undefined;
-            const projectedImage = blocks.find((block) => block.type === 'image')?.assetUrl || undefined;
-            if (blocks.length && projectedText === (option.text || '') && projectedLatex === option.latex && projectedImage === option.image) return blocks;
-            return [
-              ...(option.text ? [{ type: 'text', text: option.text }] : []),
-              ...(option.latex ? [{ type: 'equation', latex: option.latex }] : []),
-              ...(option.image ? [{ type: 'image', assetUrl: option.image }] : []),
-            ];
-          })(),
+          content: canonicalOptionBlocks(option),
         })) : [],
-        explanation: explanation === (initial?.explanation || '') && initial?.canonical_content?.explanation
-          ? initial.canonical_content.explanation
-          : [...(explanation.trim() ? [{ type: 'text', text: explanation.trim() }] : [])],
-        answer: subtype === 'mcq_multiple' ? correctOptions : correctOption,
-        provenance: { kind: 'manual' },
-        validation: {},
+        explanation: canonicalExplanationBlocks(initial?.canonical_content?.explanation, explanation.trim()),
+        answer: canonicalAnswer,
+        provenance: canonicalContent.provenance || { kind: initial?.source || 'manual', sourceFile: initial?.source_file || null },
+        validation: canonicalContent.validation || {},
       },
       question_text: displayText,
       question_latex: questionLatex.trim() || autoLatex || null,
@@ -644,13 +764,14 @@ export function QuestionEditorForm({
       difficulty,
       options: isMcq ? options.filter(hasOptionContent) : [],
       correct_option: isMcq ? (subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption) : null,
-      correct_answers: isMcq && subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
+      correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String)
+        : ['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
       numerical_answer:
-        sub.questionType === 'numerical' && numericalAnswer
+        ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(sub.questionType) && numericalAnswer
           ? Number(numericalAnswer)
           : null,
       answer_text:
-        ['descriptive', 'FILL_BLANK'].includes(sub.questionType)
+        ['FILL_BLANK', 'MATCH_FOLLOWING'].includes(sub.questionType)
           ? answerText.trim() || null
           : null,
       explanation: explanation.trim() || null,
@@ -672,7 +793,8 @@ export function QuestionEditorForm({
     question_images: questionImages,
     options: isMcq ? options.filter(hasOptionContent) : [],
     correct_option: subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption,
-    correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String) : (correctOption !== null ? [String(correctOption)] : []),
+    correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String)
+      : ['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
     numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
     numerical_tolerance: 0,
     answer_text: answerText || null,
@@ -748,6 +870,15 @@ export function QuestionEditorForm({
           </Alert>
         )}
 
+        {initial && (initial.extraction_warnings?.length || initial.ai_confidence || initial.parser_confidence || initial.canonical_content?.provenance || (initial.canonical_content?.validation?.warnings as string[] | undefined)?.length) ? (
+          <Card className="p-3 space-y-1 text-xs">
+            <p className="font-semibold">Review evidence</p>
+            {(initial.extraction_warnings || (initial.canonical_content?.validation?.warnings as string[]) || []).map((warning, index) => <p key={index} className="text-amber-700">{warning}</p>)}
+            <p>Confidence: {initial.ai_confidence ?? 'unavailable'}{initial.parser_confidence != null ? ` · parser ${Math.round(initial.parser_confidence * 100)}%` : ''}{initial.reconstruction_fidelity != null ? ` · reconstruction ${Math.round(initial.reconstruction_fidelity * 100)}%` : ''}</p>
+            {initial.canonical_content?.provenance && <p className="break-all text-slate-500">Source: {JSON.stringify(initial.canonical_content.provenance)}</p>}
+          </Card>
+        ) : null}
+
         <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -785,7 +916,7 @@ export function QuestionEditorForm({
               )}
             </div>
             <Badge variant="info" size="sm">
-              {reconstructing ? 'Working…' : 'Auto-detect · OCR · Gemini'}
+              {reconstructing ? 'Working…' : 'Deterministic parsing · optional OCR'}
             </Badge>
           </div>
 
@@ -812,7 +943,7 @@ export function QuestionEditorForm({
             ))}
           </div>
 
-          {contentBlocks.length > 0 ? (
+          {structuredEditing ? (
             <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
               <div>
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Structured document content</p>
@@ -835,12 +966,28 @@ export function QuestionEditorForm({
                       {block.warning && <p className="text-xs text-amber-700">{block.warning}</p>}
                     </div>
                   ) : block.type === 'image' ? (
-                    <label className="block text-xs text-slate-600 dark:text-slate-300">Image asset URL
-                      <input aria-label={`Image asset URL ${index + 1}`} className="mt-1 w-full rounded border p-2 text-sm dark:border-slate-700 dark:bg-slate-800" value={block.assetUrl || ''} onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, assetUrl: event.target.value } : item))} />
-                    </label>
+                    <div className="space-y-2">
+                      {block.assetUrl && <img src={block.assetUrl} alt={`Question image ${index + 1}`} className="max-h-64 max-w-full object-contain" />}
+                      <label className="block text-xs text-slate-600 dark:text-slate-300">Replace image
+                        <input aria-label={`Replace image ${index + 1}`} type="file" accept="image/*" className="mt-1 block w-full text-sm" onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index ? { ...item, assetUrl: String(reader.result) } : item));
+                          reader.readAsDataURL(file);
+                        }} />
+                      </label>
+                      <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((previous) => previous.filter((_, itemIndex) => itemIndex !== index))}>Remove image</button>
+                    </div>
                   ) : block.type === 'table' ? (
                     <div className="space-y-2 overflow-x-auto">
                       <p className="text-xs text-slate-600 dark:text-slate-300">Table cells retain their source order and spans.</p>
+                      <div className="flex gap-2">
+                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index && item.type === 'table' ? { ...item, rows: [...(item.rows || []), Array.from({ length: item.rows?.[0]?.length || 1 }, () => ({ text: '' }))] } : item))}>Add row</button>
+                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index && item.type === 'table' && (item.rows || []).length > 1 ? { ...item, rows: item.rows!.slice(0, -1) } : item))}>Remove last row</button>
+                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index && item.type === 'table' ? { ...item, rows: (item.rows || []).map((row) => [...row, { text: '' }]) } : item))}>Add column</button>
+                        <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => setContentBlocks((previous) => previous.map((item, itemIndex) => itemIndex === index && item.type === 'table' && (item.rows?.[0]?.length || 0) > 1 ? { ...item, rows: item.rows!.map((row) => row.slice(0, -1)) } : item))}>Remove last column</button>
+                      </div>
                       {(block.rows || []).map((row, rowIndex) => <div key={rowIndex} className="flex gap-2">{(row || []).map((cell, cellIndex) => cell ? <input key={cellIndex} aria-label={`Table ${index + 1}, row ${rowIndex + 1}, cell ${cellIndex + 1}`} className="min-w-24 flex-1 rounded border p-2 text-sm dark:border-slate-700 dark:bg-slate-800" value={cell.text || ''} onChange={(event) => setContentBlocks((previous) => previous.map((item, itemIndex) => {
                         if (itemIndex !== index || item.type !== 'table') return item;
                         const rows = (item.rows || []).map((cells, r) => r === rowIndex ? cells.map((entry, c) => c === cellIndex && entry ? { ...entry, text: event.target.value } : entry) : cells);
@@ -852,6 +999,11 @@ export function QuestionEditorForm({
               ))}
             </div>
           ) : (
+          <div className="space-y-2">
+          <button type="button" className="rounded border px-2 py-1 text-xs" onClick={() => {
+            if (!contentBlocks.length && bodyPlain.trim()) setContentBlocks([{ type: 'text', text: bodyPlain.trim() }]);
+            setStructuredEditing(true);
+          }}>Edit as structured content</button>
           <RichQuestionEditor
             value={bodyHtml}
             images={questionImages}
@@ -860,6 +1012,7 @@ export function QuestionEditorForm({
             onChange={(html, plain) => {
               setBodyHtml(html);
               setBodyPlain(plain);
+              setCanonicalContent((previous) => ({ ...previous, stem: plain.trim() ? [{ type: 'text', text: plain }] : [] }));
               const latex = extractPrimaryLatex(plain || html);
               if (latex) setQuestionLatex(latex);
               setAutosaveStatus('saving');
@@ -870,6 +1023,7 @@ export function QuestionEditorForm({
             }}
             onPastePayload={triggerReconstruction}
           />
+          </div>
           )}
           <details
             className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/20"
@@ -902,7 +1056,7 @@ export function QuestionEditorForm({
             <h3 className="font-semibold text-slate-900 dark:text-white text-sm border-b border-slate-100 dark:border-slate-800 pb-2">Options Configuration</h3>
             <OptionRichFields
               options={options}
-              subtype={subtype as 'mcq_single' | 'mcq_multiple'}
+              subtype={subtype === 'mcq_multiple' ? 'mcq_multiple' : 'mcq_single'}
               correctOption={correctOption}
               correctOptions={correctOptions}
               onOptionsChange={(opts) => {
@@ -937,10 +1091,10 @@ export function QuestionEditorForm({
           </Card>
         )}
 
-        {SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType === 'descriptive' && (
+        {['fill_blank', 'match_following'].includes(subtype) && (
           <Card className="p-3">
             <Textarea
-              label="Model Answer / Reference Key (optional)"
+              label={subtype === 'match_following' ? 'Correct matching answer' : 'Correct answer'}
               value={answerText}
               onChange={(e) => {
                 setAnswerText(e.target.value);
@@ -948,7 +1102,7 @@ export function QuestionEditorForm({
               }}
               rows={4}
               className="py-1 text-sm"
-              placeholder="Enter model answer or reference key for descriptive evaluation"
+              placeholder={subtype === 'match_following' ? 'Enter the correct pair mapping' : 'Enter the expected answer'}
             />
           </Card>
         )}

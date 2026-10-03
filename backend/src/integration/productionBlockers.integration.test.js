@@ -15,6 +15,7 @@ import { approveQuestion, bulkApprove, bulkUpdateMetadata, updateQuestion, valid
 import { commitStagedQuestions, reprocessUpload } from '../services/uploadService.js';
 import { claimNextEnrichmentQuestion } from '../jobs/enrichmentWorker.js';
 import { startAttempt, getAttemptHistory, getLeaderboard, updateTest, autosaveAttempt, submitAttempt } from '../services/testService.js';
+import { requestPasswordReset, resetPassword } from '../services/authService.js';
 
 const configuredUri = process.env.MONGODB_TEST_URI;
 const isolatedUri = configuredUri ? (() => { const parsed = new URL(configuredUri); parsed.pathname += '_production_blockers'; return parsed.toString(); })() : null;
@@ -36,6 +37,14 @@ test('production blocker regression suite uses isolated MongoDB', { skip: !isola
   const student = await makeUser('student', 'student', 'STUDENT');
   const outsider = await makeUser('outsider', 'student', 'STUDENT');
   const context = { role: faculty.role, _id: faculty._id, activeInstitutionId: institution._id, defaultInstitutionId: institution._id };
+
+  const resetRequest = await requestPasswordReset(faculty.email);
+  assert.equal(resetRequest.message, 'If that email exists, a reset link was sent');
+  const storedReset = await User.findById(faculty._id).select('+passwordResetToken +passwordResetExpires');
+  assert.ok(storedReset.passwordResetExpires > new Date());
+  assert.notEqual(storedReset.passwordResetToken, resetRequest.resetToken, 'only a hash is stored');
+  await resetPassword({ token: resetRequest.resetToken, password: 'Replacement-password-123!' });
+  await assert.rejects(resetPassword({ token: resetRequest.resetToken, password: 'Another-password-123!' }), { code: 'INVALID_RESET_TOKEN' });
 
   const mappedQuestion = {
     questionText: 'Select the true statement.', questionType: 'MCQ_SINGLE', class: 10,

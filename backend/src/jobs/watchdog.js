@@ -15,7 +15,7 @@ export function startIngestionWatchdog() {
     try {
       await checkStalledUploads();
     } catch (err) {
-      logger.error('[watchdog] Error checking stalled uploads', { error: err.message });
+      logger.error('[watchdog] Error checking stalled uploads', { errorType: err.name });
     }
   }, WATCHDOG_INTERVAL_MS);
   timer.unref?.();
@@ -45,15 +45,16 @@ async function checkStalledUploads() {
       // Has active processing but it started a very long time ago (>3min)
       {
         'activeProcessing.startedAt': { $lt: aiCutoffTime },
+        lastHeartbeat: { $lt: aiCutoffTime },
       },
     ]
   });
 
   for (const upload of stalled) {
     const hasActiveProcessing = !!upload.activeProcessing;
-    logger.warn(`[watchdog] Stalled upload detected: ${upload._id} in stage '${upload.processingStage}'`, {
+    logger.warn(`[watchdog] Stalled upload detected: ${upload._id}`, {
       lastHeartbeat: upload.lastHeartbeat,
-      activeProcessing: upload.activeProcessing,
+      hasActiveProcessing: !!upload.activeProcessing,
       attempts: upload.attempts
     });
 
@@ -62,19 +63,19 @@ async function checkStalledUploads() {
         logger.info(`[watchdog] Triggering auto-recovery / resumption for upload ${upload._id} (attempt #${(upload.attempts || 0) + 1})`);
         await resumeUpload(upload._id);
       } catch (err) {
-        logger.error(`[watchdog] Failed to trigger resumption for upload ${upload._id}`, { error: err.message });
+        logger.error(`[watchdog] Failed to trigger resumption for upload ${upload._id}`, { errorType: err.name });
         try {
           await Upload.updateOne(
-            { _id: upload._id },
+            { _id: upload._id, status: 'processing', lastHeartbeat: { $lt: cutoffTime } },
             {
               $set: {
                 status: 'failed',
                 progress: 100,
-                processingError: `Failed to resume stalled upload: ${err.message}`,
+                processingError: 'Failed to resume stalled upload',
                 processingStage: 'failed',
                 activeProcessing: null,
               },
-              $push: { stageLogs: `[UPLOAD_STAGE] failed - Failed to resume: ${err.message} - ${new Date().toISOString()}` }
+              $push: { stageLogs: `[UPLOAD_STAGE] failed - Failed to resume - ${new Date().toISOString()}` }
             }
           );
         } catch (saveErr) {

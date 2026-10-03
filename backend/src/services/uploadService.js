@@ -51,14 +51,15 @@ async function atomicPushStaged(uploadId, stagedQuestionObjs) {
  * @returns {boolean} true if claim succeeded, false if another processor is active
  */
 async function claimActiveProcessing(uploadId, processingId) {
+  const staleBefore = new Date(Date.now() - 180000);
   const result = await Upload.updateOne(
     {
       _id: uploadId,
       $or: [
         { activeProcessing: null },
         { 'activeProcessing.processingId': processingId },
-        // Allow re-claim if the previous processing was started > 3 min ago (zombie)
-        { 'activeProcessing.startedAt': { $lt: new Date(Date.now() - 180000) } },
+        // Reclaim only when the worker is old AND its heartbeat has stopped.
+        { 'activeProcessing.startedAt': { $lt: staleBefore }, lastHeartbeat: { $lt: staleBefore } },
       ],
     },
     {
@@ -1022,7 +1023,13 @@ export async function reprocessUpload(uploadId, user) {
   // reference them. Claim the upload atomically so concurrent reprocess calls
   // cannot reset an active extraction.
   const reset = await Upload.updateOne(
-    { _id: upload._id, $or: [{ activeProcessing: null }, { activeProcessing: { $exists: false } }] },
+    {
+      _id: upload._id,
+      $or: [
+        { activeProcessing: null },
+        { activeProcessing: { $exists: false } },
+      ],
+    },
     {
       $set: {
         stagedQuestions: [],
@@ -1130,8 +1137,16 @@ export async function resumeUpload(uploadId) {
 
   // Prune staging and set status atomically
   const limitIndex = upload.checkpoint?.nextBlockIndex || 0;
-  await Upload.updateOne(
-    { _id: uploadId },
+  const staleBefore = new Date(Date.now() - (upload.activeProcessing ? 180000 : 60000));
+  const resumed = await Upload.updateOne(
+    {
+      _id: uploadId,
+      status: 'processing',
+      $and: [
+        { $or: [{ lastHeartbeat: { $lt: staleBefore } }, { lastHeartbeat: { $exists: false }, updatedAt: { $lt: staleBefore } }] },
+        { $or: [{ activeProcessing: null }, { activeProcessing: { $exists: false } }, { 'activeProcessing.startedAt': { $lt: new Date(Date.now() - 180000) } }] },
+      ],
+    },
     {
       $set: {
       status: 'pending',
@@ -1146,6 +1161,10 @@ export async function resumeUpload(uploadId) {
       },
     }
   );
+
+  if (!resumed.modifiedCount) {
+    throw new AppError('Upload is no longer stalled', 409, 'UPLOAD_NOT_STALLED');
+  }
 
   upload.status = 'pending';
   upload.processingStage = 'parsing';

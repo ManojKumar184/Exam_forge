@@ -30,7 +30,27 @@ export function OptionRichFields({
 
   const updateOption = (idx: number, patch: Partial<QuestionOption>) => {
     const next = [...options];
-    next[idx] = { ...next[idx], ...patch };
+    const option = { ...next[idx], ...patch };
+    const blocks = [...(option.contentBlocks || [])];
+    if (Object.prototype.hasOwnProperty.call(patch, 'text')) {
+      const textIndex = blocks.findIndex((block) => block.type === 'text');
+      if (textIndex >= 0) blocks[textIndex] = { ...blocks[textIndex], text: option.text || '' };
+      else if (option.text) blocks.unshift({ type: 'text', text: option.text });
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'latex')) {
+      const equationIndex = blocks.findIndex((block) => block.type === 'equation');
+      if (!option.latex && equationIndex >= 0) blocks.splice(equationIndex, 1);
+      else if (option.latex && equationIndex >= 0) blocks[equationIndex] = { ...blocks[equationIndex], latex: option.latex };
+      else if (option.latex) blocks.push({ type: 'equation', latex: option.latex });
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'image')) {
+      const imageIndex = blocks.findIndex((block) => block.type === 'image');
+      if (!option.image && imageIndex >= 0) blocks.splice(imageIndex, 1);
+      else if (option.image && imageIndex >= 0) blocks[imageIndex] = { ...blocks[imageIndex], assetUrl: option.image };
+      else if (option.image) blocks.push({ type: 'image', assetUrl: option.image });
+    }
+    option.contentBlocks = blocks;
+    next[idx] = option;
     onOptionsChange(next);
   };
 
@@ -92,6 +112,14 @@ export function OptionRichFields({
                 }}
                 placeholder={`Option ${String.fromCharCode(65 + idx)} text`}
                 className="py-1 text-sm min-h-[48px] resize-y"
+                rows={1}
+              />
+              <Textarea
+                aria-label={`Option ${String.fromCharCode(65 + idx)} equation LaTeX`}
+                value={opt.latex || ''}
+                onChange={(e) => updateOption(idx, { latex: e.target.value || undefined })}
+                placeholder="Equation LaTeX (optional)"
+                className="py-1 text-sm min-h-[40px] resize-y font-mono"
                 rows={1}
               />
               {opt.text?.trim() && (

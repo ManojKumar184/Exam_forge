@@ -15,6 +15,11 @@ export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
 ]);
 
+export function assertCoreV1QuestionType(value) {
+  const type = normalizeQuestionType(value);
+  return CORE_OBJECTIVE_QUESTION_TYPES.has(type) ? type : 'UNCLASSIFIED';
+}
+
 const QUESTION_CREATE_FIELDS = new Set([
   'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
   'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
@@ -315,6 +320,7 @@ export async function createQuestion(body, user) {
   const tenantId = user.activeInstitutionId || user.defaultInstitutionId;
   if (tenantId) await assertWithinEntitlement(tenantId, 'questions');
   const fields = bodyToQuestionFields(body, QUESTION_CREATE_FIELDS);
+  fields.questionType = assertCoreV1QuestionType(fields.questionType);
   fields.canonicalContent = canonicalContentFromLegacy(fields);
   fields.source = 'manual';
   fields.canonicalContent.provenance = { kind: 'manual' };
@@ -421,6 +427,7 @@ export async function updateQuestion(id, body, user) {
   }
 
   const fields = bodyToQuestionFields(body, QUESTION_UPDATE_FIELDS);
+  if (Object.hasOwn(fields, 'questionType')) fields.questionType = assertCoreV1QuestionType(fields.questionType);
   const touchesContent = ['questionText', 'questionLatex', 'questionImages', 'options', 'explanation', 'explanationLatex', 'contentBlocks', 'canonicalContent']
     .some((key) => Object.hasOwn(fields, key));
   if (touchesContent) fields.canonicalContent = reconcileCanonicalQuestionContent(question.toObject(), fields);

@@ -22,7 +22,7 @@ export async function startEnrichmentWorker() {
     try {
       await pollAndEnrich();
     } catch (err) {
-      logger.error('[enrichment-worker] Poll iteration failed', { error: err.message });
+      logger.error('[enrichment-worker] Poll iteration failed', { errorName: err?.name || 'Error' });
     } finally {
       isRunning = false;
     }
@@ -37,8 +37,10 @@ export async function claimNextEnrichmentQuestion(workerId = crypto.randomUUID()
   const question = await Question.findOneAndUpdate({
     semanticEnriched: false,
     status: { $in: ['pending', 'needs_review'] },
+    enrichmentAttempts: { $lt: 3 },
     $or: [
-      { enrichmentAttempts: { $lt: 3 }, $or: [{ enrichmentClaimedAt: null }, { enrichmentClaimedAt: { $exists: false } }] },
+      { enrichmentClaimedAt: null },
+      { enrichmentClaimedAt: { $exists: false } },
       { enrichmentClaimedAt: { $lt: staleBefore } },
     ],
   }, { $set: { enrichmentClaimId: claimId, enrichmentClaimedAt: new Date() }, $inc: { enrichmentAttempts: 1 } }, { new: true });
@@ -112,14 +114,14 @@ async function pollAndEnrich() {
     if (!saved) return; // A reviewer changed the question while enrichment ran.
     logger.info(`[enrichment-worker] Successfully enriched question ${question._id}`);
   } catch (err) {
-    logger.error(`[enrichment-worker] Failed to enrich question ${question._id}`, { error: err.message });
+    logger.error(`[enrichment-worker] Failed to enrich question ${question._id}`, { errorName: err?.name || 'Error' });
     
     if (question.enrichmentAttempts >= 3) {
       await Question.updateOne({ _id: question._id, enrichmentClaimId: claimId, status: { $in: ['pending', 'needs_review'] } }, { $set: { semanticEnriched: true, enrichmentClaimId: null, enrichmentClaimedAt: null }, $push: { auditHistory: {
         action: 'enrichment_failed',
         timestamp: new Date(),
         user: null,
-        notes: `${env.ai.provider} enrichment failed after 3 attempts. Error: ${err.message}`,
+        notes: `${env.ai.provider} enrichment failed after 3 attempts (${err?.name || 'Error'}).`,
       } } });
       logger.warn(`[enrichment-worker] Max retries reached for question ${question._id}. Marking as skipped.`);
     }

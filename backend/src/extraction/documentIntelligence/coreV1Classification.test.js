@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { classifyQuestion } from './questionTypeClassifier.js';
 import { validateQuestionObject } from './validationEngine.js';
 import { estimateDifficulty } from '../metadataClassifier.js';
-import { validateQuestionForApproval } from '../../services/questionService.js';
+import { assertCoreV1QuestionType, validateQuestionForApproval } from '../../services/questionService.js';
 
 function classify(stem, options = [], detectedAnswer = null) {
   return classifyQuestion(
@@ -51,6 +51,13 @@ test('approval validation accepts a complete objective item and rejects descript
   assert.throws(() => validateQuestionForApproval({ ...valid, questionType: 'DESCRIPTIVE' }), { code: 'UNSUPPORTED_QUESTION_TYPE' });
   assert.throws(() => validateQuestionForApproval({ ...valid, correctOption: 8 }), { code: 'INVALID_QUESTION_CONTENT' });
   assert.throws(() => validateQuestionForApproval({ ...valid, questionType: 'MCQ_SINGLE', options: [], correctOption: null }), { code: 'INVALID_QUESTION_CONTENT' });
+});
+
+test('Core v1 creation types exclude descriptive and preserve unknown material for review', () => {
+  assert.equal(assertCoreV1QuestionType('NUMERICAL'), 'NUMERICAL');
+  assert.equal(assertCoreV1QuestionType('UNCLASSIFIED'), 'UNCLASSIFIED');
+  assert.equal(assertCoreV1QuestionType('COMPREHENSION'), 'UNCLASSIFIED');
+  assert.equal(assertCoreV1QuestionType('DESCRIPTIVE'), 'UNCLASSIFIED');
 });
 
 test('source marks do not change estimated difficulty', () => {
