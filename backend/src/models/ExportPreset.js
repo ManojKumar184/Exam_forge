@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const exportPresetSchema = new mongoose.Schema({
+  institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', required: true, index: true },
   name: { type: String, required: true },
   layout: { type: String, enum: ['single_column', 'two_column'], default: 'single_column' },
   margin: { type: String, enum: ['narrow', 'normal', 'wide'], default: 'normal' },

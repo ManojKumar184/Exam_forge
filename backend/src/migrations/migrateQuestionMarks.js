@@ -5,12 +5,9 @@ import { Question } from '../models/Question.js';
  * and remove the `marks` field.
  */
 export async function migrateQuestionMarks() {
-  const legacyQuestions = await Question.find({ marks: { $exists: true, $ne: null } });
-  for (const q of legacyQuestions) {
-    if (q.sourceMarks == null && q.marks != null) {
-      q.sourceMarks = q.marks;
-    }
-    q.marks = undefined;
-    await q.save();
-  }
+  const result = await Question.collection.updateMany(
+    { marks: { $exists: true } },
+    [{ $set: { sourceMarks: { $ifNull: ['$sourceMarks', '$marks'] } } }, { $unset: 'marks' }],
+  );
+  return { matchedCount: result.matchedCount, modifiedCount: result.modifiedCount };
 }

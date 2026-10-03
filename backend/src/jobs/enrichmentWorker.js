@@ -1,6 +1,8 @@
 import { Question } from '../models/Question.js';
 import { runStagesReconstruction } from '../extraction/reconstructionPipeline.js';
 import { logger } from '../utils/logger.js';
+import { env } from '../config/env.js';
+import crypto from 'node:crypto';
 
 let isRunning = false;
 
@@ -29,17 +31,24 @@ export async function startEnrichmentWorker() {
   return () => clearInterval(timer);
 }
 
-async function pollAndEnrich() {
-  const question = await Question.findOne({
+export async function claimNextEnrichmentQuestion(workerId = crypto.randomUUID()) {
+  const staleBefore = new Date(Date.now() - 5 * 60_000);
+  const claimId = `${workerId}:${crypto.randomUUID()}`;
+  const question = await Question.findOneAndUpdate({
     semanticEnriched: false,
     status: { $in: ['pending', 'needs_review'] },
-    enrichmentAttempts: { $lt: 3 },
-  });
+    $or: [
+      { enrichmentAttempts: { $lt: 3 }, $or: [{ enrichmentClaimedAt: null }, { enrichmentClaimedAt: { $exists: false } }] },
+      { enrichmentClaimedAt: { $lt: staleBefore } },
+    ],
+  }, { $set: { enrichmentClaimId: claimId, enrichmentClaimedAt: new Date() }, $inc: { enrichmentAttempts: 1 } }, { new: true });
+  return question ? { question, claimId } : null;
+}
 
-  if (!question) return;
-
-  question.enrichmentAttempts = (question.enrichmentAttempts || 0) + 1;
-  await question.save();
+async function pollAndEnrich() {
+  const claimed = await claimNextEnrichmentQuestion();
+  if (!claimed) return;
+  const { question, claimId } = claimed;
 
   logger.info(`[enrichment-worker] Enriching question ${question._id} (attempt ${question.enrichmentAttempts})...`);
 
@@ -58,71 +67,62 @@ async function pollAndEnrich() {
     );
 
     // Update question with enriched fields
-    question.questionText = pipeline.stem;
-    question.questionType = pipeline.questionType;
+    const fields = { questionText: pipeline.stem, questionType: pipeline.questionType };
     if (pipeline.options && pipeline.options.length >= 2) {
-      question.options = pipeline.options.map(o => ({
+      fields.options = pipeline.options.map(o => ({
         text: o.text || '',
         latex: o.latex || null,
         image: o.image || null,
       }));
     }
     
-    question.correctAnswers = pipeline.correctAnswers || [];
+    fields.correctAnswers = pipeline.correctAnswers || [];
     if (pipeline.correctAnswers?.length > 0) {
       if (pipeline.questionType === 'mcq') {
         const ansChar = pipeline.correctAnswers[0];
         const idx = ansChar.toUpperCase().charCodeAt(0) - 65;
         if (idx >= 0 && idx < 4) {
-          question.correctOption = idx;
-          question.answerKey = ansChar;
-          question.answerText = ansChar;
+          fields.correctOption = idx;
+          fields.answerKey = ansChar;
+          fields.answerText = ansChar;
         }
       }
     }
 
     if (pipeline.explanation) {
-      question.explanation = pipeline.explanation;
+      fields.explanation = pipeline.explanation;
     }
     if (pipeline.statementGroups) {
-      question.statementGroups = pipeline.statementGroups;
+      fields.statementGroups = pipeline.statementGroups;
     }
     if (pipeline.formulas) {
-      question.formulas = pipeline.formulas;
+      fields.formulas = pipeline.formulas;
     }
     
-    question.tags = [...new Set([...(question.tags || []), ...(pipeline.tags || [])])];
+    fields.tags = [...new Set([...(question.tags || []), ...(pipeline.tags || [])])];
     
-    question.parserConfidence = pipeline.confidence;
-    question.reconstructionFidelity = pipeline.reconstructionFidelity;
-    question.semanticConfidence = pipeline.semanticConfidence;
-    question.mathPreservationConfidence = pipeline.mathPreservationConfidence;
-    question.metadataConfidence = pipeline.metadataConfidence;
-    
-    question.semanticEnriched = true;
-    
-    question.auditHistory.push({
+    Object.assign(fields, { parserConfidence: pipeline.confidence, reconstructionFidelity: pipeline.reconstructionFidelity, semanticConfidence: pipeline.semanticConfidence, mathPreservationConfidence: pipeline.mathPreservationConfidence, metadataConfidence: pipeline.metadataConfidence, semanticEnriched: true });
+    fields.auditHistory = [...(question.auditHistory || []), {
       action: 'semantic_enrichment',
       timestamp: new Date(),
       user: null,
       notes: `${env.ai.provider} background semantic enrichment completed.`,
-    });
-
-    await question.save();
+    }];
+    const saved = await Question.findOneAndUpdate({ _id: question._id, enrichmentClaimId: claimId, updatedAt: question.updatedAt, status: { $in: ['pending', 'needs_review'] } }, { $set: { ...fields, enrichmentClaimId: null, enrichmentClaimedAt: null } }, { new: true });
+    if (!saved) return; // A reviewer changed the question while enrichment ran.
     logger.info(`[enrichment-worker] Successfully enriched question ${question._id}`);
   } catch (err) {
     logger.error(`[enrichment-worker] Failed to enrich question ${question._id}`, { error: err.message });
     
     if (question.enrichmentAttempts >= 3) {
-      question.semanticEnriched = true;
-      question.auditHistory.push({
+      await Question.updateOne({ _id: question._id, enrichmentClaimId: claimId, status: { $in: ['pending', 'needs_review'] } }, { $set: { semanticEnriched: true, enrichmentClaimId: null, enrichmentClaimedAt: null }, $push: { auditHistory: {
         action: 'enrichment_failed',
         timestamp: new Date(),
         user: null,
         notes: `${env.ai.provider} enrichment failed after 3 attempts. Error: ${err.message}`,
-      });
-      await question.save();
+      } } });
       logger.warn(`[enrichment-worker] Max retries reached for question ${question._id}. Marking as skipped.`);
     }
+    else await Question.updateOne({ _id: question._id, enrichmentClaimId: claimId }, { $set: { enrichmentClaimId: null, enrichmentClaimedAt: null } });
   }
 }

@@ -15,6 +15,7 @@ import { retryAsync } from '../utils/retry.js';
 import { detectDuplicatesInScopes } from '../extraction/detectDuplicates.js';
 import { validateQuestion } from '../extraction/validationEngine.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
+import { validateQuestionForApproval } from './questionService.js';
 
 /**
  * Atomic heartbeat/stage update — no version conflicts.
@@ -896,6 +897,16 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     const q = upload.stagedQuestions[numIdx];
     if (q.isApproved) continue;
 
+    try {
+      validateQuestionForApproval(q);
+    } catch (error) {
+      if (!['UNSUPPORTED_QUESTION_TYPE', 'INCOMPLETE_METADATA'].includes(error.code)) throw error;
+      q.isApproved = false;
+      q.isRejected = false;
+      q.status = 'needs_review';
+      continue;
+    }
+
     docsToCreate.push({
       questionText: q.questionText,
       contentBlocks: q.contentBlocks || [],
@@ -959,6 +970,7 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       const q = validStagedQuestions[k];
       q.isApproved = true;
       q.isRejected = false;
+      q.status = 'approved';
       q.savedQuestionId = created._id;
       questionIds.push(created._id);
     }
@@ -984,10 +996,11 @@ export async function reprocessUpload(uploadId, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
-  await Question.deleteMany({ uploadId: upload._id });
-
-  await Upload.updateOne(
-    { _id: upload._id },
+  // Retain every canonical Question: downstream papers, tests, and attempts may
+  // reference them. Claim the upload atomically so concurrent reprocess calls
+  // cannot reset an active extraction.
+  const reset = await Upload.updateOne(
+    { _id: upload._id, $or: [{ activeProcessing: null }, { activeProcessing: { $exists: false } }] },
     {
       $set: {
         stagedQuestions: [],
@@ -1006,6 +1019,7 @@ export async function reprocessUpload(uploadId, user) {
       },
     }
   );
+  if (!reset.modifiedCount) throw new AppError('Upload is already being processed', 409, 'UPLOAD_PROCESSING');
 
   upload.status = 'pending';
   upload.processingStage = 'uploaded';

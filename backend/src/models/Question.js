@@ -105,6 +105,8 @@ const questionSchema = new mongoose.Schema(
     debugInfo: { type: mongoose.Schema.Types.Mixed, default: null },
     semanticEnriched: { type: Boolean, default: false },
     enrichmentAttempts: { type: Number, default: 0 },
+    enrichmentClaimId: { type: String, default: null, select: false },
+    enrichmentClaimedAt: { type: Date, default: null, select: false },
     
     // SaaS semantic metadata fields
     correctAnswers: { type: [String], default: [] },

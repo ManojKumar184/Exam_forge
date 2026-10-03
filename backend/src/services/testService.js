@@ -1,7 +1,11 @@
 import crypto from 'node:crypto';
+import mongoose from 'mongoose';
 import { OnlineTest } from '../models/OnlineTest.js';
 import { Paper } from '../models/Paper.js';
 import { TestAttempt } from '../models/TestAttempt.js';
+import { Question } from '../models/Question.js';
+import { User } from '../models/User.js';
+import { Membership } from '../models/Membership.js';
 import { Leaderboard } from '../models/Leaderboard.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
 import { getQuestionCategory as getNormalizedCategory, normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
@@ -131,6 +135,8 @@ export async function createTest(body, user) {
   if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
+  const allowedUsers = body.allowed_users || body.allowedUsers || [];
+  await validateAllowedUsers(allowedUsers, institutionId);
 
   const startTime = body.start_time || body.startTime || null;
   const endTime = body.end_time || body.endTime || null;
@@ -153,7 +159,7 @@ export async function createTest(body, user) {
     allowReview: Boolean(body.allow_review ?? body.allowReview ?? true),
     isPublic: Boolean(body.is_public ?? body.isPublic ?? true),
     accessCode: body.access_code || body.accessCode || null,
-    allowedUsers: body.allowed_users || body.allowedUsers || [],
+    allowedUsers,
     status: body.status || 'scheduled',
     createdBy: user._id,
   });
@@ -167,6 +173,11 @@ export async function updateTest(id, body, user) {
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  }
+  if (body.allowed_users !== undefined || body.allowedUsers !== undefined) {
+    const ids = body.allowed_users ?? body.allowedUsers;
+    await validateAllowedUsers(ids, test.institutionId);
+    test.allowedUsers = ids;
   }
 
   const startTime = body.start_time !== undefined ? (body.start_time || null) : test.startTime;
@@ -189,6 +200,18 @@ export async function updateTest(id, body, user) {
   await test.save();
   await test.populate('paperId');
   return mapOnlineTest(test);
+}
+
+async function validateAllowedUsers(ids, institutionId) {
+  if (!ids?.length) return;
+  if (ids.some((id) => !mongoose.isValidObjectId(id))) throw new AppError('allowedUsers contains an invalid user ID', 400, 'INVALID_ALLOWED_USERS');
+  if (new Set(ids.map(String)).size !== ids.length) throw new AppError('allowedUsers contains duplicates', 400, 'INVALID_ALLOWED_USERS');
+  const users = await User.find({ _id: { $in: ids }, role: 'student', isActive: true, approvalStatus: 'approved' }).select('_id').lean();
+  const userIds = users.map((u) => u._id);
+  const members = await Membership.find({ userId: { $in: userIds }, institutionId, role: 'STUDENT', status: 'ACTIVE' }).select('userId').lean();
+  if (users.length !== ids.length || members.length !== ids.length) {
+    throw new AppError('Every allowed user must be an active student in this institution', 400, 'INVALID_ALLOWED_USERS');
+  }
 }
 
 export async function deleteTest(id, user) {
@@ -237,28 +260,43 @@ export async function startAttempt(testId, user, accessCode = null) {
     }
     const count = await TestAttempt.countDocuments({ testId: test._id, userId: user._id });
     if (count >= (test.maxAttempts || 1)) {
-      throw new AppError('Maximum attempts reached', 400, 'MAX_ATTEMPTS_REACHED');
+      attempt = await TestAttempt.findOne({ testId: test._id, userId: user._id, status: 'in_progress' }).populate('testId');
+      if (!attempt) throw new AppError('Maximum attempts reached', 400, 'MAX_ATTEMPTS_REACHED');
     }
 
-    const shuffledQuestions = [...(test.paperId?.questions || [])];
-    if (test.shuffleQuestions) shuffledQuestions.sort(() => Math.random() - 0.5);
+    if (!attempt) {
+      const shuffledQuestions = [...(test.paperId?.questions || [])];
+      if (test.shuffleQuestions) shuffledQuestions.sort(() => Math.random() - 0.5);
 
-    attempt = await TestAttempt.create({
-      testId: test._id,
-      userId: user._id,
-      institutionId: test.institutionId,
-      attemptNumber: count + 1,
-      status: 'in_progress',
-      maxScore: shuffledQuestions.reduce((sum, q) => sum + Number(q.customMarks || 0), 0),
-      answers: shuffledQuestions.map((pq) => ({
-        questionId: pq.questionId?._id || pq.questionId,
-        selectedOption: null,
-        numericalAnswer: null,
-        textAnswer: null,
-        isMarkedForReview: false,
-        timeSpentSeconds: 0,
-      })),
-    });
+      try {
+        attempt = await TestAttempt.create({
+          testId: test._id,
+          userId: user._id,
+          institutionId: test.institutionId,
+          attemptNumber: count + 1,
+          status: 'in_progress',
+          maxScore: shuffledQuestions.reduce((sum, q) => sum + Number(q.customMarks || 0), 0),
+          answers: shuffledQuestions.map((pq) => ({
+            questionId: pq.questionId?._id || pq.questionId,
+            selectedOption: null,
+            numericalAnswer: null,
+            textAnswer: null,
+            isMarkedForReview: false,
+            timeSpentSeconds: 0,
+          })),
+        });
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        // Concurrent starters race on the unique attempt number. Reuse the
+        // winner's in-progress attempt; do not turn the race into a 500.
+        attempt = await TestAttempt.findOne({ testId: test._id, userId: user._id, status: 'in_progress' }).populate('testId');
+        if (!attempt) {
+          const actualCount = await TestAttempt.countDocuments({ testId: test._id, userId: user._id });
+          if (actualCount >= (test.maxAttempts || 1)) throw new AppError('Maximum attempts reached', 400, 'MAX_ATTEMPTS_REACHED');
+          throw error;
+        }
+      }
+    }
   }
 
   await attempt.populate('testId');
@@ -289,13 +327,23 @@ export async function autosaveAttempt(testId, user, payload) {
 
   if (Array.isArray(payload.answers)) {
     const existing = new Map(attempt.answers.map((a) => [a.questionId.toString(), a]));
+    const selectedQuestionIds = payload.answers.filter((answer) => answer.selected_options !== undefined).map((answer) => answer.question_id || answer.questionId).filter(Boolean);
+    const selectedQuestions = await Question.find({ _id: { $in: selectedQuestionIds } }).select('_id options').lean();
+    const optionCounts = new Map(selectedQuestions.map((question) => [question._id.toString(), question.options?.length || 0]));
     for (const incoming of payload.answers) {
       const key = (incoming.question_id || incoming.questionId || '').toString();
       if (!key) continue;
       const row = existing.get(key);
       if (!row) continue;
       if (incoming.selected_option !== undefined) row.selectedOption = incoming.selected_option;
-      if (incoming.selected_options !== undefined) row.selectedOptions = Array.isArray(incoming.selected_options) ? incoming.selected_options.map(Number).filter(Number.isInteger) : [];
+      if (incoming.selected_options !== undefined) {
+        const values = incoming.selected_options;
+        const optionCount = optionCounts.get(key);
+        if (!Array.isArray(values) || optionCount === undefined || values.some((index) => !Number.isInteger(index) || index < 0 || index >= optionCount) || new Set(values).size !== values.length) {
+          throw new AppError('selected_options must contain unique valid option indices', 400, 'INVALID_SELECTED_OPTIONS');
+        }
+        row.selectedOptions = values;
+      }
       if (incoming.numerical_answer !== undefined) {
         row.numericalAnswer = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
       }
@@ -487,12 +535,19 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
 export async function getAttemptHistory(user, testId = null) {
   const filter = { institutionId: user.activeInstitutionId || user.defaultInstitutionId };
   if (user.role === 'student') filter.userId = user._id;
-  if (testId) filter.testId = testId;
+  else if (user.role === 'faculty' && user.membershipRole !== 'INSTITUTION_ADMIN') {
+    const ownedTests = await OnlineTest.find({ institutionId: filter.institutionId, createdBy: user._id }).select('_id').lean();
+    const ownedIds = ownedTests.map((test) => test._id);
+    filter.testId = testId ? { $in: ownedIds.filter((id) => id.toString() === testId.toString()) } : { $in: ownedIds };
+  } else if (testId) {
+    filter.testId = testId;
+  }
   const attempts = await TestAttempt.find(filter).populate('testId').sort({ createdAt: -1 });
   return attempts.map(mapTestAttempt);
 }
 
 export async function getLeaderboard(testId, user) {
+  await getTestById(testId, user);
   const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).select('_id status').lean();
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   const rows = await Leaderboard.find({ testId })

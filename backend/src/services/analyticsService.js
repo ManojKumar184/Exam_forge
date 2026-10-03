@@ -2,8 +2,7 @@ import { User, Question, Paper, OnlineTest, TestAttempt, Upload, QuestionBank } 
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
-import { env } from '../config/env.js';
+import { getLlmProvider } from '../ai/providerRegistry.js';
 
 export async function getAdminAnalytics() {
   const [
@@ -256,13 +255,10 @@ export async function getStudentAnalytics(studentId, institutionId) {
   };
 }
 
-let isReplayRunning = false;
-let lastReplayRunTime = null;
-
 export function getReplayStatus() {
   return {
-    isRunning: isReplayRunning,
-    lastRunTime: lastReplayRunTime,
+    available: false,
+    reason: 'Replay harness runs only as an explicit development command.',
   };
 }
 
@@ -278,16 +274,18 @@ export async function getSystemMonitor() {
   let totalFidelity = 0;
   let totalWarnings = 0;
   let count = questions.length;
+  let confidenceSamples = 0;
+  let fidelitySamples = 0;
 
   for (const q of questions) {
-    totalConfidence += q.parserConfidence || 0.8;
-    totalFidelity += q.reconstructionFidelity || 0.8;
+    if (Number.isFinite(q.parserConfidence)) { totalConfidence += q.parserConfidence; confidenceSamples += 1; }
+    if (Number.isFinite(q.reconstructionFidelity)) { totalFidelity += q.reconstructionFidelity; fidelitySamples += 1; }
     totalWarnings += q.extractionWarnings?.length || 0;
   }
 
-  const avgConfidence = count > 0 ? (totalConfidence / count) * 100 : 90.0;
-  const avgFidelity = count > 0 ? (totalFidelity / count) * 100 : 85.0;
-  const avgWarnings = count > 0 ? (totalWarnings / count) : 0.2;
+  const avgConfidence = confidenceSamples ? (totalConfidence / confidenceSamples) * 100 : null;
+  const avgFidelity = fidelitySamples ? (totalFidelity / fidelitySamples) * 100 : null;
+  const avgWarnings = count ? totalWarnings / count : null;
 
   // DB stats
   const [usersCount, questionsCount, papersCount, testsCount, attemptsCount, banksCount] = await Promise.all([
@@ -299,24 +297,21 @@ export async function getSystemMonitor() {
     QuestionBank.countDocuments(),
   ]);
 
-  // Simulated storage usage
-  const storageUsedBytes = (questionsCount * 1200) + (papersCount * 5000) + (attemptsCount * 2500);
-  const storageLimitBytes = 5 * 1024 * 1024 * 1024; // 5 GB limit
-
-  // Check if Space provider is available
-  const spaceConfigured = true; // Space provider is always available
+  const llmProvider = getLlmProvider();
   
   return {
     aiProvider: {
-      name: 'exforge_llama',
-      configured: spaceConfigured,
+      name: llmProvider?.name || null,
+      configured: Boolean(llmProvider),
     },
     parser: {
-      healthStatus: avgConfidence > 75 ? 'healthy' : avgConfidence > 50 ? 'warning' : 'critical',
-      avgConfidence: Number(avgConfidence.toFixed(1)),
-      avgFidelity: Number(avgFidelity.toFixed(1)),
-      avgWarnings: Number(avgWarnings.toFixed(2)),
+      healthStatus: avgConfidence === null ? 'unavailable' : avgConfidence > 75 ? 'healthy' : avgConfidence > 50 ? 'warning' : 'critical',
+      avgConfidence: avgConfidence === null ? null : Number(avgConfidence.toFixed(1)),
+      avgFidelity: avgFidelity === null ? null : Number(avgFidelity.toFixed(1)),
+      avgWarnings: avgWarnings === null ? null : Number(avgWarnings.toFixed(2)),
       sampleCount: count,
+      confidenceSampleCount: confidenceSamples,
+      fidelitySampleCount: fidelitySamples,
     },
     database: {
       users: usersCount,
@@ -326,11 +321,7 @@ export async function getSystemMonitor() {
       attempts: attemptsCount,
       banks: banksCount,
     },
-    storage: {
-      usedBytes: storageUsedBytes,
-      limitBytes: storageLimitBytes,
-      percentage: Number(((storageUsedBytes / storageLimitBytes) * 100).toFixed(2)),
-    },
+    storage: { available: false, reason: 'Storage usage telemetry is not configured.' },
     timestamp: new Date().toISOString(),
   };
 }
@@ -350,47 +341,16 @@ export async function getReplaySummary() {
     };
   } catch (err) {
     return {
-      summary: {
-        totalQuestions: 0,
-        avgStemSimilarityPercent: "0.00",
-        optionsMatchRatePercent: "0.00",
-        classificationMatchRatePercent: "0.00",
-        totalWarningsCount: 0,
-        error: "Results file not found. Please run the replay harness.",
-      },
+      summary: null,
       evaluations: [],
       status: getReplayStatus(),
+      available: false,
+      reason: 'No replay report is available. Run the harness with the development command.',
     };
   }
 }
 
 export async function runReplayHarness() {
-  if (isReplayRunning) {
-    return { success: false, message: 'Replay harness is already running.' };
-  }
-
-  isReplayRunning = true;
-  lastReplayRunTime = new Date().toISOString();
-
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  const scriptPath = path.join(__dirname, '../extraction/validationHarness.js');
-
-  const proc = spawn('node', [scriptPath], {
-    detached: true,
-    stdio: 'ignore',
-  });
-
-  proc.on('exit', () => {
-    isReplayRunning = false;
-  });
-
-  proc.unref();
-
-  return {
-    success: true,
-    message: 'Replay harness run started in background.',
-    startedAt: lastReplayRunTime,
-  };
+  return { success: false, message: 'Replay harness is available only as an explicit development command.' };
 }
 

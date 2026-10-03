@@ -13,7 +13,6 @@ router.get('/faculty', authorize('faculty', 'super_admin'), asyncHandler(analyti
 router.get('/student', authorize('student'), asyncHandler(analyticsController.studentAnalytics));
 router.get('/system-monitor', authorize('super_admin'), asyncHandler(analyticsController.getSystemMonitor));
 router.get('/replay-summary', authorize('super_admin'), asyncHandler(analyticsController.getReplaySummary));
-router.post('/run-replay', authorize('super_admin'), asyncHandler(analyticsController.runReplayHarness));
 router.get(
   '/test/:testId',
   authorize('super_admin', 'faculty'),

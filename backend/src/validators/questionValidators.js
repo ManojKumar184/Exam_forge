@@ -201,7 +201,6 @@ export const bulkUpdateMetadataSchema = z.object({
     exam_type_id: z.string().nullable().optional(),
     difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
     tags: z.array(z.string()).optional(),
-    status: z.enum(['pending', 'approved', 'rejected', 'needs_review']).optional(),
   }),
 });
 

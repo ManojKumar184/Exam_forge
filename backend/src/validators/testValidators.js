@@ -27,6 +27,7 @@ export const autosaveSchema = z.object({
       z.object({
         question_id: z.string(),
         selected_option: z.number().nullable().optional(),
+        selected_options: z.array(z.number().int().min(0).max(7)).optional(),
         numerical_answer: z.number().nullable().optional(),
         text_answer: z.string().nullable().optional(),
         is_marked_for_review: z.boolean().optional(),

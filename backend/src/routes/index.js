@@ -13,7 +13,6 @@ import userRoutes from './userRoutes.js';
 import examTemplateRoutes from './examTemplateRoutes.js';
 import exportPresetRoutes from './exportPresetRoutes.js';
 import institutionProfileRoutes from './institutionProfileRoutes.js';
-import documentClassificationRoutes from './documentClassification.js';
 import { health, readiness } from '../controllers/healthController.js';
 import institutionRoutes from './institutionRoutes.js';
 
@@ -35,7 +34,6 @@ router.use('/users', userRoutes);
 router.use('/exam-templates', examTemplateRoutes);
 router.use('/export-presets', exportPresetRoutes);
 router.use('/institution-profiles', institutionProfileRoutes);
-router.use('/document-classification', documentClassificationRoutes);
 router.use('/', catalogRoutes);
 
 export default router;

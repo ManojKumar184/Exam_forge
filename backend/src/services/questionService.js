@@ -9,6 +9,20 @@ import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 
+export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
+  'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
+  'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
+]);
+
+export function validateQuestionForApproval(question) {
+  if (!CORE_OBJECTIVE_QUESTION_TYPES.has(normalizeQuestionType(question.questionType))) {
+    throw new AppError('Classify and correct this question as a supported objective type before approval', 400, 'UNSUPPORTED_QUESTION_TYPE');
+  }
+  const hasSyllabusData = question.syllabusMappings?.length > 0 &&
+    question.syllabusMappings[0]?.subjectId && question.syllabusMappings[0]?.examPatternId;
+  if (!hasSyllabusData) throw new AppError('Set syllabus mappings (subject + exam pattern) before approving', 400, 'INCOMPLETE_METADATA');
+}
+
 function parseListParam(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -251,7 +265,7 @@ export async function createQuestion(body, user) {
   const fields = bodyToQuestionFields(body);
   fields.createdBy = user._id;
   fields.institutionId = user.activeInstitutionId || user.defaultInstitutionId || null;
-  fields.ownerId = fields.ownerId || user._id;
+  fields.ownerId = user._id;
 
   if (user.role === 'faculty') {
     fields.isPrivate = true;
@@ -342,8 +356,8 @@ export async function updateQuestion(id, body, user) {
   }
 
   const fields = bodyToQuestionFields(body);
+  for (const key of ['status', 'createdBy', 'ownerId', 'institutionId', 'reviewedBy', 'reviewedAt', 'reviewNotes', 'auditHistory', 'enrichmentAttempts', 'semanticEnriched']) delete fields[key];
   if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
-    delete fields.ownerId;
     delete fields.isPrivate;
     delete fields.visibility;
   }
@@ -415,17 +429,7 @@ export async function approveQuestion(id, user) {
   const existing = await Question.findOne(scopedQuestionId(id, user));
   if (!existing) throw new AppError('Question not found', 404, 'NOT_FOUND');
 
-  const coreObjectiveTypes = new Set([
-    'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
-    'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
-  ]);
-  if (!coreObjectiveTypes.has(normalizeQuestionType(existing.questionType))) {
-    throw new AppError(
-      'Classify and correct this question as a supported objective type before approval',
-      400,
-      'UNSUPPORTED_QUESTION_TYPE'
-    );
-  }
+  validateQuestionForApproval(existing);
   
   // Ownership check for faculty
   if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
@@ -435,18 +439,6 @@ export async function approveQuestion(id, user) {
   }
   
   // syllabusMappings required before approving — flat Subject/ExamType collections were dropped
-  const hasSyllabusData = existing.syllabusMappings?.length > 0 &&
-    existing.syllabusMappings[0]?.subjectId &&
-    existing.syllabusMappings[0]?.examPatternId;
-
-  if (!hasSyllabusData) {
-    throw new AppError(
-      'Set syllabus mappings (subject + exam pattern) before approving',
-      400,
-      'INCOMPLETE_METADATA'
-    );
-  }
-
   existing.status = 'approved';
   existing.reviewedBy = user._id;
   existing.reviewedAt = new Date();
@@ -514,17 +506,12 @@ export async function bulkApprove(ids, user) {
   }
   const questions = await Question.find(filter);
   
-  // Verify all found questions have syllabus mappings before approving
+  // Validate the complete batch before mutating any document.
   for (const q of questions) {
-    const hasSyllabusData = q.syllabusMappings?.length > 0 &&
-      q.syllabusMappings[0]?.subjectId &&
-      q.syllabusMappings[0]?.examPatternId;
-    if (!hasSyllabusData) {
-      throw new AppError(
-        `Question #${q.serialId || q._id} is missing syllabus mappings (subject + exam pattern)`,
-        400,
-        'INCOMPLETE_METADATA'
-      );
+    try { validateQuestionForApproval(q); }
+    catch (error) {
+      if (error.code === 'INCOMPLETE_METADATA') error.message = `Question #${q.serialId || q._id} is missing syllabus mappings (subject + exam pattern)`;
+      throw error;
     }
   }
   for (const q of questions) {
@@ -595,6 +582,9 @@ export async function bulkDelete(ids, user) {
  */
 export async function bulkUpdateMetadata(ids, updates, user) {
   const fields = bodyToQuestionFields(updates);
+  delete fields.status;
+  for (const key of ['createdBy', 'ownerId', 'institutionId', 'reviewedBy', 'reviewedAt', 'reviewNotes', 'auditHistory', 'enrichmentAttempts', 'semanticEnriched']) delete fields[key];
+  if (Object.keys(fields).length === 0) return { modified: 0 };
   if (fields.questionText) {
     fields.duplicateHash = computeDuplicateHash(fields.questionText);
   }

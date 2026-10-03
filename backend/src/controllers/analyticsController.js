@@ -35,7 +35,6 @@ export async function getReplaySummary(req, res) {
 }
 
 export async function runReplayHarness(req, res) {
-  const data = await analyticsService.runReplayHarness();
-  res.json({ success: true, data });
+  res.status(410).json({ success: false, message: 'Replay harness is not available through the production API.' });
 }
 
