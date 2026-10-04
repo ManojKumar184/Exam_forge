@@ -7,6 +7,7 @@ import {
   updateQuestionBankApi,
   deleteQuestionBankApi,
   reorderQuestionBanksApi,
+  setSystemTestBankVisibilityApi,
   type QuestionBank,
 } from '../../api/questionBanks';
 import { Card, Button, Badge, Input, Select, Modal, Textarea, Loading, EmptyState, PageHeader } from '../../components/ui';
@@ -17,6 +18,8 @@ export function QuestionBanksManagerPage() {
   const { profile, isAdmin, isFaculty } = useAuth();
   const [banks, setBanks] = useState<QuestionBank[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [systemTestBusy, setSystemTestBusy] = useState(false);
+  const systemTestBank = banks.find((bank) => bank.type === 'system_test');
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -174,6 +177,18 @@ export function QuestionBanksManagerPage() {
     }
   };
 
+  const toggleSystemTestVisibility = async () => {
+    if (!systemTestBank || systemTestBusy) return;
+    setSystemTestBusy(true);
+    try {
+      await setSystemTestBankVisibilityApi(!systemTestBank.visibleToFaculty);
+      toast.success(systemTestBank.visibleToFaculty ? 'System Test Bank hidden from faculty' : 'System Test Bank visible to faculty');
+      await fetchBanks();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not change System Test Bank visibility');
+    } finally { setSystemTestBusy(false); }
+  };
+
   const resetForm = () => {
     setName('');
     setDescription('');
@@ -224,6 +239,8 @@ export function QuestionBanksManagerPage() {
           </Button>
         )}
       />
+
+      {profile?.role === 'super_admin' && systemTestBank && <Card className="flex flex-wrap items-center justify-between gap-4 border-violet-200 p-5 dark:border-violet-900"><div><h2 className="font-semibold">System Test Bank</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{systemTestBank.visibleToFaculty ? 'Visible to faculty as a paper source.' : 'Hidden from faculty and institution administrators.'}</p></div><Button variant={systemTestBank.visibleToFaculty ? 'outline' : 'primary'} disabled={systemTestBusy} onClick={() => void toggleSystemTestVisibility()}>{systemTestBusy ? 'Updating…' : systemTestBank.visibleToFaculty ? 'Hide from faculty' : 'Show to faculty'}</Button></Card>}
 
       {banks.length === 0 ? (
         <EmptyState

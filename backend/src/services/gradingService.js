@@ -11,6 +11,10 @@ function assertFacultyOwnsTest(test, user) {
   throw new AppError('Forbidden', 403, 'FORBIDDEN');
 }
 
+function effectiveExamConfig(test) {
+  return { ...test.toObject?.(), ...test.examSnapshot };
+}
+
 function buildQuestionMap(paper) {
   return new Map(
     (paper?.questions || []).map((pq) => {
@@ -23,7 +27,7 @@ function buildQuestionMap(paper) {
       return [
         (pq.questionId?._id || pq.questionId).toString(),
         {
-          question: pq.questionId,
+          question: pq.contentSnapshot || pq.questionId,
           marks: Number(effectiveMarks || 0),
         },
       ];
@@ -42,7 +46,7 @@ export function computeGradingStatus(attempt, questionMap) {
 
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId.toString());
-    const qType = entry?.question?.questionType;
+    const qType = entry?.question?.questionType || entry?.question?.question_type;
     if (getQuestionCategory(qType) !== 'descriptive') continue;
     if (!answer.textAnswer?.trim()) continue;
     needsManual = true;
@@ -72,7 +76,7 @@ export function recomputeAttemptTotals(attempt, questionMap) {
     const marks = Number(answer.marksObtained || 0);
     score += marks;
 
-    const qCategory = getQuestionCategory(entry?.question?.questionType);
+    const qCategory = getQuestionCategory(entry?.question?.questionType || entry?.question?.question_type);
 
     if (answer.isSkipped || (qCategory === 'descriptive' && !answer.textAnswer)) {
       skipped += 1;
@@ -85,7 +89,7 @@ export function recomputeAttemptTotals(attempt, questionMap) {
     }
   }
 
-  const maxScore = [...questionMap.values()].reduce((sum, q) => sum + q.marks, 0) || attempt.maxScore;
+  const maxScore = attempt.answers.reduce((sum, answer) => sum + Number(answer.maxMarks ?? answer.marksSnapshot ?? questionMap.get(answer.questionId.toString())?.marks ?? 0), 0) || attempt.maxScore;
   attempt.score = score;
   attempt.maxScore = maxScore;
   attempt.percentage = maxScore > 0 ? Number(((score / maxScore) * 100).toFixed(2)) : 0;
@@ -118,6 +122,7 @@ export async function getAttemptDetail(testId, attemptId, user) {
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const exam = effectiveExamConfig(test);
 
   const attempt = await TestAttempt.findOne({ _id: attemptId, testId, institutionId: test.institutionId })
     .populate('userId', 'fullName email role')
@@ -126,23 +131,23 @@ export async function getAttemptDetail(testId, attemptId, user) {
   if (!attempt) throw new AppError('Attempt not found', 404, 'NOT_FOUND');
 
   if (user.role === 'student') {
-    if (attempt.userId._id.toString() !== user._id.toString() || !['submitted', 'auto_submitted'].includes(attempt.status) || !test.allowReview) {
+    if (attempt.userId._id.toString() !== user._id.toString() || !['submitted', 'auto_submitted'].includes(attempt.status) || !exam.allowReview) {
       throw new AppError('Attempt not found', 404, 'NOT_FOUND');
     }
   }
   if (user.role === 'faculty') assertFacultyOwnsTest(test, user);
 
-  const questionMap = buildQuestionMap(test.paperId);
+  const questionMap = buildQuestionMap(test.paperSnapshot || test.paperId);
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId._id?.toString() || answer.questionId.toString());
-    if (entry) answer.maxMarks = entry.marks;
+    if (answer.maxMarks == null) answer.maxMarks = answer.marksSnapshot ?? entry?.marks ?? null;
   }
 
   return {
     test_id: test._id.toString(),
-    attempt: user.role === 'student' && !test.showAnswers ? removeAnswersFromAttempt(mapTestAttempt(attempt)) : mapTestAttempt(attempt),
-    show_answers: test.showAnswers,
-    allow_review: test.allowReview,
+    attempt: user.role === 'student' && !exam.showAnswers ? removeAnswersFromAttempt(mapTestAttempt(attempt)) : mapTestAttempt(attempt),
+    show_answers: exam.showAnswers,
+    allow_review: exam.allowReview,
   };
 }
 
@@ -162,7 +167,7 @@ export async function gradeAttemptAnswers(testId, attemptId, body, user) {
   });
   if (!attempt) throw new AppError('Attempt not found', 404, 'NOT_FOUND');
 
-  const questionMap = buildQuestionMap(test.paperId);
+  const questionMap = buildQuestionMap(test.paperSnapshot || test.paperId);
   const grades = body.grades || [];
 
   for (const item of grades) {
@@ -171,7 +176,7 @@ export async function gradeAttemptAnswers(testId, attemptId, body, user) {
     if (!row) continue;
 
     const entry = questionMap.get(row.questionId.toString());
-    const maxMarks = Number(entry?.marks ?? row.maxMarks ?? 0);
+    const maxMarks = Number(row.marksSnapshot ?? entry?.marks ?? row.maxMarks ?? 0);
     const marks = Math.min(Math.max(0, Number(item.marks ?? 0)), maxMarks);
 
     row.maxMarks = maxMarks;

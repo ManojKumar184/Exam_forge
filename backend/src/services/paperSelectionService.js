@@ -2,6 +2,7 @@ import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapQuestion } from '../utils/questionMapper.js';
 import { normalizeQuestionType, getQuestionCategory } from '../utils/questionTypeNormalizer.js';
+import { randomUUID, createHash } from 'node:crypto';
 
 function parseIdList(value) {
   if (!value) return [];
@@ -12,10 +13,20 @@ function parseIdList(value) {
     .filter(Boolean);
 }
 
-function shuffle(arr) {
+export function seededRandom(seed) {
+  let state = createHash('sha256').update(String(seed)).digest().readUInt32LE(0);
+  return () => {
+    state = (state + 0x6D2B79F5) | 0;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffle(arr, random) {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
@@ -111,23 +122,21 @@ function computeDifficultyTargets(total, distribution = {}, sectionOverride = nu
 }
 
 function pickFromPool(pool, needed, state) {
-  const { excludeIds, usedHashes, usedQuestionIds } = state;
+  const { excludeIds, usedHashes, usedQuestionIds, allowDuplicateContent } = state;
   const exclude = excludeIds;
 
-  const candidates = shuffle(
-    pool.filter((q) => {
+  const candidates = shuffle(pool.filter((q) => {
       const id = q._id.toString();
       if (exclude.has(id)) return false;
       if (usedQuestionIds.has(id)) return false;
-      if (q.duplicateHash && usedHashes.has(q.duplicateHash)) return false;
+      if (!allowDuplicateContent && q.duplicateHash && usedHashes.has(q.duplicateHash)) return false;
       return true;
-    })
-  );
+    }), state.random);
 
   const picked = [];
   for (const q of candidates) {
     if (picked.length >= needed) break;
-    if (q.duplicateHash && usedHashes.has(q.duplicateHash)) continue;
+    if (!state.allowDuplicateContent && q.duplicateHash && usedHashes.has(q.duplicateHash)) continue;
     picked.push(q);
     usedQuestionIds.add(q._id.toString());
     if (q.duplicateHash) usedHashes.add(q.duplicateHash);
@@ -157,7 +166,7 @@ function pickBalancedSection(pool, count, distribution, state, sectionDifficulty
       if (!byChapter.has(ch)) byChapter.set(ch, []);
       byChapter.get(ch).push(q);
     }
-    const groups = [...byChapter.values()].map((g) => shuffle(g));
+    const groups = [...byChapter.values()].map((g) => shuffle(g, state.random));
     let round = 0;
     while (selected.length < count && groups.some((g) => g.length > round)) {
       for (const group of groups) {
@@ -166,7 +175,7 @@ function pickBalancedSection(pool, count, distribution, state, sectionDifficulty
         if (!q) continue;
         const id = q._id.toString();
         if (state.usedQuestionIds.has(id)) continue;
-        if (q.duplicateHash && state.usedHashes.has(q.duplicateHash)) continue;
+        if (!state.allowDuplicateContent && q.duplicateHash && state.usedHashes.has(q.duplicateHash)) continue;
         selected.push(q);
         state.usedQuestionIds.add(id);
         if (q.duplicateHash) state.usedHashes.add(q.duplicateHash);
@@ -182,10 +191,11 @@ function pickBalancedSection(pool, count, distribution, state, sectionDifficulty
     selected.push(...pickFromPool(remaining, count - selected.length, state));
   }
 
-  return shuffle(selected).slice(0, count);
+  return shuffle(selected, state.random).slice(0, count);
 }
 
 export async function selectQuestionsForPaper(config) {
+  const generationSeed = String(config.generation_seed || config.generationSeed || randomUUID());
   const excludeIds = new Set(
     parseIdList(config.exclude_question_ids || config.excludeQuestionIds)
   );
@@ -193,6 +203,8 @@ export async function selectQuestionsForPaper(config) {
     excludeIds,
     usedHashes: new Set(),
     usedQuestionIds: new Set(),
+    allowDuplicateContent: config.allow_duplicate_content === true,
+    random: seededRandom(generationSeed),
   };
 
   const filter = buildQuestionFilter(config);
@@ -318,6 +330,8 @@ export async function selectQuestionsForPaper(config) {
   }
 
   return {
+    generation_seed: generationSeed,
+    generation_version: 'selection-v1',
     sections: resultSections,
     total_questions: totalQuestions,
     total_marks: totalMarks,

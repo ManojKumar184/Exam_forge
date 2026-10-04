@@ -4,7 +4,7 @@ export interface QuestionBank {
   _id: string;
   name: string;
   description: string;
-  type: 'system' | 'institution' | 'faculty' | 'custom';
+  type: 'system' | 'system_test' | 'institution' | 'faculty' | 'custom';
   createdBy: any;
   institution: string | null;
   visibility: 'public' | 'institution' | 'private';
@@ -13,6 +13,14 @@ export interface QuestionBank {
   isPinned?: boolean;
   pinnedOrder?: number;
   questionCount?: number;
+  visibleToFaculty?: boolean;
+}
+
+export async function setSystemTestBankVisibilityApi(visibleToFaculty: boolean): Promise<QuestionBank> {
+  const { data } = await apiClient.patch<{ success: boolean; data: QuestionBank }>(
+    '/question-banks/system-test/visibility', { visibleToFaculty },
+  );
+  return data.data;
 }
 
 export async function fetchQuestionBanksApi(params?: Record<string, unknown>): Promise<QuestionBank[]> {

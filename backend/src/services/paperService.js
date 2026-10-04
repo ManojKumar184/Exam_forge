@@ -3,8 +3,10 @@ import { Paper } from '../models/Paper.js';
 import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
 import { mapPaper } from '../utils/examMapper.js';
+import { mapQuestion } from '../utils/questionMapper.js';
 import { selectQuestionsForPaper } from './paperSelectionService.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
+import { prepareQuestionBankSources } from './questionBankMembershipService.js';
 
 function toObjectIdList(items) {
   return (items || []).filter(Boolean);
@@ -105,6 +107,9 @@ function mapBodyToPaperFields(body) {
     paperSet: body.paper_set || body.paperSet || 'A',
     isOnline: Boolean(body.is_online ?? body.isOnline ?? false),
     status: body.status || 'draft',
+    generationSeed: body.generation_seed || body.generationSeed || null,
+    generationVersion: body.generation_version || body.generationVersion || null,
+    generationBlueprint: body.generation_blueprint || body.generationBlueprint || null,
     exportSettings: body.export_settings || body.exportSettings ? {
       layout: (body.export_settings || body.exportSettings).layout ?? 'single_column',
       margin: (body.export_settings || body.exportSettings).margin ?? 'normal',
@@ -195,13 +200,14 @@ export async function createPaper(body, user) {
     questions.map((q) => q.question_id || q.questionId || q.id).filter(Boolean)
   );
   const institutionId = fields.institutionId;
-  const existing = await Question.countDocuments({
+  const eligibleQuestions = await Question.find({
     _id: { $in: questionIds }, status: 'approved',
     $or: [{ institutionId }, { institutionId: null, visibility: 'public' }],
-  });
-  if (questionIds.length && existing !== questionIds.length) {
+  }).lean();
+  if (questionIds.length && eligibleQuestions.length !== questionIds.length) {
     throw new AppError('Paper includes non-approved questions', 400, 'INVALID_QUESTIONS');
   }
+  const questionSnapshots = new Map(eligibleQuestions.map((question) => [String(question._id), mapQuestion(question)]));
 
   fields.questions = questions.map((q, idx) => ({
     questionId: q.question_id || q.questionId || q.id,
@@ -210,6 +216,7 @@ export async function createPaper(body, user) {
     questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
     customMarks: q.custom_marks ?? q.customMarks ?? null,
     customNegativeMarks: q.custom_negative_marks ?? q.customNegativeMarks ?? null,
+    contentSnapshot: questionSnapshots.get(String(q.question_id || q.questionId || q.id)),
   }));
   fields.createdBy = user._id;
 
@@ -223,10 +230,23 @@ export async function createPaper(body, user) {
 }
 
 export async function updatePaper(id, body, user) {
-  const paper = await Paper.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
+  let paper = await Paper.findOne({ _id: id, institutionId: user.activeInstitutionId || user.defaultInstitutionId });
   if (!paper) throw new AppError('Paper not found', 404, 'NOT_FOUND');
   if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  }
+
+  if (paper.status === 'published') {
+    const original = paper;
+    paper = new Paper({
+      ...original.toObject(),
+      _id: undefined,
+      paperCode: `${original.paperCode}-V${Number(original.versionNumber || 1) + 1}-${uuidv4().slice(0, 4).toUpperCase()}`,
+      status: 'draft',
+      publishedAt: null,
+      versionOf: original.versionOf || original._id,
+      versionNumber: Number(original.versionNumber || 1) + 1,
+    });
   }
 
   const fields = mapBodyToPaperFields({ ...paper.toObject(), ...body });
@@ -240,6 +260,12 @@ export async function updatePaper(id, body, user) {
       $or: [{ institutionId: paper.institutionId }, { institutionId: null, visibility: 'public' }],
     });
     if (eligible !== questionIds.length) throw new AppError('Paper includes questions outside this institution or not approved.', 400, 'INVALID_QUESTIONS');
+    const snapshotDocs = await Question.find({
+      _id: { $in: questionIds }, status: 'approved',
+      $or: [{ institutionId: paper.institutionId }, { institutionId: null, visibility: 'public' }],
+    }).lean();
+    if (snapshotDocs.length !== questionIds.length) throw new AppError('Paper includes questions outside this institution or not approved.', 400, 'INVALID_QUESTIONS');
+    const snapshots = new Map(snapshotDocs.map((question) => [String(question._id), mapQuestion(question)]));
     paper.questions = body.questions.map((q, idx) => ({
       questionId: q.question_id || q.questionId || q.id,
       section: q.section || 'A',
@@ -247,6 +273,7 @@ export async function updatePaper(id, body, user) {
       questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
       customMarks: q.custom_marks ?? q.customMarks ?? null,
       customNegativeMarks: q.custom_negative_marks ?? q.customNegativeMarks ?? null,
+      contentSnapshot: snapshots.get(String(q.question_id || q.questionId || q.id)),
     }));
   }
   if (body.status === 'published' && !paper.publishedAt) {
@@ -271,6 +298,7 @@ export async function deletePaper(id, user) {
 }
 
 export async function generatePaper(config, user) {
+  config = await prepareQuestionBankSources(config, user);
   let sectionSpecs = config.sections;
   let instructions = config.instructions;
   let exportSettings = config.export_settings || config.exportSettings;
@@ -347,6 +375,9 @@ export async function generatePaper(config, user) {
       ...config,
       total_questions: selection.total_questions,
       total_marks: selection.total_marks,
+      generation_seed: selection.generation_seed,
+      generation_version: selection.generation_version,
+      generation_blueprint: { ...config, sections: sectionSpecs },
       sections: sectionSpecs.map((s) => ({
         name: s.name,
         questionCount: s.questionCount ?? s.question_count,

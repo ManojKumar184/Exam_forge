@@ -218,13 +218,17 @@ export function TestTakingPage() {
     attemptData: TestAttempt
   ): QuestionWithOrder[] => {
     const paperQuestions = testData.paper?.questions || [];
-    return paperQuestions.map((pq, index) => {
+    const orderedPaperQuestions = attemptData.answers?.length
+      ? attemptData.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter(Boolean)
+      : paperQuestions;
+    return orderedPaperQuestions.map((pq, index) => {
       const saved = attemptData.answers?.find((a) => a.question_id === pq.question_id);
       const mapped = mapSavedAnswer(saved);
       return {
         id: pq.question_id,
         question: pq.question as Question,
         order_index: index,
+        shuffled_options: saved?.option_order?.length ? saved.option_order : undefined,
         ...mapped,
         is_marked: saved?.is_marked_for_review ?? false,
         marks: pq.custom_marks || pq.question?.marks || 4,
@@ -319,12 +323,10 @@ export function TestTakingPage() {
       }
 
       const paperQuestions = testData.paper?.questions || [];
-      const questionsWithShuffled: QuestionWithOrder[] = paperQuestions.map((pq, index) => {
-        let shuffledOptions;
-        if (testData.shuffle_options && pq.question?.options) {
-          const optCount = (pq.question.options as unknown[]).length;
-          shuffledOptions = [...Array(optCount).keys()].sort(() => Math.random() - 0.5);
-        }
+      const orderedPaperQuestions = started.attempt.answers?.length
+        ? started.attempt.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter(Boolean)
+        : paperQuestions;
+      const questionsWithShuffled: QuestionWithOrder[] = orderedPaperQuestions.map((pq, index) => {
         const saved = started.attempt.answers?.find((a) => a.question_id === pq.question_id);
         const mapped = mapSavedAnswer(saved);
         
@@ -342,7 +344,7 @@ export function TestTakingPage() {
           id: pq.question_id,
           question: pq.question as Question,
           order_index: index,
-          shuffled_options: shuffledOptions,
+          shuffled_options: saved?.option_order?.length ? saved.option_order : undefined,
           ...mapped,
           is_marked: localSaved?.is_marked ?? saved?.is_marked_for_review ?? false,
           marks: pq.custom_marks || pq.question?.marks || 4,

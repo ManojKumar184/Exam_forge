@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 const onlineTestSchema = new mongoose.Schema(
   {
     paperId: { type: mongoose.Schema.Types.ObjectId, ref: 'Paper', required: true },
+    paperSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+    examSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
     testCode: { type: String, required: true, unique: true },
     startTime: { type: Date, default: null },
     endTime: { type: Date, default: null },

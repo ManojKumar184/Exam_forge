@@ -3,6 +3,10 @@ import mongoose from 'mongoose';
 const testAnswerSchema = new mongoose.Schema(
   {
     questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+    contentSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+    optionOrder: { type: [Number], default: [] },
+    marksSnapshot: { type: Number, default: null },
+    negativeMarksSnapshot: { type: Number, default: null },
     selectedOption: { type: Number, default: null },
     selectedOptions: { type: [Number], default: [] },
     numericalAnswer: { type: Number, default: null },

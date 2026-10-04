@@ -26,7 +26,8 @@ function setCachedPaper(cacheKey, data) {
 }
 
 async function loadPaperForExport(paperId, user) {
-  const cacheKey = `${paperId}:${user._id}:${user.role}`;
+  const institutionId = user.activeInstitutionId || user.defaultInstitutionId || '';
+  const cacheKey = `${institutionId}:${paperId}:${user._id}:${user.role}`;
   const cached = getCachedPaper(cacheKey);
   if (cached !== undefined) return cached;
 

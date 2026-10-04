@@ -30,6 +30,11 @@ export function mapPaper(doc) {
     paper_set: d.paperSet,
     is_online: d.isOnline ?? false,
     status: d.status,
+    generation_seed: d.generationSeed ?? null,
+    generation_version: d.generationVersion ?? null,
+    generation_blueprint: d.generationBlueprint ?? null,
+    version_of: d.versionOf ? idStr(d.versionOf._id || d.versionOf) : null,
+    version_number: d.versionNumber ?? 1,
     export_settings: d.exportSettings ? {
       layout: d.exportSettings.layout,
       margin: d.exportSettings.margin,
@@ -96,7 +101,7 @@ export function mapPaper(doc) {
         custom_marks: q.customMarks ?? null,
         custom_negative_marks: q.customNegativeMarks ?? null,
         created_at: d.createdAt?.toISOString?.(),
-        question: q.questionId?.questionText ? mapQuestion(q.questionId) : undefined,
+        question: q.contentSnapshot || (q.questionId?.questionText ? mapQuestion(q.questionId) : undefined),
       })) || [],
   };
 }
@@ -104,27 +109,28 @@ export function mapPaper(doc) {
 export function mapOnlineTest(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject() : doc;
+  const snapshot = d.examSnapshot || {};
   return {
     id: idStr(d._id),
     paper_id: idStr(d.paperId?._id || d.paperId),
     test_code: d.testCode,
-    start_time: d.startTime?.toISOString?.() || null,
-    end_time: d.endTime?.toISOString?.() || null,
-    duration_minutes: d.durationMinutes,
-    max_attempts: d.maxAttempts,
-    shuffle_questions: d.shuffleQuestions,
-    shuffle_options: d.shuffleOptions,
-    show_results: d.showResults,
-    show_answers: d.showAnswers,
-    allow_review: d.allowReview,
-    is_public: d.isPublic,
-    access_code: d.accessCode ?? null,
-    allowed_users: (d.allowedUsers || []).map((u) => idStr(u._id || u)),
+    start_time: (snapshot.startTime ?? d.startTime)?.toISOString?.() || null,
+    end_time: (snapshot.endTime ?? d.endTime)?.toISOString?.() || null,
+    duration_minutes: snapshot.durationMinutes ?? d.durationMinutes,
+    max_attempts: snapshot.maxAttempts ?? d.maxAttempts,
+    shuffle_questions: snapshot.shuffleQuestions ?? d.shuffleQuestions,
+    shuffle_options: snapshot.shuffleOptions ?? d.shuffleOptions,
+    show_results: snapshot.showResults ?? d.showResults,
+    show_answers: snapshot.showAnswers ?? d.showAnswers,
+    allow_review: snapshot.allowReview ?? d.allowReview,
+    is_public: snapshot.isPublic ?? d.isPublic,
+    access_code: (snapshot.accessCode ?? d.accessCode) ?? null,
+    allowed_users: (snapshot.allowedUsers || d.allowedUsers || []).map((u) => idStr(u._id || u)),
     status: d.status,
     created_by: idStr(d.createdBy?._id || d.createdBy),
     created_at: d.createdAt?.toISOString?.(),
     updated_at: d.updatedAt?.toISOString?.(),
-    paper: d.paperId?.title ? mapPaper(d.paperId) : undefined,
+    paper: d.paperSnapshot ? mapPaper(d.paperSnapshot) : d.paperId?.title ? mapPaper(d.paperId) : undefined,
   };
 }
 
@@ -188,6 +194,7 @@ export function mapTestAttempt(doc) {
         id: idStr(a._id),
         attempt_id: idStr(d._id),
         question_id: idStr(a.questionId?._id || a.questionId),
+        option_order: a.optionOrder || [],
         selected_option: a.selectedOption ?? null,
         selected_options: a.selectedOptions || [],
         numerical_answer: a.numericalAnswer ?? null,
@@ -202,7 +209,9 @@ export function mapTestAttempt(doc) {
         is_marked_for_review: a.isMarkedForReview ?? false,
         answered_at: a.answeredAt?.toISOString?.() || null,
         time_spent_seconds: a.timeSpentSeconds ?? 0,
-        question: a.questionId?.questionText ? mapQuestion(a.questionId) : undefined,
+        question: a.questionId?.questionText
+          ? (a.contentSnapshot || mapQuestion(a.questionId))
+          : undefined,
       })) || [],
   };
 }

@@ -11,11 +11,25 @@ import { recomputeLeaderboard } from './leaderboardService.js';
 import { getQuestionCategory as getNormalizedCategory, normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
 import { AppError } from '../utils/AppError.js';
 import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry, removeAnswersFromOnlineTest } from '../utils/examMapper.js';
+import { mapQuestion } from '../utils/questionMapper.js';
 import {
   computeGradingStatus,
   recomputeAttemptTotals,
 } from './gradingService.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
+
+function shuffleOptionIndexes(options = []) {
+  const indexes = options.map((_, index) => index);
+  for (let i = indexes.length - 1; i > 0; i -= 1) {
+    const j = crypto.randomInt(i + 1);
+    [indexes[i], indexes[j]] = [indexes[j], indexes[i]];
+  }
+  return indexes;
+}
+
+function effectiveExamConfig(test) {
+  return { ...test.toObject?.(), ...test.examSnapshot };
+}
 
 async function buildTestFilter(query, user) {
   const filter = { institutionId: user.activeInstitutionId || user.defaultInstitutionId };
@@ -130,7 +144,7 @@ export async function getTestById(id, user) {
 export async function createTest(body, user) {
   const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
   if (institutionId) await assertWithinEntitlement(institutionId, 'onlineExams');
-  const paper = await Paper.findOne({ _id: body.paper_id || body.paperId, institutionId });
+  const paper = await Paper.findOne({ _id: body.paper_id || body.paperId, institutionId }).populate('questions.questionId');
   if (!paper) throw new AppError('Paper not found', 404, 'PAPER_NOT_FOUND');
   if (user.role === 'faculty' && paper.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
@@ -162,6 +176,28 @@ export async function createTest(body, user) {
     allowedUsers,
     status: body.status || 'scheduled',
     createdBy: user._id,
+    paperSnapshot: {
+      ...paper.toObject(),
+      questions: (paper.questions || []).map((paperQuestion) => ({
+        ...paperQuestion.toObject(),
+        questionId: paperQuestion.questionId?._id || paperQuestion.questionId,
+        contentSnapshot: paperQuestion.contentSnapshot || (paperQuestion.questionId?.questionText ? mapQuestion(paperQuestion.questionId) : null),
+      })),
+    },
+    examSnapshot: {
+      startTime,
+      endTime,
+      durationMinutes: Number(body.duration_minutes || body.durationMinutes || paper.durationMinutes),
+      maxAttempts: Number(body.max_attempts || body.maxAttempts || 1),
+      shuffleQuestions: Boolean(body.shuffle_questions ?? body.shuffleQuestions ?? true),
+      shuffleOptions: Boolean(body.shuffle_options ?? body.shuffleOptions ?? true),
+      showResults: Boolean(body.show_results ?? body.showResults ?? true),
+      showAnswers: Boolean(body.show_answers ?? body.showAnswers ?? true),
+      allowReview: Boolean(body.allow_review ?? body.allowReview ?? true),
+      isPublic: Boolean(body.is_public ?? body.isPublic ?? true),
+      accessCode: body.access_code || body.accessCode || null,
+      allowedUsers,
+    },
   });
   if (institutionId) await recordUsage(institutionId, 'onlineExams');
   await doc.populate('paperId');
@@ -173,6 +209,11 @@ export async function updateTest(id, body, user) {
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
   if (user.role === 'faculty' && test.createdBy.toString() !== user._id.toString() && user.membershipRole !== 'INSTITUTION_ADMIN') {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
+  }
+  const hasAttempts = await TestAttempt.exists({ testId: test._id });
+  const examSettings = ['allowed_users', 'allowedUsers', 'start_time', 'end_time', 'duration_minutes', 'shuffle_questions', 'shuffle_options', 'show_results', 'show_answers', 'allow_review', 'is_public'];
+  if (hasAttempts && examSettings.some((key) => body[key] !== undefined)) {
+    throw new AppError('Exam settings are locked after the first attempt has started.', 409, 'TEST_CONFIGURATION_LOCKED');
   }
   if (body.allowed_users !== undefined || body.allowedUsers !== undefined) {
     const ids = body.allowed_users ?? body.allowedUsers;
@@ -196,6 +237,23 @@ export async function updateTest(id, body, user) {
   if (body.show_answers !== undefined) test.showAnswers = Boolean(body.show_answers);
   if (body.allow_review !== undefined) test.allowReview = Boolean(body.allow_review);
   if (body.is_public !== undefined) test.isPublic = Boolean(body.is_public);
+
+  if (!hasAttempts) {
+    test.examSnapshot = {
+      startTime: test.startTime,
+      endTime: test.endTime,
+      durationMinutes: test.durationMinutes,
+      maxAttempts: test.maxAttempts,
+      shuffleQuestions: test.shuffleQuestions,
+      shuffleOptions: test.shuffleOptions,
+      showResults: test.showResults,
+      showAnswers: test.showAnswers,
+      allowReview: test.allowReview,
+      isPublic: test.isPublic,
+      accessCode: test.accessCode,
+      allowedUsers: test.allowedUsers,
+    };
+  }
 
   await test.save();
   await test.populate('paperId');
@@ -231,18 +289,19 @@ export async function startAttempt(testId, user, accessCode = null) {
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const exam = effectiveExamConfig(test);
 
   if (user.role === 'student' && !['active', 'scheduled'].includes(test.status)) throw new AppError('Test not found', 404, 'NOT_FOUND');
 
-  if (user.role === 'student' && !test.isPublic && !test.allowedUsers.some((id) => id.toString() === user._id.toString())) {
+  if (user.role === 'student' && !exam.isPublic && !(exam.allowedUsers || []).some((id) => id.toString() === user._id.toString())) {
     throw new AppError('Test not found', 404, 'NOT_FOUND');
   }
 
   const now = Date.now();
-  if (test.startTime && now < new Date(test.startTime).getTime()) {
+  if (exam.startTime && now < new Date(exam.startTime).getTime()) {
     throw new AppError('Test has not started yet', 400, 'TEST_NOT_STARTED');
   }
-  if (test.endTime && now > new Date(test.endTime).getTime()) {
+  if (exam.endTime && now > new Date(exam.endTime).getTime()) {
     throw new AppError('Test has ended', 400, 'TEST_ENDED');
   }
 
@@ -253,8 +312,8 @@ export async function startAttempt(testId, user, accessCode = null) {
   }).populate('testId');
 
   if (!attempt) {
-    if (test.accessCode && test.accessCode.trim() !== '') {
-      if (!accessCode || accessCode.trim() !== test.accessCode.trim()) {
+      if (exam.accessCode && exam.accessCode.trim() !== '') {
+      if (!accessCode || accessCode.trim() !== exam.accessCode.trim()) {
         throw new AppError('Access code required or invalid', 403, 'INVALID_ACCESS_CODE');
       }
     }
@@ -265,25 +324,43 @@ export async function startAttempt(testId, user, accessCode = null) {
     }
 
     if (!attempt) {
-      const shuffledQuestions = [...(test.paperId?.questions || [])];
-      if (test.shuffleQuestions) shuffledQuestions.sort(() => Math.random() - 0.5);
+      const attemptPaper = test.paperSnapshot || test.paperId;
+      const shuffledQuestions = [...(attemptPaper?.questions || [])];
+      if (exam.shuffleQuestions) {
+        // Use a stable attempt seed and unbiased Fisher-Yates shuffle. Persisted
+        // answer order is the authoritative presentation order on every reload.
+        for (let i = shuffledQuestions.length - 1; i > 0; i -= 1) {
+          const j = crypto.randomInt(i + 1);
+          [shuffledQuestions[i], shuffledQuestions[j]] = [shuffledQuestions[j], shuffledQuestions[i]];
+        }
+      }
 
       try {
+        const attemptAnswers = shuffledQuestions.map((pq) => {
+          const section = attemptPaper?.sections?.find((candidate) => candidate.name === pq.section);
+          const questionSnapshot = pq.contentSnapshot || (pq.questionId?.questionText ? mapQuestion(pq.questionId) : null);
+          const options = questionSnapshot?.options || [];
+          return {
+            questionId: pq.questionId?._id || pq.questionId,
+            contentSnapshot: questionSnapshot,
+            optionOrder: exam.shuffleOptions ? shuffleOptionIndexes(options) : options.map((_, index) => index),
+            marksSnapshot: Number(pq.customMarks ?? section?.marksPerQuestion ?? 4),
+            negativeMarksSnapshot: Number(pq.customNegativeMarks ?? section?.negativeMarksPerQuestion ?? 0),
+            selectedOption: null,
+            numericalAnswer: null,
+            textAnswer: null,
+            isMarkedForReview: false,
+            timeSpentSeconds: 0,
+          };
+        });
         attempt = await TestAttempt.create({
           testId: test._id,
           userId: user._id,
           institutionId: test.institutionId,
           attemptNumber: count + 1,
           status: 'in_progress',
-          maxScore: shuffledQuestions.reduce((sum, q) => sum + Number(q.customMarks || 0), 0),
-          answers: shuffledQuestions.map((pq) => ({
-            questionId: pq.questionId?._id || pq.questionId,
-            selectedOption: null,
-            numericalAnswer: null,
-            textAnswer: null,
-            isMarkedForReview: false,
-            timeSpentSeconds: 0,
-          })),
+          maxScore: attemptAnswers.reduce((sum, answer) => sum + answer.marksSnapshot, 0),
+          answers: attemptAnswers,
         });
       } catch (error) {
         if (error?.code !== 11000) throw error;
@@ -314,11 +391,12 @@ export async function autosaveAttempt(testId, user, payload) {
   });
   if (!attempt) throw new AppError('Active attempt not found', 404, 'ATTEMPT_NOT_FOUND');
 
-  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).select('durationMinutes endTime').lean();
+  const test = await OnlineTest.findOne({ _id: testId, institutionId: user.activeInstitutionId || user.defaultInstitutionId }).select('durationMinutes endTime examSnapshot').lean();
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const exam = { ...test, ...test.examSnapshot };
   const endsAt = Math.min(
-    attempt.startedAt.getTime() + Number(test.durationMinutes) * 60000,
-    test.endTime ? new Date(test.endTime).getTime() : Number.POSITIVE_INFINITY,
+    attempt.startedAt.getTime() + Number(exam.durationMinutes) * 60000,
+    exam.endTime ? new Date(exam.endTime).getTime() : Number.POSITIVE_INFINITY,
   );
   if (Date.now() >= endsAt) {
     await submitAttempt(testId, user, { auto: true });
@@ -327,41 +405,62 @@ export async function autosaveAttempt(testId, user, payload) {
 
   if (Array.isArray(payload.answers)) {
     const existing = new Map(attempt.answers.map((a) => [a.questionId.toString(), a]));
-    const selectedQuestionIds = payload.answers.filter((answer) => answer.selected_options !== undefined).map((answer) => answer.question_id || answer.questionId).filter(Boolean);
+    const selectedQuestionIds = payload.answers
+      .filter((answer) => answer.selected_options !== undefined || answer.selected_option !== undefined)
+      .map((answer) => answer.question_id || answer.questionId)
+      .filter(Boolean);
     const selectedQuestions = await Question.find({ _id: { $in: selectedQuestionIds } }).select('_id options').lean();
     const optionCounts = new Map(selectedQuestions.map((question) => [question._id.toString(), question.options?.length || 0]));
-    for (const incoming of payload.answers) {
+    const updates = {};
+    const arrayFilters = [];
+    for (const [index, incoming] of payload.answers.entries()) {
       const key = (incoming.question_id || incoming.questionId || '').toString();
       if (!key) continue;
       const row = existing.get(key);
       if (!row) continue;
-      if (incoming.selected_option !== undefined) row.selectedOption = incoming.selected_option;
+      const identifier = `answer${index}`;
+      const answerUpdates = {};
+      if (incoming.selected_option !== undefined) {
+        const selected = incoming.selected_option;
+        const optionCount = row.contentSnapshot?.options?.length ?? optionCounts.get(key);
+        if (selected !== null && (!Number.isInteger(selected) || selected < 0 || optionCount === undefined || selected >= optionCount)) {
+          throw new AppError('selected_option must be a valid option index', 400, 'INVALID_SELECTED_OPTION');
+        }
+        answerUpdates[`answers.$[${identifier}].selectedOption`] = selected;
+      }
       if (incoming.selected_options !== undefined) {
         const values = incoming.selected_options;
-        const optionCount = optionCounts.get(key);
+        const optionCount = row.contentSnapshot?.options?.length ?? optionCounts.get(key);
         if (!Array.isArray(values) || optionCount === undefined || values.some((index) => !Number.isInteger(index) || index < 0 || index >= optionCount) || new Set(values).size !== values.length) {
           throw new AppError('selected_options must contain unique valid option indices', 400, 'INVALID_SELECTED_OPTIONS');
         }
-        row.selectedOptions = values;
+        answerUpdates[`answers.$[${identifier}].selectedOptions`] = values;
       }
       if (incoming.numerical_answer !== undefined) {
-        row.numericalAnswer = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
+        answerUpdates[`answers.$[${identifier}].numericalAnswer`] = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
       }
-      if (incoming.text_answer !== undefined) row.textAnswer = incoming.text_answer;
-      if (incoming.is_marked_for_review !== undefined) {
-        row.isMarkedForReview = incoming.is_marked_for_review;
-      }
+      if (incoming.text_answer !== undefined) answerUpdates[`answers.$[${identifier}].textAnswer`] = incoming.text_answer;
+      if (incoming.is_marked_for_review !== undefined) answerUpdates[`answers.$[${identifier}].isMarkedForReview`] = incoming.is_marked_for_review;
       if (incoming.time_spent_seconds !== undefined) {
-        row.timeSpentSeconds = Number(incoming.time_spent_seconds || 0);
+        answerUpdates[`answers.$[${identifier}].timeSpentSeconds`] = Number(incoming.time_spent_seconds || 0);
       }
-      row.answeredAt = new Date();
+      if (!Object.keys(answerUpdates).length) continue;
+      answerUpdates[`answers.$[${identifier}].answeredAt`] = new Date();
+      Object.assign(updates, answerUpdates);
+      arrayFilters.push({ [`${identifier}.questionId`]: row.questionId });
+    }
+    if (Object.keys(updates).length) {
+      await TestAttempt.updateOne({ _id: attempt._id, status: 'in_progress' }, { $set: updates }, { arrayFilters });
     }
   }
+  const timeUpdate = {};
   if (payload.time_spent_seconds !== undefined) {
-    attempt.timeSpentSeconds = Number(payload.time_spent_seconds || 0);
+    timeUpdate.$max = { timeSpentSeconds: Number(payload.time_spent_seconds || 0) };
   }
-  await attempt.save();
-  return mapTestAttempt(attempt);
+  if (Object.keys(timeUpdate).length) await TestAttempt.updateOne({ _id: attempt._id, status: 'in_progress' }, timeUpdate);
+  const updated = await TestAttempt.findOne({ _id: attempt._id, status: 'in_progress' });
+  if (!updated) throw new AppError('Attempt is no longer editable', 409, 'ATTEMPT_NOT_ACTIVE');
+  return mapTestAttempt(updated);
 }
 
 function getQuestionCategory(type) {
@@ -370,6 +469,19 @@ function getQuestionCategory(type) {
 
 export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   if (!question) return { isCorrect: null, marks: 0, skipped: true };
+  // Attempt snapshots are API-mapped objects (snake_case); normalize both
+  // snapshot and populated Mongoose documents for the same grading logic.
+  question = {
+    ...question,
+    questionType: question.questionType || question.question_type,
+    canonicalContent: question.canonicalContent || question.canonical_content,
+    correctOption: question.correctOption ?? question.correct_option,
+    correctAnswers: question.correctAnswers || question.correct_answers,
+    numericalAnswer: question.numericalAnswer ?? question.numerical_answer,
+    numericalTolerance: question.numericalTolerance ?? question.numerical_tolerance,
+    answerText: question.answerText ?? question.answer_text,
+    answerKey: question.answerKey ?? question.answer_key,
+  };
   const category = getQuestionCategory(question.questionType);
   const canonicalAnswer = question.canonicalContent?.answer;
   const canonicalValue = canonicalAnswer && typeof canonicalAnswer === 'object' && !Array.isArray(canonicalAnswer)
@@ -423,6 +535,7 @@ export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
   return { isCorrect: null, marks: 0, skipped: false };
 }
 
+
 export async function submitAttempt(testId, user, { auto = false } = {}) {
   const institutionId = user.activeInstitutionId || user.defaultInstitutionId;
   const claimId = crypto.randomUUID();
@@ -451,16 +564,18 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
     populate: [{ path: 'questions.questionId' }],
   });
   if (!test) throw new AppError('Test not found', 404, 'NOT_FOUND');
+  const exam = effectiveExamConfig(test);
   const serverEnd = Math.min(
-    attempt.startedAt.getTime() + Number(test.durationMinutes) * 60000,
-    test.endTime ? new Date(test.endTime).getTime() : Number.POSITIVE_INFINITY,
+    attempt.startedAt.getTime() + Number(exam.durationMinutes) * 60000,
+    exam.endTime ? new Date(exam.endTime).getTime() : Number.POSITIVE_INFINITY,
   );
   const timedOut = Date.now() >= serverEnd;
 
+  const attemptPaper = test.paperSnapshot || test.paperId;
   const questionMap = new Map(
-    (test.paperId?.questions || []).map((pq) => {
+    (attemptPaper?.questions || []).map((pq) => {
       const sectionName = pq.section || 'A';
-      const sectionObj = test.paperId?.sections?.find(s => s.name === sectionName || s.id === sectionName);
+      const sectionObj = attemptPaper?.sections?.find(s => s.name === sectionName || s.id === sectionName);
       const defaultNegMarks = sectionObj?.negativeMarksPerQuestion || 0;
       const negativeMarks = pq.customNegativeMarks !== null && pq.customNegativeMarks !== undefined
         ? pq.customNegativeMarks
@@ -469,7 +584,7 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
       return [
         (pq.questionId?._id || pq.questionId).toString(),
         {
-          question: pq.questionId,
+          question: pq.contentSnapshot || (pq.questionId?.questionText ? mapQuestion(pq.questionId) : pq.questionId),
           marks: Number(pq.customMarks !== null && pq.customMarks !== undefined ? pq.customMarks : (sectionObj?.marksPerQuestion ?? 4)),
           negativeMarks: Number(negativeMarks || 0),
         },
@@ -484,10 +599,10 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
 
   for (const answer of attempt.answers) {
     const entry = questionMap.get(answer.questionId.toString());
-    const maxMarks = entry?.marks || 0;
-    const negativeMarks = entry?.negativeMarks || 0;
+    const maxMarks = answer.marksSnapshot ?? entry?.marks ?? 0;
+    const negativeMarks = answer.negativeMarksSnapshot ?? entry?.negativeMarks ?? 0;
     answer.maxMarks = maxMarks;
-    const evalResult = scoreAnswer(answer, entry?.question, maxMarks, negativeMarks);
+    const evalResult = scoreAnswer(answer, answer.contentSnapshot || entry?.question, maxMarks, negativeMarks);
     answer.isCorrect = evalResult.isCorrect;
     answer.marksObtained = evalResult.marks;
     if (evalResult.skipped) {
@@ -500,8 +615,8 @@ export async function submitAttempt(testId, user, { auto = false } = {}) {
     score += evalResult.marks;
   }
 
-  const maxScore = questionMap.size
-    ? [...questionMap.values()].reduce((sum, q) => sum + q.marks, 0)
+  const maxScore = attempt.answers.length
+    ? attempt.answers.reduce((sum, answer) => sum + Number(answer.marksSnapshot ?? questionMap.get(answer.questionId.toString())?.marks ?? 0), 0)
     : attempt.maxScore;
 
   attempt.status = auto || timedOut ? 'auto_submitted' : 'submitted';

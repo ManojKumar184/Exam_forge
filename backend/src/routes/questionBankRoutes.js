@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate, resolveTenantContext, requireInstitutionContext);
 
 router.get('/', asyncHandler(questionBankController.list));
+router.patch('/system-test/visibility', asyncHandler(questionBankController.setSystemTestVisibility));
 router.get('/:id', asyncHandler(questionBankController.getOne));
 router.post('/', asyncHandler(questionBankController.create));
 router.patch('/reorder', asyncHandler(questionBankController.reorder));

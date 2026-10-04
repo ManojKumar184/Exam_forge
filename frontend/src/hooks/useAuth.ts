@@ -28,8 +28,9 @@ export function useAuth() {
   const membershipRole = tenant?.membershipRole || tenant?.institutions.find((item) => item.id === tenant.activeInstitutionId)?.role;
 
   const isAdmin = isRole('super_admin') || membershipRole === 'INSTITUTION_ADMIN';
-  const isFaculty = isRole('faculty') || membershipRole === 'FACULTY';
-  const isStudent = isRole('student') || membershipRole === 'STUDENT';
+  const hasActiveMembershipRole = Boolean(membershipRole);
+  const isFaculty = !isRole('super_admin') && (hasActiveMembershipRole ? membershipRole === 'FACULTY' : isRole('faculty'));
+  const isStudent = !isRole('super_admin') && (hasActiveMembershipRole ? membershipRole === 'STUDENT' : isRole('student'));
 
   const canManageQuestions = isAdmin;
   const canGeneratePapers = isFaculty || isAdmin;
@@ -51,6 +52,8 @@ export function useAuth() {
     forgotPassword,
     resetPassword,
     isRole,
+    globalRole: profile?.role || null,
+    institutionRole: membershipRole || null,
     membershipRole,
     isAdmin,
     isFaculty,

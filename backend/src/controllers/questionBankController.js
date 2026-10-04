@@ -1,13 +1,11 @@
 import { QuestionBank } from '../models/QuestionBank.js';
 import { Question } from '../models/Question.js';
 import { AppError } from '../utils/AppError.js';
+import { buildQuestionBankAccessFilter } from '../services/questionBankMembershipService.js';
+import { recordAudit } from '../services/auditLogService.js';
 
 export async function list(req, res) {
-  const query = { $or: [
-    { type: 'system', visibility: 'public' },
-    { institutionId: req.institutionId, visibility: 'institution' },
-    { institutionId: req.institutionId, createdBy: req.user._id },
-  ] };
+  const query = buildQuestionBankAccessFilter({ ...req.user, activeInstitutionId: req.institutionId, membershipRole: req.membership?.role });
 
   if (req.query.type) {
     query.type = req.query.type;
@@ -31,23 +29,24 @@ export async function list(req, res) {
 }
 
 export async function getOne(req, res) {
-  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [
-    { type: 'system', visibility: 'public' },
-    { institutionId: req.institutionId, visibility: 'institution' },
-    { institutionId: req.institutionId, createdBy: req.user._id },
-  ] });
+  const bank = await QuestionBank.findOne({ _id: req.params.id, ...buildQuestionBankAccessFilter({ ...req.user, activeInstitutionId: req.institutionId, membershipRole: req.membership?.role }) });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
-  if (req.user.role !== 'super_admin') {
-    const hasAccess =
-      bank.visibility === 'public' ||
-      (bank.visibility === 'institution' && String(bank.institutionId) === String(req.institutionId)) ||
-      (bank.createdBy && bank.createdBy.toString() === req.user._id.toString());
-    if (!hasAccess) {
-      throw new AppError('You do not have access to this question bank', 403, 'FORBIDDEN');
-    }
-  }
+  res.json({ success: true, data: bank });
+}
 
+export async function setSystemTestVisibility(req, res) {
+  if (req.user.role !== 'super_admin') throw new AppError('Only platform administrators can change System Test Bank visibility', 403, 'FORBIDDEN');
+  if (typeof req.body.visibleToFaculty !== 'boolean') throw new AppError('visibleToFaculty must be a boolean', 400, 'BAD_REQUEST');
+  const bank = await QuestionBank.findOne({ type: 'system_test' });
+  if (!bank) throw new AppError('System Test Bank is not initialized. Run the production migrations.', 503, 'SYSTEM_TEST_BANK_UNAVAILABLE');
+  const oldState = Boolean(bank.visibleToFaculty);
+  const newState = req.body.visibleToFaculty;
+  if (oldState !== newState) {
+    bank.visibleToFaculty = newState;
+    await bank.save();
+    await recordAudit({ req, action: newState ? 'system_test_bank_unhidden' : 'system_test_bank_hidden', resource: 'question_bank', resourceId: bank._id, metadata: { oldState, newState } });
+  }
   res.json({ success: true, data: bank });
 }
 
@@ -124,7 +123,7 @@ export async function remove(req, res) {
   const bank = await QuestionBank.findOne({ _id: req.params.id, institutionId: req.institutionId });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
-  if (bank.type === 'system') {
+  if (bank.type === 'system' || bank.type === 'system_test') {
     throw new AppError('System question banks cannot be deleted', 400, 'BAD_REQUEST');
   }
 
@@ -143,11 +142,14 @@ export async function remove(req, res) {
 }
 
 export async function assignQuestions(req, res) {
-  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [{ institutionId: req.institutionId }, { type: 'system' }] });
+  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [{ institutionId: req.institutionId }, { type: { $in: ['system', 'system_test'] } }] });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
   if (req.user.role !== 'super_admin') {
-    if (bank.type === 'system' || bank.type === 'institution') {
+    if (bank.type === 'system_test' && !(req.user.role === 'faculty' && req.membership?.role === 'FACULTY' && bank.visibleToFaculty)) {
+      throw new AppError('System Test Bank is hidden or unavailable to this membership', 403, 'QUESTION_BANK_FORBIDDEN');
+    }
+    if (bank.type === 'system' || (bank.type === 'institution' && req.membership?.role !== 'INSTITUTION_ADMIN')) {
       throw new AppError('Faculty cannot publish directly to system or institution banks', 403, 'FORBIDDEN');
     }
     if (!bank.createdBy || bank.createdBy.toString() !== req.user._id.toString()) {
@@ -163,6 +165,8 @@ export async function assignQuestions(req, res) {
   let targetVisibility = 'faculty_bank';
   if (bank.type === 'system') {
     targetVisibility = 'public';
+  } else if (bank.type === 'system_test') {
+    targetVisibility = 'public';
   } else if (bank.type === 'institution') {
     targetVisibility = 'institution';
   }
@@ -177,7 +181,11 @@ export async function assignQuestions(req, res) {
     filter,
     {
       $addToSet: { bankIds: bank._id },
-      $set: { isPrivate: false, visibility: targetVisibility }
+      $set: {
+        isPrivate: false,
+        visibility: targetVisibility,
+        ...(bank.type === 'system_test' ? { institutionId: null } : {}),
+      }
     }
   );
 
@@ -185,11 +193,15 @@ export async function assignQuestions(req, res) {
 }
 
 export async function removeQuestions(req, res) {
-  const bank = await QuestionBank.findOne({ _id: req.params.id, institutionId: req.institutionId });
+  const bank = await QuestionBank.findOne({ _id: req.params.id, $or: [{ institutionId: req.institutionId }, { type: { $in: ['system', 'system_test'] } }] });
   if (!bank) throw new AppError('Question Bank not found', 404, 'NOT_FOUND');
 
+  if (bank.type === 'system_test' && req.user.role !== 'super_admin' && !(req.user.role === 'faculty' && req.membership?.role === 'FACULTY' && bank.visibleToFaculty)) {
+    throw new AppError('System Test Bank is hidden or unavailable to this membership', 403, 'QUESTION_BANK_FORBIDDEN');
+  }
+  if (bank.type === 'system' && req.user.role !== 'super_admin') throw new AppError('Only platform administrators can modify the System Global Bank', 403, 'FORBIDDEN');
   if (req.user.role !== 'super_admin' && (!bank.createdBy || bank.createdBy.toString() !== req.user._id.toString())) {
-    throw new AppError('You are not authorized to remove questions from this question bank', 403, 'FORBIDDEN');
+    if (bank.type !== 'system_test') throw new AppError('You are not authorized to remove questions from this question bank', 403, 'FORBIDDEN');
   }
 
   const { questionIds } = req.body;
@@ -198,7 +210,8 @@ export async function removeQuestions(req, res) {
   }
 
   const filter = { _id: { $in: questionIds } };
-  filter.institutionId = req.institutionId;
+  if (bank.type === 'system_test') filter.bankIds = bank._id;
+  else filter.institutionId = req.institutionId;
   if (req.user.role !== 'super_admin') {
     filter.ownerId = req.user._id;
   }

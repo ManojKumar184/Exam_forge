@@ -39,3 +39,14 @@ test('online scoring uses canonical answers when compatibility scalars disagree'
     { isCorrect: true, marks: 3, skipped: false },
   );
 });
+
+test('online grading accepts the exact snake_case question snapshot returned to clients', () => {
+  assert.deepEqual(
+    scoreAnswer({ selectedOption: 1 }, {
+      question_type: 'MCQ_SINGLE',
+      correct_option: 0,
+      canonical_content: { answer: 1, options: [{ label: 'A' }, { label: 'B' }] },
+    }, 3, 0.5),
+    { isCorrect: true, marks: 3, skipped: false },
+  );
+});

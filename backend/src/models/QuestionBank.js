@@ -6,7 +6,7 @@ const questionBankSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     type: {
       type: String,
-      enum: ['system', 'institution', 'faculty', 'custom'],
+      enum: ['system', 'system_test', 'institution', 'faculty', 'custom'],
       required: true,
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -19,6 +19,8 @@ const questionBankSchema = new mongoose.Schema(
     },
     isPinned: { type: Boolean, default: false },
     pinnedOrder: { type: Number, default: 0 },
+    visibleToFaculty: { type: Boolean, default: false },
+    systemKey: { type: String, default: undefined },
   },
   {
     timestamps: true,
@@ -31,5 +33,6 @@ questionBankSchema.index({ visibility: 1 });
 questionBankSchema.index({ institution: 1 });
 questionBankSchema.index({ institutionId: 1, visibility: 1, type: 1 });
 questionBankSchema.index({ isPinned: -1, pinnedOrder: 1 });
+questionBankSchema.index({ systemKey: 1 }, { unique: true, sparse: true });
 
 export const QuestionBank = mongoose.model('QuestionBank', questionBankSchema);

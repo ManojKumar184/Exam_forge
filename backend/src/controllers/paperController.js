@@ -5,6 +5,11 @@ import {
   selectQuestionsForPaper,
   countQuestionPool,
 } from '../services/paperSelectionService.js';
+import { prepareQuestionBankSources } from '../services/questionBankMembershipService.js';
+
+async function authorizedSources(body, user) {
+  return prepareQuestionBankSources(body, user);
+}
 
 export async function list(req, res) {
   const data = await paperService.listPapers(req.query, req.user);
@@ -40,12 +45,14 @@ export async function generate(req, res) {
 }
 
 export async function selectQuestions(req, res) {
-  const data = await selectQuestionsForPaper({ ...req.body, institutionId: req.institutionId });
+  const sources = await authorizedSources(req.body, req.user);
+  const data = await selectQuestionsForPaper({ ...sources, institutionId: req.institutionId });
   res.json({ success: true, data });
 }
 
 export async function poolStats(req, res) {
-  const data = await countQuestionPool({ ...req.body, institutionId: req.institutionId });
+  const sources = await authorizedSources(req.body, req.user);
+  const data = await countQuestionPool({ ...sources, institutionId: req.institutionId });
   res.json({ success: true, data });
 }
 

@@ -275,6 +275,7 @@ export interface TestAnswer {
   id: string;
   attempt_id: string;
   question_id: string;
+  option_order?: number[];
   selected_option: number | null;
   selected_options?: number[];
   numerical_answer: number | null;

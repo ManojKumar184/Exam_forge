@@ -18,6 +18,7 @@ const paperQuestionSchema = new mongoose.Schema(
     questionOrder: { type: Number, required: true },
     customMarks: { type: Number, default: null },
     customNegativeMarks: { type: Number, default: null },
+    contentSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { _id: false }
 );
@@ -85,6 +86,11 @@ const paperSchema = new mongoose.Schema(
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
+    generationSeed: { type: String, default: null },
+    generationVersion: { type: String, default: null },
+    generationBlueprint: { type: mongoose.Schema.Types.Mixed, default: null },
+    versionOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Paper', default: null },
+    versionNumber: { type: Number, default: 1 },
     publishedAt: { type: Date, default: null },
     pdfUrl: { type: String, default: null },
     exportSettings: { type: paperExportSettingsSchema, default: () => ({}) },

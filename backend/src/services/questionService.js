@@ -9,6 +9,8 @@ import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
+import { getSystemTestBankIds, prepareQuestionBankSources, validateQuestionBankIds } from './questionBankMembershipService.js';
+import { QuestionBank } from '../models/QuestionBank.js';
 
 export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
@@ -110,7 +112,7 @@ function scopedQuestionId(id, user) {
   return { $and: [{ _id: id }, tenantQuestionAccess(user)] };
 }
 
-function buildListFilter(query, user) {
+function buildListFilter(query, user, selectedSystemTestBankIds = [], excludedQuestionIds = []) {
   const andClauses = [tenantQuestionAccess(user)];
 
   // Role-based accessibility boundaries
@@ -122,13 +124,15 @@ function buildListFilter(query, user) {
     andClauses.push({
       $or: [
         { ownerId: user._id },
-        { isPrivate: false }
+        { isPrivate: false },
+        ...(selectedSystemTestBankIds.length ? [{ bankIds: { $in: selectedSystemTestBankIds } }] : []),
       ]
     });
   }
 
   // Build filters on a separate object
   const conds = {};
+  if (excludedQuestionIds.length) conds._id = { $nin: excludedQuestionIds };
 
   const statuses = parseListParam(query.status);
   if (statuses.length) {
@@ -251,7 +255,11 @@ function buildListFilter(query, user) {
  * @returns {Promise<{ total: number, breakdown: Array<{ _id: { difficulty: string, questionType: string }, count: number }> }>}
  */
 export async function countQuestions(query, user) {
-  const filter = buildListFilter(query, user);
+  const bankIds = parseListParam(query.bank_ids || query.bank_id);
+  if (bankIds.length) await validateQuestionBankIds(bankIds, user);
+  const selectedSystemTestBankIds = await getSystemTestBankIds(bankIds, user);
+  const sources = await prepareQuestionBankSources(query, user);
+  const filter = buildListFilter(query, user, selectedSystemTestBankIds, sources.exclude_question_ids);
   const total = await Question.countDocuments(filter);
   const breakdown = await Question.aggregate([
     { $match: filter },
@@ -280,7 +288,11 @@ export async function listQuestions(query, user) {
   const allowedSort = ['createdAt', 'updatedAt', 'sourceMarks', 'class', 'aiConfidence'];
   const sort = { [allowedSort.includes(sortField) ? sortField : 'createdAt']: sortOrder };
 
-  const filter = buildListFilter(query, user);
+  const bankIds = parseListParam(query.bank_ids || query.bank_id);
+  if (bankIds.length) await validateQuestionBankIds(bankIds, user);
+  const selectedSystemTestBankIds = await getSystemTestBankIds(bankIds, user);
+  const sources = await prepareQuestionBankSources(query, user);
+  const filter = buildListFilter(query, user, selectedSystemTestBankIds, sources.exclude_question_ids);
 
   const [items, total] = await Promise.all([
     Question.find(filter)
@@ -312,6 +324,12 @@ export async function getQuestionById(id, user) {
     // Populate for flat Subject/Topic/ExamType removed — collections were dropped
 
   if (!question) throw new AppError('Question not found', 404, 'NOT_FOUND');
+
+  const systemTestBanks = await QuestionBank.find({ _id: { $in: question.bankIds || [] }, type: 'system_test' }).select('_id visibleToFaculty').lean();
+  if (systemTestBanks.length) {
+    const mayAccess = user.role === 'super_admin' || (user.role === 'faculty' && user.membershipRole === 'FACULTY' && systemTestBanks.some((bank) => bank.visibleToFaculty));
+    if (!mayAccess) throw new AppError('Question not found', 404, 'NOT_FOUND');
+  }
 
   if (user.role !== 'super_admin' && question.status !== 'approved') {
     throw new AppError('Question not available', 403, 'FORBIDDEN');
@@ -346,8 +364,15 @@ export async function createQuestion(body, user) {
     fields.visibility = body.visibility || 'public';
   }
   fields.duplicateHash = computeDuplicateHash(fields.questionText || body.question_text);
-
-  const dup = await findDuplicateCandidate(Question, fields.duplicateHash);
+  const requestedBankIds = fields.bankIds?.length ? await validateQuestionBankIds(fields.bankIds, user) : [];
+  fields.bankIds = requestedBankIds.length ? requestedBankIds : undefined;
+  const systemTestBankIds = await getSystemTestBankIds(requestedBankIds, user);
+  if (systemTestBankIds.length) {
+    fields.institutionId = null;
+    fields.isPrivate = false;
+    fields.visibility = 'public';
+  }
+  const dup = systemTestBankIds.length ? null : await findDuplicateCandidate(Question, fields.duplicateHash);
   
   const ai = await classifyQuestionMetadata(fields);
   fields.aiConfidence = ai.aiConfidence;
@@ -408,7 +433,7 @@ export async function createQuestion(body, user) {
     snapshot
   }];
 
-  const { resolveDefaultQuestionBankIds, validateQuestionBankIds } = await import('./questionBankMembershipService.js');
+  const { resolveDefaultQuestionBankIds } = await import('./questionBankMembershipService.js');
   fields.bankIds = fields.bankIds?.length
     ? await validateQuestionBankIds(fields.bankIds, user)
     : await resolveDefaultQuestionBankIds(user);

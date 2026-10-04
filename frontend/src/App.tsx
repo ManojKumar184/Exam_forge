@@ -71,7 +71,12 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
         const active = getActiveInstitutionId();
         const next = active && rows.some((row: { id: string }) => row.id === active) ? active : rows[0]?.id || '';
         setSelectedId(next);
-        if (rows.length === 1 && next) { setActiveInstitutionId(next); setEntered(true); }
+        if (rows.length === 1 && next) {
+          const onlyInstitution = rows[0];
+          setActiveInstitutionId(next);
+          activateInstitution(next, onlyInstitution.role);
+          setEntered(true);
+        }
         else if (active && rows.some((row: { id: string }) => row.id === active)) setEntered(true);
         if (rows.length && next) setError('');
       } catch (cause) {
