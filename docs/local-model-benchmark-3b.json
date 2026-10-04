@@ -1,0 +1,257 @@
+{
+  "benchmark": "examforge-local-normalization/v1",
+  "corpusPath": "src\\extraction\\documentIntelligence\\fixtures\\local-normalization-benchmark.json",
+  "notes": "Hand-authored synthetic evidence with exact expected output; small smoke corpus, not statistically representative.",
+  "reports": [
+    {
+      "model": "llama3.2:latest",
+      "artifactBytes": 2019393189,
+      "quantization": "Q4_K_M",
+      "corpusSize": 8,
+      "scores": {
+        "type": 0.5,
+        "stem": 0.5,
+        "options": 0.5,
+        "answer": 0.75,
+        "schemaValid": 0.875,
+        "evidenceIdsValid": 0.875,
+        "sourceCoverage": 0.25
+      },
+      "exactCasePassRate": 0.125,
+      "averageLatencyMs": 72934,
+      "p95LatencyMs": 114242,
+      "questionsPerMinute": 0.82,
+      "peakRamBytes": null,
+      "sampledRunnerWorkingSetMaxBytes": 2964860928,
+      "sampledMemoryScope": "sum of llama-server working set sampled before/after each inference; not a peak guarantee",
+      "unavailableMetrics": [
+        "peakRamBytes",
+        "VRAM",
+        "imageAssociation",
+        "equationPreservation",
+        "tableStructureAccuracy",
+        "chunkBoundaryContinuation",
+        "largeDocumentThroughput"
+      ],
+      "items": [
+        {
+          "id": "mcq-simple",
+          "type": true,
+          "stem": true,
+          "options": true,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 96398,
+          "promptTokens": 321,
+          "outputTokens": 160,
+          "prediction": {
+            "type": "MCQ_SINGLE",
+            "stem": "Which planet is known as the Red Planet?",
+            "options": [
+              "Venus",
+              "Jupiter",
+              "Mars",
+              "Mercury"
+            ],
+            "answer": "C",
+            "sourceEvidence": [
+              "b4"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "mcq-irregular-format",
+          "type": true,
+          "stem": false,
+          "options": true,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 101922,
+          "promptTokens": 292,
+          "outputTokens": 314,
+          "prediction": {
+            "type": "MCQ_SINGLE",
+            "stem": "Select the prime number (a) 21 (b) 29 (c) 35 (d) 39 Key: b",
+            "options": [
+              "21",
+              "29",
+              "35",
+              "39"
+            ],
+            "answer": "b",
+            "sourceEvidence": [
+              "b1",
+              "b2",
+              "b3",
+              "b4"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "true-false",
+          "type": true,
+          "stem": true,
+          "options": true,
+          "answer": false,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 49914,
+          "promptTokens": 247,
+          "outputTokens": 152,
+          "prediction": {
+            "type": "TRUE_FALSE",
+            "stem": "Water boils at 100 degrees Celsius at sea level.",
+            "options": [
+              "True",
+              "False"
+            ],
+            "answer": "b2",
+            "sourceEvidence": [
+              "b1"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "fill-blank",
+          "type": true,
+          "stem": true,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 59501,
+          "promptTokens": 245,
+          "outputTokens": 187,
+          "prediction": {
+            "type": "FILL_BLANK",
+            "stem": "The chemical symbol for oxygen is ____.",
+            "options": [
+              "H",
+              "O",
+              "C",
+              "N"
+            ],
+            "answer": "O",
+            "sourceEvidence": [
+              "b1"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "numerical",
+          "type": false,
+          "stem": true,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 45173,
+          "promptTokens": 245,
+          "outputTokens": 113,
+          "prediction": {
+            "type": "FILL_BLANK",
+            "stem": "Calculate 12 divided by 3. Give a numerical answer.",
+            "options": [
+              "4"
+            ],
+            "answer": "4",
+            "sourceEvidence": [
+              "b1"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "integer-numerical",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": false,
+          "elapsedMs": 67369,
+          "promptTokens": 248,
+          "outputTokens": 203,
+          "prediction": {
+            "type": "MCQ_SINGLE",
+            "stem": "How many sides does a hexagon have?",
+            "options": [
+              "5",
+              "6",
+              "7",
+              "8"
+            ],
+            "answer": "6",
+            "sourceEvidence": [
+              "b1"
+            ]
+          },
+          "validationIssues": []
+        },
+        {
+          "id": "match-following",
+          "type": false,
+          "stem": false,
+          "options": true,
+          "answer": false,
+          "schemaValid": false,
+          "evidenceIdsValid": false,
+          "sourceCoverage": false,
+          "elapsedMs": 48953,
+          "promptTokens": 270,
+          "outputTokens": 128,
+          "prediction": null,
+          "validationIssues": [
+            "MCQ_SINGLE requires at least two options"
+          ]
+        },
+        {
+          "id": "assertion-reason",
+          "type": false,
+          "stem": false,
+          "options": false,
+          "answer": true,
+          "schemaValid": true,
+          "evidenceIdsValid": true,
+          "sourceCoverage": true,
+          "elapsedMs": 114242,
+          "promptTokens": 379,
+          "outputTokens": 289,
+          "prediction": {
+            "type": "MCQ_MULTIPLE",
+            "stem": "8. Assertion (A): Plants need light for photosynthesis.",
+            "options": [
+              "Both plants need light for photosynthesis and chlorophyll absorbs light energy.",
+              "Both plants need light for photosynthesis and chlorophyll absorbs light energy, but chlorophyll does not explain why plants need light.",
+              "Plants need light for photosynthesis, but chlorophyll does not absorb light energy.",
+              "Plants do not need light for photosynthesis, but chlorophyll absorbs light energy."
+            ],
+            "answer": "A",
+            "sourceEvidence": [
+              "b1",
+              "b2",
+              "b3",
+              "b4",
+              "b5",
+              "b6",
+              "b7"
+            ]
+          },
+          "validationIssues": []
+        }
+      ]
+    }
+  ]
+}

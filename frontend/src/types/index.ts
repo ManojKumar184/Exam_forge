@@ -1,5 +1,6 @@
 // User types
 export type UserRole = 'super_admin' | 'faculty' | 'student';
+export type InstitutionRole = 'INSTITUTION_ADMIN' | 'FACULTY' | 'STUDENT' | 'SUPER_ADMIN';
 
 export interface Profile {
   id: string;

@@ -26,6 +26,7 @@ import { apiClient, getActiveInstitutionId, setActiveInstitutionId } from './api
 
 // Layout
 import { Layout } from './components/layout/Layout';
+import { TenantProvider, useTenant, type TenantInstitution } from './context/TenantContext';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -44,8 +45,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function InstitutionGate({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth();
-  const [institutions, setInstitutions] = useState<Array<{ id: string; name: string; type?: string }>>([]);
+  const { institutions, setInstitutions, activateInstitution } = useTenant();
   const [selectedId, setSelectedId] = useState(getActiveInstitutionId() || '');
+  const [entered, setEntered] = useState(false);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [type, setType] = useState('SCHOOL');
@@ -59,17 +61,18 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
         const response = await apiClient.get(endpoint);
         const rawRows: unknown = response.data.data;
         const rows = (Array.isArray(rawRows) ? rawRows : []).flatMap((value: unknown) => {
-          const row = value as { institutionId?: { _id?: string; id?: string; name?: string; type?: string }; _id?: string; id?: string; name?: string; type?: string };
+          const row = value as { institutionId?: { _id?: string; id?: string; name?: string; type?: string }; _id?: string; id?: string; name?: string; type?: string; role?: TenantInstitution['role'] };
           const institution = row.institutionId || row;
           const id = institution._id || institution.id;
-          return id && institution.name ? [{ id: String(id), name: institution.name, type: institution.type }] : [];
+          return id && institution.name ? [{ id: String(id), name: institution.name, type: institution.type, role: row.role }] : [];
         });
         if (!alive) return;
         setInstitutions(rows);
         const active = getActiveInstitutionId();
         const next = active && rows.some((row: { id: string }) => row.id === active) ? active : rows[0]?.id || '';
         setSelectedId(next);
-        if (next) setActiveInstitutionId(next);
+        if (rows.length === 1 && next) { setActiveInstitutionId(next); setEntered(true); }
+        else if (active && rows.some((row: { id: string }) => row.id === active)) setEntered(true);
         if (rows.length && next) setError('');
       } catch (cause) {
         if (alive) setError(cause instanceof Error ? cause.message : 'Could not load institution access.');
@@ -79,7 +82,7 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
     };
     load();
     return () => { alive = false; };
-  }, [profile?.role]);
+  }, [profile?.role, setInstitutions]);
 
   const createInstitution = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -98,7 +101,7 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
   if (institutions.length > 0) {
     const active = institutions.find((institution) => institution.id === selectedId);
     if (!active) return <Loading fullScreen text="Selecting institution..." />;
-    if (institutions.length > 1) return <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950"><div className="mx-auto max-w-xl rounded-xl bg-white p-6 shadow dark:bg-slate-900"><h1 className="text-xl font-semibold">Active institution</h1><p className="mt-2 text-sm text-slate-600">Your data and permissions follow this selection.</p><select className="mt-4 w-full rounded border p-2" value={selectedId} onChange={(event) => { setSelectedId(event.target.value); setActiveInstitutionId(event.target.value); window.location.reload(); }}>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select><button className="mt-4 text-sm underline" onClick={() => void signOut()}>Sign out</button></div></div>;
+    if (!entered && institutions.length > 1) return <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950"><div className="mx-auto mt-16 max-w-xl rounded-2xl border bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900"><h1 className="text-2xl font-semibold">Choose your institution</h1><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Your workspace, data, and permissions will follow this institution.</p><label className="mt-6 block text-sm font-medium">Institution<select className="mt-2 w-full rounded-lg border p-3 dark:bg-slate-800" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select></label><div className="mt-6 flex justify-between"><button className="text-sm underline" onClick={() => void signOut()}>Sign out</button><button className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white disabled:opacity-50" disabled={!selectedId} onClick={() => { const chosen = institutions.find((item) => item.id === selectedId); if (chosen) { setActiveInstitutionId(chosen.id); activateInstitution(chosen.id, chosen.role); setEntered(true); } }}>Continue</button></div></div></div>;
     return <>{children}</>;
   }
 
@@ -109,9 +112,9 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
 
 // Admin Route wrapper
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { profile } = useAuth();
+  const { isAdmin } = useAuth();
 
-  if (!profile || profile.role !== 'super_admin') {
+  if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -120,9 +123,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 // Admin or Faculty Route wrapper
 function AdminOrFacultyRoute({ children }: { children: React.ReactNode }) {
-  const { profile } = useAuth();
+  const { isAdmin, isFaculty } = useAuth();
 
-  if (!profile || (profile.role !== 'super_admin' && profile.role !== 'faculty')) {
+  if (!isAdmin && !isFaculty) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -401,7 +404,7 @@ function App() {
   return (
     <>
       <BrowserRouter>
-        <AppRoutes />
+      <TenantProvider><AppRoutes /></TenantProvider>
       </BrowserRouter>
       <Toaster
         position="top-right"

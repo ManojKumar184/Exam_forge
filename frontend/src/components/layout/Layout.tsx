@@ -2,6 +2,8 @@ import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui';
+import { getActiveInstitutionId } from '../../api/client';
+import { useTenant } from '../../context/TenantContext';
 import {
   LayoutDashboard,
   FileQuestion,
@@ -43,6 +45,7 @@ const sidebarItems: SidebarItem[] = [
 
 export function Layout() {
   const { profile, signOut, isAdmin, isFaculty } = useAuth();
+  const tenant = useTenant();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
@@ -155,6 +158,9 @@ export function Layout() {
             </button>
             <div className="flex-1" />
             <div className="flex items-center gap-3">
+              {tenant.institutions.length > 1 && <label className="text-xs text-slate-500">Institution <select aria-label="Active institution" className="ml-2 rounded border bg-white px-2 py-1.5 text-sm text-slate-800 dark:bg-slate-800 dark:text-white" value={getActiveInstitutionId() || ''} onChange={(event) => { const institution = tenant.institutions.find((item) => item.id === event.target.value); if (institution) tenant.activateInstitution(institution.id, institution.role); }}>
+                {tenant.institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+              </select></label>}
               <div className="hidden sm:block text-right">
                 <p className="text-sm font-medium text-slate-900 dark:text-white">
                   {profile?.full_name}

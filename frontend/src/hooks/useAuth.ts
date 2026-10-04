@@ -1,5 +1,6 @@
 import { useAuthContext } from '../context/AuthContext';
 import type { UserRole } from '../types';
+import { useOptionalTenant } from '../context/TenantContext';
 
 export function useAuth() {
   const {
@@ -23,9 +24,12 @@ export function useAuth() {
     return roles.includes(profile.role);
   };
 
-  const isAdmin = isRole('super_admin');
-  const isFaculty = isRole('faculty');
-  const isStudent = isRole('student');
+  const tenant = useOptionalTenant();
+  const membershipRole = tenant?.membershipRole || tenant?.institutions.find((item) => item.id === tenant.activeInstitutionId)?.role;
+
+  const isAdmin = isRole('super_admin') || membershipRole === 'INSTITUTION_ADMIN';
+  const isFaculty = isRole('faculty') || membershipRole === 'FACULTY';
+  const isStudent = isRole('student') || membershipRole === 'STUDENT';
 
   const canManageQuestions = isAdmin;
   const canGeneratePapers = isFaculty || isAdmin;
@@ -47,6 +51,7 @@ export function useAuth() {
     forgotPassword,
     resetPassword,
     isRole,
+    membershipRole,
     isAdmin,
     isFaculty,
     isStudent,
