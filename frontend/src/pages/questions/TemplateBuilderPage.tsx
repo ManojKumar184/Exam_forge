@@ -43,7 +43,8 @@ export function TemplateBuilderPage() {
       sections: [
         {
           name: 'Section A - MCQ',
-          allowedQuestionTypes: ['mcq'],
+          allowedQuestionTypes: ['MCQ_SINGLE'],
+          responseTypes: ['MCQ'],
           marksPerQuestion: 4,
           negativeMarksPerQuestion: 1,
           questionCount: 20
@@ -58,7 +59,8 @@ export function TemplateBuilderPage() {
         lineSpacing: 1.25
       },
       exportDefaults: {},
-      isSystem: false
+      isSystem: false,
+      isPublished: false
     });
   };
 
@@ -121,7 +123,8 @@ export function TemplateBuilderPage() {
     const sections = [...(editingTemplate.sections || [])];
     sections.push({
       name: `Section ${String.fromCharCode(65 + sections.length)} - New Section`,
-      allowedQuestionTypes: ['mcq'],
+      allowedQuestionTypes: ['MCQ_SINGLE'],
+      responseTypes: ['MCQ'],
       marksPerQuestion: 4,
       negativeMarksPerQuestion: 0,
       questionCount: 10
@@ -206,6 +209,19 @@ export function TemplateBuilderPage() {
                 value={editingTemplate.name || ''}
                 onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
               />
+              <Input label="Paper count in this blueprint" type="number" min="1" max="4" value={editingTemplate.paperCount || 1} onChange={(e) => setEditingTemplate({ ...editingTemplate, paperCount: Math.min(4, Math.max(1, Number(e.target.value) || 1)) })} />
+              <Input label="Exam year" type="number" min="2000" max="2100" value={editingTemplate.examYear || ''} onChange={(e) => setEditingTemplate({ ...editingTemplate, examYear: e.target.value ? Number(e.target.value) : null })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input label="Effective from" type="date" value={editingTemplate.effectiveFrom?.slice(0, 10) || ''} onChange={(e) => setEditingTemplate({ ...editingTemplate, effectiveFrom: e.target.value || null })} />
+                <Input label="Effective to" type="date" value={editingTemplate.effectiveTo?.slice(0, 10) || ''} onChange={(e) => setEditingTemplate({ ...editingTemplate, effectiveTo: e.target.value || null })} />
+              </div>
+              <Input label="Official source URL" value={editingTemplate.officialSource || ''} onChange={(e) => setEditingTemplate({ ...editingTemplate, officialSource: e.target.value || null })} placeholder="https://…" />
+              <Textarea label="Attempt and exam rules" value={String(editingTemplate.attemptRules?.summary || '')} onChange={(e) => setEditingTemplate({ ...editingTemplate, attemptRules: { ...(editingTemplate.attemptRules || {}), summary: e.target.value } })} placeholder="Record paper count, duration, and attempt constraints" rows={3} />
+
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                <input type="checkbox" checked={Boolean(editingTemplate.isPublished)} onChange={(event) => setEditingTemplate({ ...editingTemplate, isPublished: event.target.checked })} />
+                Publish blueprint for paper generation
+              </label>
 
               <div className="space-y-1">
                 <label className="block text-xs font-semibold text-slate-500">Layout columns</label>
@@ -371,23 +387,20 @@ export function TemplateBuilderPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">Allowed Types</label>
-                        <div className="flex gap-2 pt-1.5">
-                          {['mcq', 'numerical', 'descriptive'].map((t) => {
-                            const isSelected = sec.allowedQuestionTypes.includes(t);
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">Response types</label>
+                        <div className="flex gap-2 pt-1.5 flex-wrap">
+                          {([{ value: 'MCQ', compatibility: 'MCQ_SINGLE' }, { value: 'MSQ', compatibility: 'MCQ_MULTIPLE' }, { value: 'NUMERICAL', compatibility: 'NUMERICAL' }] as const).map(({ value, compatibility }) => {
+                            const isSelected = (sec.responseTypes || []).includes(value) || (!(sec.responseTypes || []).length && sec.allowedQuestionTypes.includes(compatibility));
                             return (
                               <button
-                                key={t}
+                                key={value}
                                 type="button"
                                 onClick={() => {
-                                  const currentTypes = [...sec.allowedQuestionTypes];
-                                  const tIdx = currentTypes.indexOf(t);
-                                  if (tIdx >= 0) {
-                                    if (currentTypes.length > 1) currentTypes.splice(tIdx, 1);
-                                  } else {
-                                    currentTypes.push(t);
-                                  }
-                                  handleSectionChange(idx, 'allowedQuestionTypes', currentTypes);
+                                  const currentTypes = [...(sec.responseTypes || [])];
+                                  const nextTypes = currentTypes.includes(value) ? currentTypes.filter((type) => type !== value) : [...currentTypes, value];
+                                  if (!nextTypes.length) return;
+                                  handleSectionChange(idx, 'responseTypes', nextTypes);
+                                  handleSectionChange(idx, 'allowedQuestionTypes', nextTypes.map((type) => type === 'MSQ' ? 'MCQ_MULTIPLE' : type === 'NUMERICAL' ? 'NUMERICAL' : 'MCQ_SINGLE'));
                                 }}
                                 className={`text-[10px] px-2 py-0.5 rounded border font-bold uppercase transition-all ${
                                   isSelected 
@@ -395,9 +408,16 @@ export function TemplateBuilderPage() {
                                     : 'bg-white text-slate-600 hover:bg-slate-50'
                                 }`}
                               >
-                                {t}
+                                {value}
                               </button>
                             );
+                          })}
+                        </div>
+                        <label className="block text-xs font-semibold text-slate-500 mt-3 mb-1">Question structures (optional)</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {['STANDARD', 'ASSERTION_REASON', 'MATCH_THE_FOLLOWING', 'COMPREHENSION', 'PASSAGE_BASED', 'STATEMENT_BASED', 'INTEGER_RESPONSE', 'TRUE_FALSE'].map((subtype) => {
+                            const selected = (sec.subtypes || []).includes(subtype);
+                            return <button key={subtype} type="button" onClick={() => handleSectionChange(idx, 'subtypes', selected ? (sec.subtypes || []).filter((item) => item !== subtype) : [...(sec.subtypes || []), subtype])} className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>{subtype.replace(/_/g, ' ')}</button>;
                           })}
                         </div>
                       </div>
@@ -467,6 +487,7 @@ export function TemplateBuilderPage() {
 
               <div className="text-xs text-slate-500 space-y-1 bg-slate-50 p-2.5 rounded border">
                 <div><strong>Sections:</strong> {tpl.sections?.length || 0} sections defined</div>
+                <div><strong>Version:</strong> {tpl.version || 1} · {tpl.isPublished ? 'Published' : 'Draft'}</div>
                 <div><strong>Default columns:</strong> {tpl.layoutDefaults?.layout === 'two_column' ? 'Two Columns' : 'Single Column'}</div>
                 <div><strong>Font defaults:</strong> {tpl.layoutDefaults?.fontFamily} ({tpl.layoutDefaults?.fontSize}pt)</div>
               </div>

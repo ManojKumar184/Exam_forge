@@ -38,7 +38,8 @@ test('DOCX to review questions maps separate answers by question number and keep
     assert.equal(byNumber.get(20)?.numericalAnswer, 2);
     assert.equal(byNumber.get(20)?.renderingMetadata?.answerDetection?.method, 'separate_answer_key');
     assert.equal(byNumber.get(30)?.correctOption, 0);
-    assert.equal(byNumber.get(30)?.questionType, 'TRUE_FALSE');
+    assert.equal(byNumber.get(30)?.questionType, 'MCQ_SINGLE');
+    assert.equal(byNumber.get(30)?.responseType, 'MCQ');
     assert.deepEqual(byNumber.get(30)?.options.map((option) => option.text), ['True', 'False']);
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });

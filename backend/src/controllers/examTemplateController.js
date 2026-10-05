@@ -2,12 +2,14 @@ import { ExamTemplate } from '../models/ExamTemplate.js';
 
 export async function list(req, res) {
   const userId = req.user._id;
-  const templates = await ExamTemplate.find({
+  const filter = {
     $or: [
       { isSystem: true },
       { institutionId: req.institutionId, createdBy: userId }
     ]
-  }).sort({ isSystem: -1, createdAt: -1 });
+  };
+  if (req.query.include_versions !== 'true') filter.isCurrent = { $ne: false };
+  const templates = await ExamTemplate.find(filter).sort({ isSystem: -1, code: 1, version: -1, createdAt: -1 });
   
   res.json({ success: true, data: templates });
 }
@@ -21,9 +23,13 @@ export async function getOne(req, res) {
 }
 
 export async function create(req, res) {
+  const { name, subjectStructure, sections, instructions, layoutDefaults, exportDefaults, paperCount, examYear, effectiveFrom, effectiveTo, officialSource, attemptRules, constraints } = req.body;
   const payload = {
-    ...req.body,
+    name, subjectStructure, sections, instructions, layoutDefaults, exportDefaults, paperCount, examYear, effectiveFrom, effectiveTo, officialSource, attemptRules, constraints,
     isSystem: false,
+    isCurrent: true,
+    isPublished: req.body.isPublished === true,
+    version: 1,
     institutionId: req.institutionId,
     createdBy: req.user._id
   };
@@ -36,9 +42,44 @@ export async function update(req, res) {
   if (!template) {
     return res.status(404).json({ success: false, message: 'Template not found or unauthorized' });
   }
-  Object.assign(template, req.body);
-  await template.save();
-  res.json({ success: true, data: template });
+  const fields = ['name', 'subjectStructure', 'sections', 'instructions', 'layoutDefaults', 'exportDefaults', 'paperCount', 'examYear', 'effectiveFrom', 'effectiveTo', 'officialSource', 'attemptRules', 'constraints'];
+  const changes = Object.fromEntries(fields.filter((key) => req.body[key] !== undefined).map((key) => [key, req.body[key]]));
+  let updated;
+  if (template.isPublished) {
+    template.isCurrent = false;
+    await template.save();
+    updated = await ExamTemplate.create({
+      ...changes,
+      name: changes.name || template.name,
+      subjectStructure: changes.subjectStructure || template.subjectStructure,
+      sections: changes.sections || template.sections,
+      instructions: changes.instructions ?? template.instructions,
+      layoutDefaults: changes.layoutDefaults || template.layoutDefaults,
+      exportDefaults: changes.exportDefaults || template.exportDefaults,
+      paperCount: changes.paperCount ?? template.paperCount,
+      examYear: changes.examYear ?? template.examYear,
+      effectiveFrom: changes.effectiveFrom ?? template.effectiveFrom,
+      effectiveTo: changes.effectiveTo ?? template.effectiveTo,
+      officialSource: changes.officialSource ?? template.officialSource,
+      attemptRules: changes.attemptRules ?? template.attemptRules,
+      constraints: changes.constraints ?? template.constraints,
+      isSystem: false,
+      isCurrent: true,
+      isPublished: req.body.isPublished === true,
+      version: Number(template.version || 1) + 1,
+      versionOf: template.versionOf || template._id,
+      schemaVersion: template.schemaVersion || 'blueprint-v1',
+      code: template.code,
+      createdBy: req.user._id,
+      institutionId: req.institutionId,
+    });
+  } else {
+    Object.assign(template, changes);
+    if (req.body.isPublished !== undefined) template.isPublished = req.body.isPublished === true;
+    await template.save();
+    updated = template;
+  }
+  res.json({ success: true, data: updated });
 }
 
 export async function duplicate(req, res) {
@@ -53,6 +94,10 @@ export async function duplicate(req, res) {
   payload.name = `${original.name} (Copy)`;
   payload.isSystem = false;
   payload.code = null;
+  payload.version = 1;
+  payload.versionOf = null;
+  payload.isCurrent = true;
+  payload.isPublished = false;
   payload.createdBy = req.user._id;
   payload.institutionId = req.institutionId;
 

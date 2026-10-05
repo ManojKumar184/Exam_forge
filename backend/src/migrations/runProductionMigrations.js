@@ -9,6 +9,8 @@ import { seedSyllabus } from '../seedSyllabus.js';
 import { migrateQuestionMarks } from './migrateQuestionMarks.js';
 import { migrateSystemTestBank } from '../migrateSystemTestBank.js';
 import { migrateQuestionTaxonomy } from './migrateQuestionTaxonomy.js';
+import { migrateQuestionDuplicates } from './migrateQuestionDuplicates.js';
+import { migrateQuestionGroups } from './migrateQuestionGroups.js';
 import { initializeQuestionSequenceIds, migrateWorkspaceQuestions } from './workspaceMigrations.js';
 import { REQUIRED_PRODUCTION_MIGRATIONS } from './productionMigrationPlan.js';
 import path from 'node:path';
@@ -17,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 const steps = [
   ['institutions-v1', migrateInstitutions],
   ['predefined-templates-v1', seedPredefinedTemplates],
+  ['predefined-templates-v2', seedPredefinedTemplates],
   ['question-banks-v1', migrateQuestionBanks],
   ['syllabus-seed-v1', async () => {
     if (await SyllabusNode.estimatedDocumentCount() === 0) await seedSyllabus();
@@ -28,6 +31,10 @@ const steps = [
   ['question-marks-v1', migrateQuestionMarks],
   ['system-test-bank-v1', migrateSystemTestBank],
   ['question-taxonomy-v1', migrateQuestionTaxonomy],
+  ['question-taxonomy-v2', migrateQuestionTaxonomy],
+  ['question-groups-v1', migrateQuestionGroups],
+  ['question-duplicate-policy-v1', migrateQuestionDuplicates],
+  ['question-duplicate-policy-v2', migrateQuestionDuplicates],
 ];
 
 export async function runProductionMigrations() {

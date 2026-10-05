@@ -24,7 +24,7 @@ interface QuestionState {
   deleteQuestion: (id: string) => Promise<{ error: any }>;
   approveQuestion: (id: string) => Promise<{ error: any }>;
   rejectQuestion: (id: string, notes: string) => Promise<{ error: any }>;
-  bulkApproveQuestions: (ids: string[]) => Promise<{ error: any }>;
+  bulkApproveQuestions: (ids: string[]) => Promise<{ error: any; summary?: Awaited<ReturnType<typeof bulkApproveQuestionsApi>> }>;
   bulkRejectQuestions: (ids: string[], notes?: string) => Promise<{ error: any }>;
   bulkDeleteQuestions: (ids: string[]) => Promise<{ error: any }>;
   bulkUpdateQuestionsMetadata: (ids: string[], updates: Partial<Question>) => Promise<{ error: any }>;
@@ -103,13 +103,13 @@ export const useQuestionStore = create<QuestionState>((set, get) => ({
 
   bulkApproveQuestions: async (ids) => {
     try {
-      await bulkApproveQuestionsApi(ids);
+      const summary = await bulkApproveQuestionsApi(ids);
       set({
         questions: get().questions.map((q) =>
-          ids.includes(q.id) ? { ...q, status: 'approved' as const } : q
+          summary.failures.some((failure) => failure.id === q.id) ? q : ids.includes(q.id) ? { ...q, status: 'approved' as const } : q
         ),
       });
-      return { error: null };
+      return { error: null, summary };
     } catch (error) {
       return { error: { message: getApiErrorMessage(error) } };
     }

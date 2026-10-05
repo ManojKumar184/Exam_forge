@@ -2,10 +2,13 @@ import mongoose from 'mongoose';
 
 const paperSectionSchema = new mongoose.Schema(
   {
+    id: { type: String, default: null },
     name: { type: String, required: true },
     questionCount: { type: Number, default: 0 },
     marksPerQuestion: { type: Number, default: 4 },
     negativeMarksPerQuestion: { type: Number, default: 0 },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
+    subjectName: { type: String, default: null },
   },
   { _id: false }
 );
@@ -13,6 +16,7 @@ const paperSectionSchema = new mongoose.Schema(
 const paperQuestionSchema = new mongoose.Schema(
   {
     questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
     section: { type: String, default: 'A' },
     sectionOrder: { type: Number, default: 0 },
     questionOrder: { type: Number, required: true },
@@ -66,6 +70,8 @@ const paperSchema = new mongoose.Schema(
     // Flat model fields removed (Subject, ExamType collections dropped); use syllabusMappings or string-based references
     examTypeId: { type: mongoose.Schema.Types.ObjectId, default: null },
     subjectId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    subjectIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode' }], default: [] },
+    classId: { type: mongoose.Schema.Types.ObjectId, ref: 'SyllabusNode', default: null },
     class: { type: Number, required: true, min: 6, max: 12 },
     totalMarks: { type: Number, required: true },
     totalQuestions: { type: Number, required: true },

@@ -10,6 +10,7 @@ import {
   submitTestApi,
 } from '../../api/tests';
 import { useAuth } from '../../hooks/useAuth';
+import { parseNumericalAnswer } from '../../utils/parseNumericalAnswer';
 import {
   clearTestSession,
   loadTestSession,
@@ -121,31 +122,13 @@ export const getValidationError = (q: QuestionWithOrder): string | null => {
   if (!type) return null;
   const upper = type.toUpperCase();
 
-  if (upper === 'NUMERICAL') {
+  if (['NUMERICAL', 'NUMERICAL_INTEGER', 'INTEGER'].includes(upper)) {
     const val = String(q.numerical_answer ?? '');
     const trimmed = val.trim();
     if (trimmed === '') return null;
-    const numRegex = /^-?\d*\.?\d*$/;
-    if (!numRegex.test(trimmed)) {
-      return "Please enter a valid number.";
-    }
-    if (trimmed === '-' || trimmed === '+' || trimmed === '.' || trimmed === '-.') {
-      return "Please enter a complete number.";
-    }
-    return null;
-  }
-
-  if (upper === 'INTEGER') {
-    const val = String(q.numerical_answer ?? '');
-    const trimmed = val.trim();
-    if (trimmed === '') return null;
-    const intRegex = /^-?\d*$/;
-    if (!intRegex.test(trimmed)) {
-      return "Only integer values are allowed.";
-    }
-    if (trimmed === '-' || trimmed === '+') {
-      return "Please enter a complete integer.";
-    }
+    const parsed = parseNumericalAnswer(trimmed);
+    if (parsed === null) return 'Please enter a valid number.';
+    if (q.question.subtype === 'INTEGER_RESPONSE' && !Number.isInteger(parsed)) return 'Enter a whole number for this answer.';
     return null;
   }
 

@@ -23,7 +23,7 @@ function getConfidenceVariant(confidence: number): 'success' | 'warning' | 'erro
 
 function getQuestionTypeVariant(type: string): 'success' | 'warning' | 'info' | 'default' {
   const normalized = type.toLowerCase();
-  if (normalized === 'mcq' || normalized === 'mcq_single' || normalized === 'mcq_multiple' || normalized === 'mcq_multi') return 'info';
+  if (normalized === 'mcq' || normalized === 'msq' || normalized === 'mcq_single' || normalized === 'mcq_multiple' || normalized === 'mcq_multi') return 'info';
   if (normalized === 'numerical' || normalized === 'numerical_integer' || normalized === 'integer') return 'warning';
   if (normalized === 'assertion_reason' || normalized === 'match_following') return 'success';
   if (normalized === 'descriptive') return 'default';
@@ -38,6 +38,7 @@ function getSectionLabel(question: Question): string | null {
 }
 
 function getSubtypeLabel(question: Question): string | null {
+  if (question.subtype && question.subtype !== 'STANDARD') return question.subtype.replace(/_/g, ' ').toLowerCase();
   const sub = question.tags?.find((t) =>
     ['mcq_single', 'mcq_multiple', 'numerical_integer', 'integer_type', 'match_following', 'comprehension'].includes(t)
   );
@@ -62,7 +63,8 @@ export function QuestionBankPage() {
     exam_type_id: '',
     class: '',
     difficulty: '',
-    question_type: '',
+    response_type: '',
+    subtype: '',
     status: '',
     search: '',
     syllabus_exam_pattern_id: '',
@@ -192,6 +194,12 @@ export function QuestionBankPage() {
             />
           </div>
           <div className="w-full sm:w-28 shrink-0">
+            <Select className="h-8 text-xs py-1" placeholder="Response" options={[{ value: '', label: 'All Responses' }, { value: 'MCQ', label: 'MCQ' }, { value: 'MSQ', label: 'MSQ' }, { value: 'NUMERICAL', label: 'Numerical' }]} value={filters.response_type} onChange={(e) => handleFilterChange('response_type', e.target.value)} />
+          </div>
+          <div className="w-full sm:w-36 shrink-0">
+            <Select className="h-8 text-xs py-1" placeholder="Structure" options={[{ value: '', label: 'All Structures' }, { value: 'STANDARD', label: 'Standard' }, { value: 'INTEGER_RESPONSE', label: 'Integer response' }, { value: 'TRUE_FALSE', label: 'True / False' }, { value: 'ASSERTION_REASON', label: 'Assertion / reason' }, { value: 'MATCH_THE_FOLLOWING', label: 'Match following' }, { value: 'COMPREHENSION', label: 'Comprehension' }, { value: 'PASSAGE_BASED', label: 'Passage based' }, { value: 'STATEMENT_BASED', label: 'Statement based' }]} value={filters.subtype} onChange={(e) => handleFilterChange('subtype', e.target.value)} />
+          </div>
+          <div className="w-full sm:w-28 shrink-0">
             <Select
               className="h-8 text-xs py-1"
               placeholder="Difficulty"
@@ -203,20 +211,6 @@ export function QuestionBankPage() {
               ]}
               value={filters.difficulty}
               onChange={(e) => handleFilterChange('difficulty', e.target.value)}
-            />
-          </div>
-          <div className="w-full sm:w-24 shrink-0">
-            <Select
-              className="h-8 text-xs py-1"
-              placeholder="Type"
-              options={[
-                { value: '', label: 'All Types' },
-                { value: 'mcq', label: 'MCQ' },
-                { value: 'descriptive', label: 'Descriptive' },
-                { value: 'numerical', label: 'Numerical' }
-              ]}
-              value={filters.question_type}
-              onChange={(e) => handleFilterChange('question_type', e.target.value)}
             />
           </div>
           <div className="w-full sm:w-28 shrink-0">
@@ -397,8 +391,8 @@ export function QuestionBankPage() {
                     <Badge variant={getStatusColor(question.status)} size="sm">
                       {question.status === 'needs_review' ? 'Review' : question.status}
                     </Badge>
-                    <Badge variant={getQuestionTypeVariant(question.question_type)} size="sm">
-                      {question.question_type.toUpperCase()}
+                    <Badge variant={getQuestionTypeVariant(question.response_type || question.question_type)} size="sm">
+                      {(question.response_type || question.question_type).toUpperCase()}
                     </Badge>
                     {subtype && (
                       <Badge variant="info" size="sm">
@@ -428,6 +422,13 @@ export function QuestionBankPage() {
                       </span>
                     )}
                   </div>
+
+                  {(question.usage_count || 0) > 0 && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      Used in {question.usage_count} {question.usage_count === 1 ? 'paper' : 'papers'}
+                      {question.last_used_at ? ` · Last used ${new Date(question.last_used_at).toLocaleDateString()}` : ''}
+                    </div>
+                  )}
 
                   {/* Question Content */}
                   <div className="text-slate-900 dark:text-white mb-3 max-h-32 overflow-hidden relative">
@@ -613,7 +614,11 @@ export function QuestionBankPage() {
                 if (res?.error) {
                   toast.error(res.error.message || 'Failed to approve questions');
                 } else {
-                  toast.success('Approved selected questions successfully');
+                  const summary = res?.summary;
+                  if (summary) {
+                    const details = [`${summary.approved} approved`, `${summary.duplicate} duplicates`, `${summary.needsReview} need review`, `${summary.failedValidation} invalid`, `${summary.rejected} failed`].filter((part) => !part.startsWith('0 '));
+                    (summary.approved === selectedIds.length ? toast.success : toast.error)(details.join(' · ') || 'No questions were approved');
+                  } else toast.success('Bulk approval finished');
                   setSelectedIds([]);
                   applyFilters();
                 }

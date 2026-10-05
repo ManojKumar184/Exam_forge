@@ -9,14 +9,14 @@ export function detectAnswer(segment, options = []) {
     const optionLabels = labelledValue.match(/^[A-H](?:\s*[,/&]\s*[A-H])*$/i);
     if (optionLabels) return buildAnswer(labelledValue, 1, 'explicit_label', 0.96, options);
     const boolean = labelledValue.match(/^(true|false|t|f)$/i)?.[1]?.toUpperCase();
-    const number = labelledValue.match(/^-?\d+(?:\.\d+)?$/)?.[0];
-    const value = boolean || number || labelledValue;
+    const number = parseNumericalAnswer(labelledValue);
+    const value = boolean || labelledValue;
     return {
       answerText: value,
       answerKey: value,
       correctOption: boolean ? (boolean === 'TRUE' || boolean === 'T' ? 0 : 1) : null,
       correctAnswers: /^[A-H]$/i.test(value) ? [value.toUpperCase()] : [value],
-      numericalAnswer: number !== undefined ? Number(number) : undefined,
+      numericalAnswer: number !== null ? number : undefined,
       confidence: 0.94,
       level: 1,
       method: 'explicit_label',
@@ -135,3 +135,4 @@ function buildAnswer(raw, level, method, confidence, options) {
     warnings: unmatched.length ? [`Answer label does not match available options: ${unmatched.join(', ')}`] : [],
   };
 }
+import { parseNumericalAnswer } from '../../utils/numericalAnswer.js';

@@ -5,6 +5,8 @@ import { detectAnswer, extractSeparateAnswerKey, mapSeparateAnswerKey } from './
 import { detectExplanation } from './explanationDetectionEngine.js';
 import { classifyQuestion } from './questionTypeClassifier.js';
 import { resolveQuestionTaxonomy } from '../../utils/questionTaxonomy.js';
+import { createHash } from 'node:crypto';
+import { parseNumericalAnswer } from '../../utils/numericalAnswer.js';
 import { validateQuestionObject } from './validationEngine.js';
 import { applyConfidence } from './confidenceEngine.js';
 import { normalizeQuestions } from '../normalizeQuestions.js';
@@ -65,7 +67,7 @@ export class DocumentIntelligencePipeline {
         answer.correctOption = answer.correctAnswers.length === 1 ? answer.correctAnswers[0].charCodeAt(0) - 65
           : (segment.answerMapping.answer.length === 1 && ['TRUE', 'T'].includes(segment.answerMapping.answer[0]) ? 0
             : (segment.answerMapping.answer.length === 1 && ['FALSE', 'F'].includes(segment.answerMapping.answer[0]) ? 1 : null));
-        if (segment.answerMapping.answer.length === 1 && /^-?\d+(?:\.\d+)?$/.test(segment.answerMapping.answer[0])) answer.numericalAnswer = Number(segment.answerMapping.answer[0]);
+        if (segment.answerMapping.answer.length === 1) answer.numericalAnswer = parseNumericalAnswer(segment.answerMapping.answer[0]) ?? answer.numericalAnswer;
         answer.confidence = segment.answerMapping.confidence;
         answer.method = 'separate_answer_key';
         answer.warnings = [];
@@ -73,14 +75,30 @@ export class DocumentIntelligencePipeline {
       if (segment.answerMappingIssues?.length) answer.warnings.push(...segment.answerMappingIssues.map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`));
       const explanation = detectExplanation(segment);
       const classification = classifyQuestion(segment, block, answer);
-      const taxonomy = resolveQuestionTaxonomy({ questionType: classification.questionType, subtype: classification.subtype });
+      const taxonomy = resolveQuestionTaxonomy({ questionType: classification.questionType, responseType: classification.responseType, subtype: classification.subtype });
+      const sharedContext = (segment.passageBlocks || []).flatMap((contextBlock) => {
+        if (contextBlock.contentBlocks?.length) return contextBlock.contentBlocks;
+        const blocks = [];
+        if (contextBlock.text?.trim()) blocks.push({ type: 'text', text: contextBlock.text });
+        if (contextBlock.table) blocks.push({ type: 'table', rows: contextBlock.table.rows || [], sourcePage: contextBlock.page ?? null });
+        for (const equation of contextBlock.equations || []) blocks.push({ type: 'equation', latex: equation.value || equation.latex || '', sourcePage: contextBlock.page ?? null });
+        for (const image of contextBlock.images || []) blocks.push({ type: 'image', assetUrl: image.url || image.src || image.assetUrl || null, sourcePage: contextBlock.page ?? null });
+        if (contextBlock.type === 'image' && !blocks.length) blocks.push({ type: 'image', assetUrl: contextBlock.url || null, sourcePage: contextBlock.page ?? null });
+        return blocks;
+      });
+      const contextGroupId = sharedContext.length
+        ? createHash('sha256').update(`${semanticDocument.source?.filename || ''}|${JSON.stringify(sharedContext)}`).digest('hex').slice(0, 24)
+        : null;
 
       const enriched = {
         ...question,
-        options: question.options?.length ? question.options : (classification.questionType === 'TRUE_FALSE' ? [{ text: 'True' }, { text: 'False' }] : []),
+        options: question.options?.length ? question.options : (taxonomy.subtype === 'TRUE_FALSE' ? [{ text: 'True' }, { text: 'False' }] : []),
         questionType: classification.questionType,
         responseType: taxonomy.responseType,
         subtype: taxonomy.subtype,
+        sharedContext,
+        contextGroupId,
+        contextGroupPosition: Number(question.renderingMetadata?.questionNumber || 0),
         answerText: answer.answerText || question.answerText,
         answerKey: answer.answerKey || question.answerKey,
         correctOption: answer.correctOption ?? question.correctOption,

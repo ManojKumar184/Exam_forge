@@ -51,9 +51,10 @@ export interface ExamType {
 }
 
 // Question types
+/** @deprecated Legacy storage/editor projection. Use ResponseType and QuestionSubtype for new workflows. */
 export type QuestionType = 'mcq' | 'descriptive' | 'numerical' | 'MCQ_SINGLE' | 'MCQ_MULTIPLE' | 'TRUE_FALSE' | 'FILL_BLANK' | 'UNCLASSIFIED' | 'NUMERICAL_INTEGER' | 'MATCH_FOLLOWING' | 'ASSERTION_REASON' | 'DESCRIPTIVE' | 'MCQ_MULTI' | 'INTEGER' | 'NUMERICAL' | 'MATCH_COLUMNS';
 export type ResponseType = 'MCQ' | 'MSQ' | 'NUMERICAL';
-export type QuestionSubtype = 'STANDARD' | 'ASSERTION_REASON' | 'MATCH_THE_FOLLOWING' | 'COMPREHENSION' | 'PASSAGE_BASED' | 'STATEMENT_BASED';
+export type QuestionSubtype = 'STANDARD' | 'ASSERTION_REASON' | 'MATCH_THE_FOLLOWING' | 'COMPREHENSION' | 'PASSAGE_BASED' | 'STATEMENT_BASED' | 'INTEGER_RESPONSE' | 'TRUE_FALSE';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type QuestionStatus = 'pending' | 'approved' | 'rejected' | 'needs_review';
 export type ContextType = 'COMPREHENSION' | 'CASE_STUDY' | 'PARAGRAPH_BASED' | 'STATEMENT_SET' | 'MATRIX_MATCH' | 'TRUE_FALSE' | 'NESTED_OPTION_MCQ' | null;
@@ -73,6 +74,9 @@ export interface Question {
   response_type?: ResponseType | null;
   subtype?: QuestionSubtype;
   context_type?: ContextType;
+  context_group_id?: string | null;
+  context_group_position?: number;
+  shared_context?: ContentBlock[];
   question_latex: string | null;
   question_images: string[];
   options: QuestionOption[];
@@ -80,6 +84,7 @@ export interface Question {
   correct_answers?: string[];
   numerical_answer: number | null;
   numerical_tolerance: number;
+  numerical_comparison_policy?: 'EXACT' | 'TOLERANCE';
   answer_text: string | null;
   difficulty: Difficulty;
   marks: number | null;
@@ -133,6 +138,8 @@ export interface Question {
     topicId: string | null;
   }>;
   bank_ids?: string[];
+  usage_count?: number;
+  last_used_at?: string | null;
   owner_id?: string | null;
   is_private?: boolean;
   visibility?: 'private' | 'faculty_bank' | 'institution' | 'public';
@@ -172,6 +179,7 @@ export type PaperStatus = 'draft' | 'published' | 'archived';
 export type PaperSet = 'A' | 'B' | 'C' | 'D';
 
 export interface PaperSection {
+  id?: string | null;
   name: string;
   questionCount: number;
   marksPerQuestion: number;
@@ -185,6 +193,7 @@ export interface Paper {
   paper_code: string;
   exam_type_id: string | null;
   subject_id: string | null;
+  subject_ids?: string[];
   class: number;
   total_marks: number;
   total_questions: number;
@@ -325,6 +334,7 @@ export interface Upload {
   original_html?: string | null;
   original_plain?: string | null;
   upload_options?: Record<string, any>;
+  commit_summary?: { approved: number; rejected: number; duplicate: number; needsReview: number; failedValidation: number };
   uploaded_by_user?: { id: string; full_name: string; email: string; role: string };
 }
 
@@ -421,9 +431,12 @@ export interface ExamTemplate {
   sections: Array<{
     name: string;
     allowedQuestionTypes: string[];
+    responseTypes?: Array<'MCQ' | 'MSQ' | 'NUMERICAL'>;
+    subtypes?: string[];
     marksPerQuestion: number;
     negativeMarksPerQuestion: number;
     questionCount: number;
+    subjectName?: string;
   }>;
   instructions: string | null;
   layoutDefaults: {
@@ -436,6 +449,17 @@ export interface ExamTemplate {
   exportDefaults: Record<string, any>;
   createdBy: string | null;
   isSystem: boolean;
+  version?: number;
+  versionOf?: string | null;
+  isCurrent?: boolean;
+  isPublished?: boolean;
+  paperCount?: number;
+  examYear?: number | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  officialSource?: string | null;
+  attemptRules?: Record<string, unknown>;
+  constraints?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -8,20 +8,24 @@ export const predefinedTemplates = [
     sections: [
       {
         name: 'Section A - MCQ (Single Choice)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
+        allowedQuestionTypes: ['MCQ_SINGLE'],
+        responseTypes: ['MCQ'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 1,
         questionCount: 20
       },
       {
         name: 'Section B - Numerical Value Questions',
-        allowedQuestionTypes: ['numerical', 'NUMERICAL', 'INTEGER'],
+        allowedQuestionTypes: ['NUMERICAL'],
+        responseTypes: ['NUMERICAL'],
+        subtypes: ['INTEGER_RESPONSE'],
         marksPerQuestion: 4,
-        negativeMarksPerQuestion: 0,
-        questionCount: 10
+        negativeMarksPerQuestion: 1,
+        questionCount: 5
       }
     ],
-    instructions: 'This test contains 90 questions (30 in each subject). Section A contains 20 MCQ questions with one option correct. Section B contains 10 Numerical Value questions (attempt any 5). For Section A, +4 is awarded for a correct answer and -1 for an incorrect answer. For Section B, +4 is awarded for a correct answer and 0 for incorrect.',
+    paperCount: 1,
+    instructions: 'Each subject section contains 20 single-correct MCQs and 5 numerical-response questions. The blueprint expands those sections across Physics, Chemistry, and Mathematics. Each question carries 4 marks; incorrect answers carry a 1-mark deduction.',
     layoutDefaults: {
       layout: 'single_column',
       margin: 'normal',
@@ -29,7 +33,10 @@ export const predefinedTemplates = [
       fontSize: 11,
       lineSpacing: 1.15
     },
-    isSystem: true
+    isSystem: true,
+    version: 1,
+    isCurrent: true,
+    isPublished: true
   },
   {
     name: 'JEE Advanced Template',
@@ -38,27 +45,31 @@ export const predefinedTemplates = [
     sections: [
       {
         name: 'Section 1 - Single Correct MCQ',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
+        allowedQuestionTypes: ['MCQ_SINGLE'],
+        responseTypes: ['MCQ'],
         marksPerQuestion: 3,
         negativeMarksPerQuestion: 1,
         questionCount: 6
       },
       {
         name: 'Section 2 - Multiple Correct MCQ',
-        allowedQuestionTypes: ['MCQ_MULTI'],
+        allowedQuestionTypes: ['MCQ_MULTIPLE'],
+        responseTypes: ['MSQ'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 2,
         questionCount: 6
       },
       {
         name: 'Section 3 - Integer / Numerical Type',
-        allowedQuestionTypes: ['numerical', 'NUMERICAL', 'INTEGER'],
+        allowedQuestionTypes: ['NUMERICAL'],
+        responseTypes: ['NUMERICAL'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 0,
         questionCount: 6
       }
     ],
-    instructions: 'This question paper consists of three parts: Physics, Chemistry and Mathematics. Each part contains three sections. Section 1 contains 6 MCQ questions (+3, -1 marks). Section 2 contains 6 Multi-Option MCQs (+4, -2 marks). Section 3 contains 6 Numerical Value questions (+4, 0 marks).',
+    paperCount: 2,
+    instructions: 'JEE Advanced blueprint: each paper has Physics, Chemistry, and Mathematics sections. Single-correct MCQ, multi-correct MSQ, and numerical-response counts and scoring are configurable by the institution for the chosen year.',
     layoutDefaults: {
       layout: 'single_column',
       margin: 'normal',
@@ -66,7 +77,10 @@ export const predefinedTemplates = [
       fontSize: 10.5,
       lineSpacing: 1.25
     },
-    isSystem: true
+    isSystem: true,
+    version: 1,
+    isCurrent: true,
+    isPublished: true
   },
   {
     name: 'NEET Template',
@@ -75,48 +89,34 @@ export const predefinedTemplates = [
     sections: [
       {
         name: 'Section A - Physics MCQ (Mandatory)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
+        allowedQuestionTypes: ['MCQ_SINGLE'],
+        responseTypes: ['MCQ'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 1,
-        questionCount: 35
+        questionCount: 45,
+        subjectName: 'Physics'
       },
       {
-        name: 'Section B - Physics MCQ (Optional)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
+        name: 'Chemistry MCQ',
+        allowedQuestionTypes: ['MCQ_SINGLE'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 1,
-        questionCount: 15
+        responseTypes: ['MCQ'],
+        questionCount: 45,
+        subjectName: 'Chemistry'
       },
       {
-        name: 'Section A - Chemistry MCQ (Mandatory)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
+        name: 'Biology MCQ',
+        allowedQuestionTypes: ['MCQ_SINGLE'],
         marksPerQuestion: 4,
         negativeMarksPerQuestion: 1,
-        questionCount: 35
-      },
-      {
-        name: 'Section B - Chemistry MCQ (Optional)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
-        marksPerQuestion: 4,
-        negativeMarksPerQuestion: 1,
-        questionCount: 15
-      },
-      {
-        name: 'Section A - Biology MCQ (Mandatory)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
-        marksPerQuestion: 4,
-        negativeMarksPerQuestion: 1,
-        questionCount: 70
-      },
-      {
-        name: 'Section B - Biology MCQ (Optional)',
-        allowedQuestionTypes: ['mcq', 'MCQ_SINGLE'],
-        marksPerQuestion: 4,
-        negativeMarksPerQuestion: 1,
-        questionCount: 30
+        responseTypes: ['MCQ'],
+        questionCount: 90,
+        subjectName: 'Biology'
       }
     ],
-    instructions: 'The test is of 3 hours and 20 minutes duration and consists of 200 multiple-choice questions (four options with a single correct answer) from Physics, Chemistry and Biology. Section A has 35 questions and Section B has 15 questions (attempt any 10). Each question carries 4 marks (+4 for correct, -1 for incorrect).',
+    paperCount: 1,
+    instructions: 'NEET blueprint has 45 single-correct MCQs in Physics, 45 in Chemistry, and 90 in Biology. Each question carries 4 marks; an incorrect answer carries a 1-mark deduction.',
     layoutDefaults: {
       layout: 'two_column',
       margin: 'narrow',
@@ -124,7 +124,10 @@ export const predefinedTemplates = [
       fontSize: 9.5,
       lineSpacing: 1.1
     },
-    isSystem: true
+    isSystem: true,
+    version: 1,
+    isCurrent: true,
+    isPublished: true
   },
   {
     name: 'CBSE Board Template',
@@ -175,7 +178,10 @@ export const predefinedTemplates = [
       fontSize: 11.5,
       lineSpacing: 1.4
     },
-    isSystem: true
+    isSystem: true,
+    version: 1,
+    isCurrent: true,
+    isPublished: true
   },
   {
     name: 'Institution Template',
@@ -205,19 +211,35 @@ export const predefinedTemplates = [
       fontSize: 11,
       lineSpacing: 1.25
     },
-    isSystem: true
+    isSystem: true,
+    version: 1,
+    isCurrent: true,
+    isPublished: true
   }
 ];
 
 export async function seedPredefinedTemplates() {
   for (const t of predefinedTemplates) {
-    const existing = await ExamTemplate.findOne({ code: t.code, isSystem: true });
+    const existing = await ExamTemplate.findOne({ code: t.code, isSystem: true, isCurrent: { $ne: false } }).sort({ version: -1 });
     if (!existing) {
       await ExamTemplate.create(t);
       console.log(`Seeded system template: ${t.name}`);
     } else {
-      Object.assign(existing, t);
-      await existing.save();
+      const existingData = existing.toObject();
+      const stableKeys = ['name', 'subjectStructure', 'sections', 'instructions', 'layoutDefaults', 'paperCount'];
+      const hasChanges = stableKeys.some((key) => JSON.stringify(existingData[key] ?? null) !== JSON.stringify(t[key] ?? null));
+      if (hasChanges) {
+        existing.isCurrent = false;
+        await existing.save();
+        await ExamTemplate.create({
+          ...t,
+          version: Number(existing.version || 1) + 1,
+          versionOf: existing.versionOf || existing._id,
+          isCurrent: true,
+          isPublished: true,
+        });
+        console.log(`Published ${t.name} blueprint v${Number(existing.version || 1) + 1}`);
+      }
     }
   }
 }

@@ -1,9 +1,7 @@
 /**
- * Question Type Normalizer — centralized canonical type mapping.
+ * Legacy questionType compatibility mapper. New workflows use questionTaxonomy.js.
  *
- * Core objective types stored for new workflow records:
- *   MCQ_SINGLE, MCQ_MULTIPLE, TRUE_FALSE, FILL_BLANK, NUMERICAL, NUMERICAL_INTEGER,
- *   MATCH_FOLLOWING, ASSERTION_REASON, UNCLASSIFIED
+ * This projection is retained for old extraction/export/scoring consumers only.
  *
  * Legacy → Canonical mappings:
  *   mcq → MCQ_SINGLE
@@ -88,8 +86,8 @@ const LEGACY_TO_CANONICAL = {
 };
 
 /**
- * Normalize ANY question type to its canonical form.
- * Returns a canonical type, using UNCLASSIFIED for unknown input.
+ * Normalize a legacy questionType alias for compatibility consumers.
+ * Do not use this return value as the canonical response type.
  */
 export function normalizeQuestionType(type) {
   if (!type) return 'UNCLASSIFIED';

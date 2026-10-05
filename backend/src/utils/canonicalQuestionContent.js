@@ -1,3 +1,5 @@
+import { parseNumericalAnswer } from './numericalAnswer.js';
+
 export const CANONICAL_QUESTION_CONTENT_VERSION = 'examforge-question-content/v1';
 const BLOCK_TYPES = new Set(['text', 'equation', 'image', 'table', 'embedded']);
 
@@ -69,8 +71,8 @@ export function canonicalContentFromLegacy(question = {}) {
     (question.correct_answers?.length ? question.correct_answers : null) ??
     question.correctOption ?? question.correct_option ?? question.numericalAnswer ?? question.numerical_answer ?? question.answerText ?? question.answer_text ?? question.answerKey ?? question.answer_key ?? null;
   const questionType = String(question.questionType || question.question_type || '').toUpperCase();
-  const answer = ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(questionType) && legacyAnswer != null
-    ? { value: legacyAnswer, tolerance: Number(question.numericalTolerance ?? question.numerical_tolerance ?? 0) }
+  const answer = (question.responseType === 'NUMERICAL' || ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(questionType)) && legacyAnswer != null
+    ? { value: parseNumericalAnswer(legacyAnswer), sourceValue: legacyAnswer, comparisonPolicy: question.numericalComparisonPolicy || question.numerical_comparison_policy || 'EXACT', tolerance: Number(question.numericalTolerance ?? question.numerical_tolerance ?? 0) }
     : legacyAnswer;
   return createCanonicalQuestionContent({
     stem,
@@ -144,8 +146,8 @@ export function reconcileCanonicalQuestionContent(existingQuestion, updates = {}
   if (answerTouched) {
     const priorValue = base.answer && typeof base.answer === 'object' && !Array.isArray(base.answer) ? base.answer.value : base.answer;
     const value = updates.correctAnswers ?? updates.correctOption ?? updates.numericalAnswer ?? updates.answerText ?? updates.answerKey ?? priorValue ?? null;
-    answer = ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(String(existingQuestion.questionType || '').toUpperCase()) || Object.hasOwn(updates, 'numericalTolerance')
-      ? { value, tolerance: Object.hasOwn(updates, 'numericalTolerance') ? Number(updates.numericalTolerance || 0) : Number(base.answer?.tolerance ?? existingQuestion.numericalTolerance ?? 0) }
+    answer = existingQuestion.responseType === 'NUMERICAL' || ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(String(existingQuestion.questionType || '').toUpperCase()) || Object.hasOwn(updates, 'numericalTolerance')
+      ? { value: parseNumericalAnswer(value), sourceValue: value, comparisonPolicy: base.answer?.comparisonPolicy || 'EXACT', tolerance: Object.hasOwn(updates, 'numericalTolerance') ? Number(updates.numericalTolerance || 0) : Number(base.answer?.tolerance ?? existingQuestion.numericalTolerance ?? 0) }
       : value;
   }
   return createCanonicalQuestionContent({ ...base, stem, options, explanation, answer });
@@ -193,9 +195,10 @@ export function projectCanonicalContentToLegacyFields(content, questionType, bas
     const value = answer.value;
     fields.correctOption = value == null ? null : optionIndex(value);
     fields.correctAnswers = value == null ? [] : [String(value)];
-  } else if (['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type)) {
-    fields.numericalAnswer = answer.value == null ? null : Number(answer.value);
+  } else if (base.responseType === 'NUMERICAL' || ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type)) {
+    fields.numericalAnswer = answer.value == null ? null : parseNumericalAnswer(answer.value);
     if (answer.tolerance !== undefined) fields.numericalTolerance = Number(answer.tolerance);
+    fields.numericalComparisonPolicy = answer.comparisonPolicy || 'EXACT';
   } else if (['FILL_BLANK', 'MATCH_FOLLOWING'].includes(type)) {
     fields.answerText = answer.value == null ? null : String(answer.value);
     fields.correctAnswers = Array.isArray(answer.acceptedAnswers) ? answer.acceptedAnswers.map(String) : [];

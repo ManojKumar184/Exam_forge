@@ -4,14 +4,15 @@ import { Question } from '../models/Question.js';
 import { SyllabusNode } from '../models/SyllabusNode.js';
 import { AppError } from '../utils/AppError.js';
 import { normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
-import { computeDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
+import { computeQuestionDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
 import { mapQuestion, bodyToQuestionFields } from '../utils/questionMapper.js';
 import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
 import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 import { getSystemTestBankIds, prepareQuestionBankSources, validateQuestionBankIds } from './questionBankMembershipService.js';
 import { QuestionBank } from '../models/QuestionBank.js';
-import { resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
+import { compatibilityQuestionType, resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
+import { parseNumericalAnswer } from '../utils/numericalAnswer.js';
 
 export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
@@ -25,7 +26,9 @@ export function assertCoreV1QuestionType(value) {
 
 const QUESTION_CREATE_FIELDS = new Set([
   'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
+  'contextGroupId', 'contextGroupPosition', 'sharedContext',
   'responseType', 'subtype',
+  'numericalComparisonPolicy',
   'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
   'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
   'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
@@ -77,11 +80,11 @@ export function validateQuestionForApproval(question) {
     throw new AppError('Select a valid assertion/reason answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   const numericalAnswer = content && answer && typeof answer === 'object' ? answer.value : (content ? answer : question.numericalAnswer ?? answer);
-  if (['NUMERICAL', 'NUMERICAL_INTEGER'].includes(type) && (numericalAnswer == null || numericalAnswer === '' || !Number.isFinite(Number(numericalAnswer)))) {
+  if (taxonomy.responseType === 'NUMERICAL' && parseNumericalAnswer(numericalAnswer) === null) {
     throw new AppError('Enter a valid numerical answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (type === 'NUMERICAL_INTEGER' && !Number.isInteger(Number(numericalAnswer))) {
-    throw new AppError('Integer questions require an integer answer', 400, 'INVALID_QUESTION_CONTENT');
+  if (taxonomy.responseType === 'NUMERICAL' && taxonomy.subtype === 'INTEGER_RESPONSE' && !Number.isInteger(parseNumericalAnswer(numericalAnswer))) {
+    throw new AppError('Integer-response questions need a whole-number answer', 400, 'INVALID_QUESTION_CONTENT');
   }
   if (content && typeof content.answer === 'object' && Number(content.answer.tolerance ?? 0) < 0) {
     throw new AppError('Numerical tolerance cannot be negative', 400, 'INVALID_QUESTION_CONTENT');
@@ -92,9 +95,9 @@ export function validateQuestionForApproval(question) {
   if (type === 'MATCH_FOLLOWING' && (answer == null || (Array.isArray(answer) && answer.length === 0) || String(answer).trim() === '')) {
     throw new AppError('Provide the correct matching answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  const hasSyllabusData = question.syllabusMappings?.length > 0 &&
-    question.syllabusMappings[0]?.subjectId && question.syllabusMappings[0]?.examPatternId;
-  if (!hasSyllabusData) throw new AppError('Set syllabus mappings (subject + exam pattern) before approving', 400, 'INCOMPLETE_METADATA');
+  const mapping = question.syllabusMappings?.[0];
+  const hasSyllabusData = mapping?.examPatternId && mapping?.classId && mapping?.subjectId && mapping?.chapterId;
+  if (!hasSyllabusData) throw new AppError('Set class, subject, chapter, and exam pattern before approving', 400, 'INCOMPLETE_METADATA');
 }
 
 function parseListParam(value) {
@@ -158,6 +161,10 @@ function buildListFilter(query, user, selectedSystemTestBankIds = [], excludedQu
   const questionTypes = parseListParam(query.question_types);
   if (questionTypes.length) conds.questionType = { $in: questionTypes };
   else if (query.question_type) conds.questionType = query.question_type;
+  const responseTypes = parseListParam(query.response_types || query.response_type);
+  if (responseTypes.length) conds.responseType = { $in: responseTypes };
+  const subtypes = parseListParam(query.subtypes || query.subtype);
+  if (subtypes.length) conds.subtype = { $in: subtypes };
 
   if (query.upload_id) conds.uploadId = query.upload_id;
   if (query.source) conds.source = query.source;
@@ -354,6 +361,14 @@ export async function createQuestion(body, user) {
   if (tenantId) await assertWithinEntitlement(tenantId, 'questions');
   const fields = bodyToQuestionFields(body, QUESTION_CREATE_FIELDS);
   fields.questionType = assertCoreV1QuestionType(fields.questionType);
+  const taxonomy = resolveQuestionTaxonomy(fields);
+  if (fields.responseType) fields.questionType = compatibilityQuestionType(taxonomy.responseType);
+  fields.responseType = taxonomy.responseType;
+  fields.subtype = taxonomy.subtype;
+  if (taxonomy.responseType === 'NUMERICAL' && fields.numericalAnswer != null) {
+    fields.numericalAnswer = parseNumericalAnswer(fields.numericalAnswer);
+    if (fields.numericalAnswer === null) throw new AppError('Enter a valid numerical answer', 400, 'INVALID_NUMERICAL_ANSWER');
+  }
   fields.canonicalContent = canonicalContentFromLegacy(fields);
   Object.assign(fields, projectCanonicalContentToLegacyFields(fields.canonicalContent, fields.questionType, fields));
   fields.source = 'manual';
@@ -369,16 +384,18 @@ export async function createQuestion(body, user) {
     fields.isPrivate = body.is_private !== undefined ? (body.is_private === 'true' || body.is_private === true) : false;
     fields.visibility = body.visibility || 'public';
   }
-  fields.duplicateHash = computeDuplicateHash(fields.questionText || body.question_text);
+  fields.duplicateHash = computeQuestionDuplicateHash(fields);
   const requestedBankIds = fields.bankIds?.length ? await validateQuestionBankIds(fields.bankIds, user) : [];
   fields.bankIds = requestedBankIds.length ? requestedBankIds : undefined;
   const systemTestBankIds = await getSystemTestBankIds(requestedBankIds, user);
-  if (systemTestBankIds.length) {
+  const systemTestOnly = requestedBankIds.length > 0 && requestedBankIds.every((id) => systemTestBankIds.map(String).includes(String(id)));
+  fields.duplicatePolicy = systemTestOnly ? 'SYSTEM_TEST_ALLOW' : 'PROHIBIT';
+  if (systemTestOnly) {
     fields.institutionId = null;
     fields.isPrivate = false;
     fields.visibility = 'public';
   }
-  const dup = systemTestBankIds.length ? null : await findDuplicateCandidate(Question, fields.duplicateHash);
+  const dup = systemTestOnly ? null : await findDuplicateCandidate(Question, fields.duplicateHash);
   
   const ai = await classifyQuestionMetadata(fields);
   fields.aiConfidence = ai.aiConfidence;
@@ -468,6 +485,16 @@ export async function updateQuestion(id, body, user) {
 
   const fields = bodyToQuestionFields(body, QUESTION_UPDATE_FIELDS);
   if (Object.hasOwn(fields, 'questionType')) fields.questionType = assertCoreV1QuestionType(fields.questionType);
+  if (fields.responseType) {
+    const taxonomy = resolveQuestionTaxonomy({ ...question.toObject(), ...fields });
+    fields.questionType = compatibilityQuestionType(taxonomy.responseType);
+    fields.responseType = taxonomy.responseType;
+    fields.subtype = taxonomy.subtype;
+  }
+  if (fields.numericalAnswer != null) {
+    fields.numericalAnswer = parseNumericalAnswer(fields.numericalAnswer);
+    if (fields.numericalAnswer === null) throw new AppError('Enter a valid numerical answer', 400, 'INVALID_NUMERICAL_ANSWER');
+  }
   if (fields.bankIds) {
     const { validateQuestionBankIds } = await import('./questionBankMembershipService.js');
     fields.bankIds = await validateQuestionBankIds(fields.bankIds, user);
@@ -484,8 +511,12 @@ export async function updateQuestion(id, body, user) {
     delete fields.isPrivate;
     delete fields.visibility;
   }
-  if (fields.questionText) {
-    fields.duplicateHash = computeDuplicateHash(fields.questionText);
+  if (fields.questionText || fields.canonicalContent) {
+    fields.duplicateHash = computeQuestionDuplicateHash({ ...question.toObject(), ...fields });
+    if (question.status === 'approved' && question.duplicatePolicy !== 'SYSTEM_TEST_ALLOW' &&
+        await findDuplicateCandidate(Question, fields.duplicateHash, question._id)) {
+      throw new AppError('An exact duplicate is already approved in a normal question bank', 409, 'DUPLICATE_QUESTION');
+    }
   }
 
   const preSnapshot = {
@@ -521,7 +552,11 @@ export async function updateQuestion(id, body, user) {
     }
   ];
 
-  await question.save();
+  try { await question.save(); }
+  catch (error) {
+    if (error?.code === 11000) throw new AppError('An exact duplicate was approved concurrently', 409, 'DUPLICATE_QUESTION');
+    throw error;
+  }
   // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(question);
 }
@@ -562,6 +597,11 @@ export async function approveQuestion(id, user) {
   }
   
   // syllabusMappings required before approving — flat Subject/ExamType collections were dropped
+  existing.duplicatePolicy = await isSystemTestOnlyQuestion(existing) ? 'SYSTEM_TEST_ALLOW' : 'PROHIBIT';
+  existing.duplicateHash = computeQuestionDuplicateHash(existing);
+  if (existing.duplicatePolicy === 'PROHIBIT' && await findDuplicateCandidate(Question, existing.duplicateHash, existing._id)) {
+    throw new AppError('An exact duplicate is already approved in a normal question bank', 409, 'DUPLICATE_QUESTION');
+  }
   existing.status = 'approved';
   existing.canonicalContent = canonicalContentFromLegacy(existing);
   existing.canonicalContent.validation = { ...existing.canonicalContent.validation, status: 'approved' };
@@ -577,7 +617,11 @@ export async function approveQuestion(id, user) {
     }
   ];
 
-  await existing.save();
+  try { await existing.save(); }
+  catch (error) {
+    if (error?.code === 11000) throw new AppError('An exact duplicate was approved concurrently', 409, 'DUPLICATE_QUESTION');
+    throw error;
+  }
   // Populate for flat Subject/Topic/ExamType removed — collections were dropped
   return mapQuestion(existing);
 }
@@ -626,37 +670,29 @@ export async function rejectQuestion(id, user, notes) {
  * @returns {Promise<void>}
  */
 export async function bulkApprove(ids, user) {
-  const filter = { _id: { $in: ids } };
-  filter.institutionId = user.activeInstitutionId || user.defaultInstitutionId;
-  if (user.role !== 'super_admin' && user.membershipRole !== 'INSTITUTION_ADMIN') {
-    filter.ownerId = user._id;
-  }
-  const questions = await Question.find(filter);
-  
-  // Validate the complete batch before mutating any document.
-  for (const q of questions) {
-    try { validateQuestionForApproval(q); }
-    catch (error) {
-      if (error.code === 'INCOMPLETE_METADATA') error.message = `Question #${q.serialId || q._id} is missing syllabus mappings (subject + exam pattern)`;
-      throw error;
+  const requested = [...new Set((ids || []).map(String))];
+  const results = { approved: 0, rejected: 0, duplicate: 0, needsReview: 0, failedValidation: 0, failures: [] };
+  for (const id of requested) {
+    try {
+      await approveQuestion(id, user);
+      results.approved += 1;
+    } catch (error) {
+      const code = error?.code || error?.statusCode;
+      if (code === 'DUPLICATE_QUESTION' || error?.statusCode === 409) results.duplicate += 1;
+      else if (code === 'INCOMPLETE_METADATA' || code === 'UNSUPPORTED_RESPONSE_TYPE' || code === 'UNSUPPORTED_QUESTION_TYPE') results.needsReview += 1;
+      else if (error?.statusCode === 400) results.failedValidation += 1;
+      else results.rejected += 1;
+      results.failures.push({ id, code: code || 'APPROVAL_FAILED', message: error?.message || 'Approval failed' });
     }
   }
-  for (const q of questions) {
-    q.status = 'approved';
-    q.canonicalContent = canonicalContentFromLegacy(q);
-    q.canonicalContent.validation = { ...q.canonicalContent.validation, status: 'approved' };
-    q.reviewedBy = user._id;
-    q.reviewedAt = new Date();
-    q.auditHistory = [
-      ...(q.auditHistory || []),
-      {
-        action: 'approved',
-        timestamp: new Date(),
-        user: user._id,
-      }
-    ];
-    await q.save();
-  }
+  return results;
+}
+
+async function isSystemTestOnlyQuestion(question) {
+  const ids = (question.bankIds || []).map(String);
+  if (!ids.length) return false;
+  const banks = await QuestionBank.find({ _id: { $in: ids } }).select('type').lean();
+  return banks.length === ids.length && banks.every((bank) => bank.type === 'system_test');
 }
 
 /**
@@ -716,8 +752,8 @@ export async function bulkUpdateMetadata(ids, updates, user) {
   delete fields.status;
   for (const key of ['createdBy', 'ownerId', 'institutionId', 'reviewedBy', 'reviewedAt', 'reviewNotes', 'auditHistory', 'enrichmentAttempts', 'semanticEnriched']) delete fields[key];
   if (Object.keys(fields).length === 0) return { modified: 0 };
-  if (fields.questionText) {
-    fields.duplicateHash = computeDuplicateHash(fields.questionText);
+  if (fields.questionText || fields.canonicalContent) {
+    fields.duplicateHash = computeQuestionDuplicateHash(fields);
   }
   if (user.role !== 'super_admin') {
     delete fields.ownerId;

@@ -43,7 +43,7 @@ interface DataState {
   deleteQuestion: (id: string) => Promise<{ error: any }>;
   approveQuestion: (id: string) => Promise<{ error: any }>;
   rejectQuestion: (id: string, notes: string) => Promise<{ error: any }>;
-  bulkApproveQuestions: (ids: string[]) => Promise<{ error: any }>;
+  bulkApproveQuestions: (ids: string[]) => Promise<{ error: any; summary?: { approved: number; rejected: number; duplicate: number; needsReview: number; failedValidation: number } }>;
   bulkRejectQuestions: (ids: string[], notes?: string) => Promise<{ error: any }>;
   bulkDeleteQuestions: (ids: string[]) => Promise<{ error: any }>;
   bulkUpdateQuestionsMetadata: (ids: string[], updates: Partial<Question>) => Promise<{ error: any }>;

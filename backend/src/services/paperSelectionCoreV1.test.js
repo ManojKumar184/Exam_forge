@@ -2,12 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertSufficientQuestionAvailability, buildQuestionFilter, seededRandom } from './paperSelectionService.js';
 
-test('Core v1 paper pool is objective-only and retains supported legacy aliases', () => {
+test('Core v1 paper pool only admits the canonical response taxonomy', () => {
   const filter = buildQuestionFilter({ class: 10 });
-  assert.ok(filter.questionType.$in.includes('TRUE_FALSE'));
-  assert.ok(filter.questionType.$in.includes('FILL_BLANK'));
-  assert.ok(filter.questionType.$in.includes('ASSERTION_REASON'));
-  assert.ok(!filter.questionType.$in.includes('DESCRIPTIVE'));
+  assert.deepEqual(filter.responseType.$in, ['MCQ', 'MSQ', 'NUMERICAL']);
+  assert.equal(filter.questionType, undefined);
   assert.deepEqual(buildQuestionFilter({ coreVersion: 'legacy' }).questionType, undefined);
 });
 

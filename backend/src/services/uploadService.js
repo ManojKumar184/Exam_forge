@@ -1,6 +1,7 @@
 import path from 'path';
 import { Upload } from '../models/Upload.js';
 import { Question } from '../models/Question.js';
+import { QuestionBank } from '../models/QuestionBank.js';
 import { Counter } from '../models/Counter.js';
 import { env } from '../config/env.js';
 import { getFileType } from '../config/multer.js';
@@ -17,6 +18,29 @@ import { validateQuestion } from '../extraction/validationEngine.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 import { assertCoreV1QuestionType, validateQuestionForApproval } from './questionService.js';
 import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields, reconcileCanonicalQuestionContent } from '../utils/canonicalQuestionContent.js';
+import { SyllabusNode } from '../models/SyllabusNode.js';
+import { computeQuestionDuplicateHash, findDuplicateCandidate } from '../utils/duplicateHash.js';
+import { compatibilityQuestionType, resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
+import { parseNumericalAnswer } from '../utils/numericalAnswer.js';
+
+async function resolveImportMetadata(options = {}) {
+  const ids = [options.exam_type_id || options.examTypeId, options.class_id || options.classId, options.subject_id || options.subjectId, options.chapter_id || options.chapterId];
+  if (ids.some((id) => !id)) throw new AppError('Select an exam pattern, class, subject, and chapter before importing', 400, 'IMPORT_METADATA_REQUIRED');
+  const nodes = await SyllabusNode.find({ _id: { $in: ids } }).lean();
+  const byId = new Map(nodes.map((node) => [String(node._id), node]));
+  const [exam, classNode, subject, chapter] = ids.map((id) => byId.get(String(id)));
+  if (!exam || exam.type !== 'exam_pattern' || !classNode || classNode.type !== 'class' || String(classNode.parentId) !== String(exam._id) ||
+      !subject || subject.type !== 'subject' || String(subject.parentId) !== String(classNode._id) ||
+      !chapter || chapter.type !== 'chapter' || String(chapter.parentId) !== String(subject._id)) {
+    throw new AppError('The selected academic metadata does not form a valid syllabus path', 400, 'INVALID_SYLLABUS_SELECTION');
+  }
+  const classLevel = Number(String(classNode.name).match(/\d+/)?.[0]);
+  if (!Number.isInteger(classLevel) || classLevel < 1 || classLevel > 12) throw new AppError('The selected class has no valid numeric class level', 400, 'INVALID_SYLLABUS_SELECTION');
+  return {
+    classLevel,
+    syllabusMappings: [{ examPatternId: exam._id, classId: classNode._id, subjectId: subject._id, chapterId: chapter._id, topicId: null }],
+  };
+}
 
 /**
  * Atomic heartbeat/stage update — no version conflicts.
@@ -96,6 +120,8 @@ export async function startAsyncUpload(file, user, options = {}) {
   if (institutionId) await assertWithinEntitlement(institutionId, 'uploadsPerMonth');
   const fileType = getFileType(file.mimetype, file.originalname);
   if (!fileType) throw new AppError('Unsupported file type', 400, 'UNSUPPORTED_FILE');
+  const metadata = await resolveImportMetadata(options);
+  options = { ...options, ...metadata };
 
   const relativePath = `/uploads/documents/${file.filename}`;
   const upload = await Upload.create({
@@ -194,6 +220,10 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
     const uploadContext = {
       imageDir: path.join(env.uploadDir, 'images'),
       class: undefined,
+      classId: options.class_id || options.classId,
+      subjectId: options.subject_id || options.subjectId,
+      chapterId: options.chapter_id || options.chapterId,
+      syllabusMappings: options.syllabusMappings,
       filename: file.originalname,
       source: 'upload',
       sourceFile: file.originalname,
@@ -305,14 +335,31 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
           }))
         )
       );
+      const fingerprintRows = reconstructedQuestions.map((q) => ({ hash: computeQuestionDuplicateHash(q), q }));
+      const exactCandidates = fingerprintRows.some((row) => row.hash)
+        ? await Question.find({ duplicateHash: { $in: fingerprintRows.map((row) => row.hash).filter(Boolean) }, status: 'approved', duplicatePolicy: { $ne: 'SYSTEM_TEST_ALLOW' } }).select('_id duplicateHash').lean()
+        : [];
+      const exactByHash = new Map(exactCandidates.map((candidate) => [candidate.duplicateHash, candidate]));
+      const seenInDocument = new Map();
       const dupDuration = Date.now() - dupStart;
 
       const buildStart = Date.now();
       for (let j = 0; j < reconstructedQuestions.length; j++) {
         const q = reconstructedQuestions[j];
         const classified = classifiedList[j] || {};
-        const duplicateAnalysis = duplicateResults[j] || {};
+        const taxonomy = resolveQuestionTaxonomy(q);
         const blockIndex = i + j;
+        const duplicateAnalysis = { ...(duplicateResults[j] || {}) };
+        const fingerprint = fingerprintRows[j].hash;
+        const existingExact = fingerprint ? exactByHash.get(fingerprint) : null;
+        const sameDocument = fingerprint ? seenInDocument.get(fingerprint) : null;
+        if (existingExact || sameDocument) {
+          duplicateAnalysis.isDuplicate = true;
+          duplicateAnalysis.duplicateOf = existingExact?._id || sameDocument?._id || null;
+          duplicateAnalysis.duplicateMethod = 'exact_fingerprint';
+          duplicateAnalysis.duplicateScore = 1;
+        }
+        if (fingerprint && !sameDocument) seenInDocument.set(fingerprint, { _id: existingExact?._id || null, stagedIndex: blockIndex });
 
         if (duplicateAnalysis.isDuplicate) {
           totalDuplicatesCount++;
@@ -344,7 +391,10 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
 
         const stagedQuestionObj = {
           ...q,
-          class: classified.class ?? q.class,
+          class: options.classLevel ?? classified.class ?? q.class,
+          questionType: compatibilityQuestionType(taxonomy.responseType),
+          responseType: taxonomy.responseType,
+          subtype: taxonomy.subtype,
           difficulty: classified.difficulty ?? q.difficulty,
           tags: [...new Set([...(classified.tags || []), ...(q.tags || [])])],
           status,
@@ -357,13 +407,14 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
           questionLatex: q.questionLatex,
           hasEquation: Boolean(q.hasEquation || q.questionLatex),
           duplicateOf: duplicateAnalysis.duplicateOf || null,
+          duplicateHash: fingerprint,
           duplicateConfidence: duplicateAnalysis.duplicateScore,
           duplicateMethod: duplicateAnalysis.duplicateMethod,
           possibleMatches: duplicateAnalysis.possibleMatches || [],
           extractionWarnings,
           aiConfidence: classified.aiConfidence ?? 0,
           aiMetadata: classified.aiMetadata || {},
-          syllabusMappings: classified.syllabusMappings || null,
+          syllabusMappings: options.syllabusMappings,
           uploadId: uploadId,
           institutionId: user.activeInstitutionId || user.defaultInstitutionId,
           createdBy: user._id,
@@ -793,7 +844,8 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
 
   const current = upload.stagedQuestions[idx];
   const mappedFields = bodyToQuestionFields(questionFields, new Set([
-    'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
+    'questionText', 'questionType', 'responseType', 'subtype', 'contextType', 'questionLatex', 'questionImages', 'options',
+    'numericalComparisonPolicy',
     'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
     'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
     'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
@@ -805,9 +857,20 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
     mappedFields.bankIds = await validateQuestionBankIds(mappedFields.bankIds, user);
   }
   if (mappedFields.questionType) mappedFields.questionType = assertCoreV1QuestionType(mappedFields.questionType);
+  if (mappedFields.responseType) {
+    const taxonomy = resolveQuestionTaxonomy({ ...(current.toObject ? current.toObject() : current), ...mappedFields });
+    mappedFields.responseType = taxonomy.responseType;
+    mappedFields.subtype = taxonomy.subtype;
+    mappedFields.questionType = compatibilityQuestionType(taxonomy.responseType);
+  }
+  if (mappedFields.numericalAnswer != null) {
+    mappedFields.numericalAnswer = parseNumericalAnswer(mappedFields.numericalAnswer);
+    if (mappedFields.numericalAnswer === null) throw new AppError('Enter a valid numerical answer', 400, 'INVALID_NUMERICAL_ANSWER');
+  }
   const currentFields = current.toObject ? current.toObject() : current;
   mappedFields.canonicalContent = reconcileCanonicalQuestionContent({ ...currentFields, questionType: mappedFields.questionType || current.questionType }, mappedFields);
   Object.assign(mappedFields, projectCanonicalContentToLegacyFields(mappedFields.canonicalContent, mappedFields.questionType || current.questionType, mappedFields));
+  mappedFields.duplicateHash = computeQuestionDuplicateHash({ ...currentFields, ...mappedFields });
 
   upload.stagedQuestions[idx] = {
     ...current,
@@ -925,7 +988,8 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     try {
       validateQuestionForApproval(q);
     } catch (error) {
-      if (!['UNSUPPORTED_QUESTION_TYPE', 'INCOMPLETE_METADATA'].includes(error.code)) throw error;
+      q.commitFailureCategory = ['UNSUPPORTED_QUESTION_TYPE', 'UNSUPPORTED_RESPONSE_TYPE', 'INCOMPLETE_METADATA'].includes(error.code) ? 'needsReview' : 'failedValidation';
+      q.extractionWarnings = [...(q.extractionWarnings || []), error.message];
       q.isApproved = false;
       q.isRejected = false;
       q.status = 'needs_review';
@@ -937,6 +1001,26 @@ export async function commitStagedQuestions(uploadId, indices, user) {
     const questionBankIds = q.bankIds?.length
       ? await (await import('./questionBankMembershipService.js')).validateQuestionBankIds(q.bankIds, user)
       : defaultBankIds;
+    const selectedSystemBank = questionBankIds.length
+      ? await QuestionBank.findOne({ _id: { $in: questionBankIds }, type: 'system_test' }).select('_id').lean()
+      : null;
+    if (selectedSystemBank && user.role !== 'super_admin') throw new AppError('Only platform administrators can add content to the System Test Bank', 403, 'SYSTEM_TEST_FORBIDDEN');
+    const membershipBanks = questionBankIds.length ? await QuestionBank.find({ _id: { $in: questionBankIds } }).select('type').lean() : [];
+    const systemTestOnly = membershipBanks.length > 0 && membershipBanks.length === questionBankIds.length && membershipBanks.every((bank) => bank.type === 'system_test');
+    const duplicateHash = computeQuestionDuplicateHash(q);
+    const duplicatePolicy = systemTestOnly ? 'SYSTEM_TEST_ALLOW' : 'PROHIBIT';
+    if (duplicatePolicy === 'PROHIBIT') {
+      const exactDuplicate = await findDuplicateCandidate(Question, duplicateHash);
+      const repeatedInCommit = docsToCreate.some((row) => row.duplicateHash === duplicateHash && row.duplicatePolicy === 'PROHIBIT');
+      if (exactDuplicate || repeatedInCommit) {
+        q.status = 'needs_review';
+        q.commitFailureCategory = 'duplicate';
+        q.isApproved = false;
+        q.duplicateOf = exactDuplicate?._id || null;
+        q.extractionWarnings = [...(q.extractionWarnings || []), 'An exact duplicate already exists in a normal question bank'];
+        continue;
+      }
+    }
     docsToCreate.push({
       questionText: projectedContent.questionText,
       contentBlocks: projectedContent.contentBlocks,
@@ -954,6 +1038,12 @@ export async function commitStagedQuestions(uploadId, indices, user) {
         },
       },
       questionType: q.questionType,
+      responseType: q.responseType,
+      subtype: q.subtype,
+      contextType: q.contextType || null,
+      contextGroupId: q.contextGroupId || null,
+      contextGroupPosition: q.contextGroupPosition || 0,
+      sharedContext: q.sharedContext || [],
       questionLatex: projectedContent.questionLatex,
       questionImages: projectedContent.questionImages,
       options: projectedContent.options,
@@ -961,6 +1051,9 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       correctAnswers: projectedContent.correctAnswers || [],
       numericalAnswer: projectedContent.numericalAnswer,
       numericalTolerance: projectedContent.numericalTolerance ?? q.numericalTolerance ?? 0,
+      numericalComparisonPolicy: q.numericalComparisonPolicy || canonicalContent.answer?.comparisonPolicy || 'EXACT',
+      duplicateHash,
+      duplicatePolicy,
       answerText: projectedContent.answerText || q.answerKey || null,
       difficulty: q.difficulty || 'medium',
       class: q.class || 11,
@@ -1006,7 +1099,12 @@ export async function commitStagedQuestions(uploadId, indices, user) {
       docsToCreate[i].serialId = startSeq + i;
     }
 
-    const createdDocs = await Question.insertMany(docsToCreate);
+    let createdDocs;
+    try { createdDocs = await Question.insertMany(docsToCreate); }
+    catch (error) {
+      if (error?.code === 11000) throw new AppError('An exact duplicate was approved concurrently; review the affected questions and retry', 409, 'DUPLICATE_QUESTION');
+      throw error;
+    }
     if (upload.institutionId) await recordUsage(upload.institutionId, 'questions', createdDocs.length);
     for (let k = 0; k < createdDocs.length; k++) {
       const created = createdDocs[k];
@@ -1026,7 +1124,15 @@ export async function commitStagedQuestions(uploadId, indices, user) {
   upload.markModified('stagedQuestions');
   await upload.save();
 
-  return mapUploadDetail(upload);
+  const processed = indices.map((index) => upload.stagedQuestions[Number(index)]).filter(Boolean);
+  const summary = {
+    approved: processed.filter((question) => question.isApproved).length,
+    rejected: processed.filter((question) => question.isRejected).length,
+    duplicate: processed.filter((question) => question.commitFailureCategory === 'duplicate').length,
+    needsReview: processed.filter((question) => question.commitFailureCategory === 'needsReview' || (question.status === 'needs_review' && question.commitFailureCategory !== 'duplicate')).length,
+    failedValidation: processed.filter((question) => question.commitFailureCategory === 'failedValidation').length,
+  };
+  return { ...mapUploadDetail(upload), commit_summary: summary };
 }
 
 /**

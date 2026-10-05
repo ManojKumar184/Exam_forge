@@ -15,6 +15,7 @@ import { autoWrapEquations, extractPrimaryLatex } from '../../utils/equationAuto
 import type { SemanticBlock } from '../../utils/clipboardIngestion';
 import { fetchSyllabusTree, type SyllabusNode } from '../../api/syllabus';
 import { fetchQuestionBanksApi, type QuestionBank } from '../../api/questionBanks';
+import { parseNumericalAnswer } from '../../utils/parseNumericalAnswer';
 
 const DRAFT_KEY = 'examforge_question_draft';
 
@@ -40,15 +41,14 @@ interface QuestionEditorFormProps {
 }
 
 const SUBTYPE_OPTIONS: { value: EditorSubtype; label: string; questionType: QuestionType }[] = [
-  { value: 'mcq_single', label: 'MCQ (Single)', questionType: 'MCQ_SINGLE' },
-  { value: 'mcq_multiple', label: 'MCQ (Multiple)', questionType: 'MCQ_MULTIPLE' },
-  { value: 'true_false', label: 'True / False', questionType: 'TRUE_FALSE' },
-  { value: 'fill_blank', label: 'Fill in the Blank', questionType: 'FILL_BLANK' },
-  { value: 'assertion_reason', label: 'Assertion / Reason', questionType: 'ASSERTION_REASON' },
-  { value: 'unclassified', label: 'Unclassified (needs review)', questionType: 'UNCLASSIFIED' },
-  { value: 'integer', label: 'Integer', questionType: 'NUMERICAL_INTEGER' },
+  { value: 'mcq_single', label: 'MCQ', questionType: 'MCQ_SINGLE' },
+  { value: 'mcq_multiple', label: 'MSQ', questionType: 'MCQ_MULTIPLE' },
   { value: 'numerical', label: 'Numerical', questionType: 'NUMERICAL' },
-  { value: 'match_following', label: 'Match Columns', questionType: 'MATCH_FOLLOWING' },
+  { value: 'integer', label: 'Numerical · integer response', questionType: 'NUMERICAL' },
+  { value: 'true_false', label: 'True / False', questionType: 'MCQ_SINGLE' },
+  { value: 'assertion_reason', label: 'Assertion / Reason', questionType: 'MCQ_SINGLE' },
+  { value: 'unclassified', label: 'Unclassified (needs review)', questionType: 'UNCLASSIFIED' },
+  { value: 'match_following', label: 'Match the Following', questionType: 'MCQ_SINGLE' },
 ];
 
 function defaultOptions(): QuestionOption[] {
@@ -131,7 +131,10 @@ function applyReconstructResult(
     ]);
   }
   
-  setters.setSubtype(SUBTYPE_OPTIONS.some((option) => option.value === result.subtype) ? result.subtype : 'unclassified');
+  const detectedSubtype = ({ true_false: 'mcq_single', integer: 'integer', numerical_integer: 'integer', mcq: 'mcq_single', mcq_multi: 'mcq_multiple', comprehension: 'unclassified', fill_blank: 'unclassified' } as Record<string, EditorSubtype>)[result.subtype]
+    || (result.subtype === 'standard' ? (result.questionType === 'NUMERICAL' || result.questionType === 'NUMERICAL_INTEGER' ? 'numerical' : result.questionType === 'MCQ_MULTIPLE' ? 'mcq_multiple' : 'mcq_single') : undefined);
+  const normalizedSubtype = detectedSubtype || result.subtype;
+  setters.setSubtype(SUBTYPE_OPTIONS.some((option) => option.value === normalizedSubtype) ? normalizedSubtype as EditorSubtype : 'unclassified');
   if (result.numericalAnswer != null) {
     setters.setNumericalAnswer(String(result.numericalAnswer));
   }
@@ -144,6 +147,12 @@ function applyReconstructResult(
 
 function getSubtypeFromQuestion(q: Partial<Question> | undefined): EditorSubtype {
   if (!q) return 'mcq_single';
+  if (q.subtype === 'ASSERTION_REASON') return 'assertion_reason';
+  if (q.subtype === 'MATCH_THE_FOLLOWING') return 'match_following';
+  if (q.subtype === 'INTEGER_RESPONSE') return 'integer';
+  if (q.subtype === 'TRUE_FALSE') return 'true_false';
+  if (q.response_type === 'MSQ') return 'mcq_multiple';
+  if (q.response_type === 'NUMERICAL') return 'numerical';
   const tagSub = q.tags?.find((t) => SUBTYPE_OPTIONS.some((o) => o.value === t)) as EditorSubtype | undefined;
   if (tagSub) return tagSub;
 
@@ -153,11 +162,11 @@ function getSubtypeFromQuestion(q: Partial<Question> | undefined): EditorSubtype
   const upper = type.toUpperCase().trim();
   if (upper === 'MCQ_MULTIPLE' || upper === 'MCQ_MULTI') return 'mcq_multiple';
   if (upper === 'MCQ_SINGLE' || upper === 'MCQ') return 'mcq_single';
-  if (upper === 'TRUE_FALSE') return 'true_false';
-  if (upper === 'FILL_BLANK') return 'fill_blank';
+  if (upper === 'TRUE_FALSE') return 'mcq_single';
+  if (upper === 'FILL_BLANK') return 'unclassified';
   if (upper === 'ASSERTION_REASON') return 'assertion_reason';
   if (upper === 'UNCLASSIFIED') return 'unclassified';
-  if (upper === 'NUMERICAL_INTEGER' || upper === 'INTEGER') return 'integer';
+  if (upper === 'NUMERICAL_INTEGER' || upper === 'INTEGER') return 'numerical';
   if (upper === 'NUMERICAL') return 'numerical';
   if (upper === 'MATCH_FOLLOWING' || upper === 'MATCH_COLUMNS') return 'match_following';
   if (upper === 'COMPREHENSION' || upper === 'DESCRIPTIVE' || upper === 'SHORT_ANSWER' || upper === 'LONG_ANSWER') return 'unclassified';
@@ -247,7 +256,14 @@ export function QuestionEditorForm({
   onCancel,
   submitLabel = 'Save question',
 }: QuestionEditorFormProps) {
-  const [subtype, setSubtype] = useState<EditorSubtype>(() => getSubtypeFromQuestion(initial));
+  const [subtype, setSubtypeState] = useState<EditorSubtype>(() => getSubtypeFromQuestion(initial));
+  const [questionStructure, setQuestionStructure] = useState<string>(() => initial?.subtype || 'STANDARD');
+  const setSubtype = (value: EditorSubtype) => {
+    setSubtypeState(value);
+    const mapped: Record<string, string> = { assertion_reason: 'ASSERTION_REASON', match_following: 'MATCH_THE_FOLLOWING', integer: 'INTEGER_RESPONSE', true_false: 'TRUE_FALSE' };
+    if (mapped[value]) setQuestionStructure(mapped[value]);
+    else setQuestionStructure((current) => ['COMPREHENSION', 'PASSAGE_BASED', 'STATEMENT_BASED'].includes(current) ? current : 'STANDARD');
+  };
   const [canonicalContent, setCanonicalContent] = useState<CanonicalQuestionContent>(() => initialCanonicalContent(initial));
   const [structuredEditing, setStructuredEditing] = useState(Boolean(initial?.canonical_content?.stem?.length || initial?.content_blocks?.length));
   const contentBlocks = canonicalContent.stem;
@@ -316,6 +332,7 @@ export function QuestionEditorForm({
   });
   const [numericalAnswer, setNumericalAnswerState] = useState('');
   const [numericalTolerance, setNumericalToleranceState] = useState('0');
+  const [numericalComparisonPolicy, setNumericalComparisonPolicy] = useState<'EXACT' | 'TOLERANCE'>('EXACT');
   const setCorrectOption = (value: number | null) => {
     setCorrectOptionState(value);
     setCanonicalContent((previous) => ({ ...previous, answer: value }));
@@ -326,13 +343,20 @@ export function QuestionEditorForm({
   };
   const setNumericalAnswer = (value: string) => {
     setNumericalAnswerState(value);
-    setCanonicalContent((previous) => ({ ...previous, answer: value.trim() ? Number(value) : null }));
+    setCanonicalContent((previous) => ({ ...previous, answer: value.trim() ? { value: parseNumericalAnswer(value), comparisonPolicy: numericalComparisonPolicy, tolerance: Number(numericalTolerance || 0) } : null }));
   };
   const setNumericalTolerance = (value: string) => {
     setNumericalToleranceState(value);
     setCanonicalContent((previous) => ({
       ...previous,
-      answer: { value: numericalAnswer.trim() ? Number(numericalAnswer) : null, tolerance: value.trim() ? Number(value) : 0 },
+      answer: { value: parseNumericalAnswer(numericalAnswer), comparisonPolicy: numericalComparisonPolicy, tolerance: numericalComparisonPolicy === 'TOLERANCE' && value.trim() ? Number(value) : 0 },
+    }));
+  };
+  const setNumericalPolicy = (policy: 'EXACT' | 'TOLERANCE') => {
+    setNumericalComparisonPolicy(policy);
+    setCanonicalContent((previous) => ({
+      ...previous,
+      answer: { value: parseNumericalAnswer(numericalAnswer), comparisonPolicy: policy, tolerance: policy === 'TOLERANCE' ? Number(numericalTolerance || 0) : 0 },
     }));
   };
   const setAnswerText = (value: string) => {
@@ -392,7 +416,7 @@ export function QuestionEditorForm({
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconstructTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const isMcq = ['mcq_single', 'mcq_multiple', 'assertion_reason', 'true_false'].includes(subtype);
+  const isMcq = ['mcq_single', 'mcq_multiple', 'assertion_reason', 'match_following', 'true_false'].includes(subtype);
 
   const selectSubtype = (val: EditorSubtype) => {
     setSubtype(val);
@@ -491,12 +515,14 @@ export function QuestionEditorForm({
         : (initial.numerical_answer != null ? String(initial.numerical_answer) : '')
     );
     setNumericalToleranceState(String(d?.numericalTolerance ?? initial.numerical_tolerance ?? 0));
+    setNumericalComparisonPolicy(d?.numericalComparisonPolicy ?? initial.numerical_comparison_policy ?? (initial.canonical_content?.answer as any)?.comparisonPolicy ?? 'EXACT');
     setTagsInput(
       d?.tagsInput ||
       (initial.tags || []).filter((t) => !SUBTYPE_OPTIONS.some((o) => o.value === t)).join(', ')
     );
     const sub = d?.subtype || getSubtypeFromQuestion(initial);
     if (sub) setSubtype(sub);
+    setQuestionStructure(d?.questionStructure || initial.subtype || 'STANDARD');
 
     setSelectedBankId(d?.selectedBankId || initial.bank_ids?.[0] || '');
 
@@ -551,6 +577,7 @@ export function QuestionEditorForm({
         questionImages,
         options,
         subtype,
+        questionStructure,
         customChapterName,
         isCustomChapter,
         ocrText,
@@ -563,6 +590,7 @@ export function QuestionEditorForm({
         correctOptions,
         numericalAnswer,
         numericalTolerance,
+        numericalComparisonPolicy,
         tagsInput,
         selectedBankId,
         syllabusMapping: {
@@ -575,7 +603,7 @@ export function QuestionEditorForm({
       })
     );
     setTimeout(() => setAutosaveStatus('saved'), 350);
-  }, [initial?.id, bodyHtml, bodyPlain, contentBlocks, questionImages, options, subtype, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, correctOptions, numericalAnswer, numericalTolerance, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
+  }, [initial?.id, bodyHtml, bodyPlain, contentBlocks, questionImages, options, subtype, questionStructure, customChapterName, isCustomChapter, ocrText, explanation, answerText, classLevel, year, difficulty, correctOption, correctOptions, numericalAnswer, numericalTolerance, numericalComparisonPolicy, tagsInput, selectedBankId, selectedExamPattern, selectedClassNode, selectedSubjectNode, selectedChapterNode, selectedTopicNode]);
 
   useEffect(() => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -716,12 +744,11 @@ export function QuestionEditorForm({
     if (isMcq) {
       const filled = options.filter(hasOptionContent).length;
       if (filled < 2) errs.push('MCQ needs at least 2 options');
-      if (['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption === null) errs.push('Select correct option');
+      if (['mcq_single', 'assertion_reason', 'match_following'].includes(subtype) && correctOption === null) errs.push('Select correct option');
       if (subtype === 'mcq_multiple' && correctOptions.length === 0) errs.push('Select at least one correct option');
     }
-    if (['integer', 'numerical'].includes(subtype) && (!numericalAnswer || !Number.isFinite(Number(numericalAnswer)))) errs.push('Enter a valid numerical answer');
+    if (['integer', 'numerical'].includes(subtype) && parseNumericalAnswer(numericalAnswer) === null) errs.push('Enter a valid numerical answer');
     if (['integer', 'numerical'].includes(subtype) && (!Number.isFinite(Number(numericalTolerance)) || Number(numericalTolerance) < 0)) errs.push('Tolerance must be a non-negative number');
-    if (['fill_blank', 'match_following'].includes(subtype) && !answerText.trim()) errs.push('Correct answer is required');
     return errs;
   };
 
@@ -748,8 +775,8 @@ export function QuestionEditorForm({
     // Derive class from syllabus tree class node name (e.g., "Class 11" → 11)
     const derivedClass = selectedClassNode ? getClassFromNode() : classLevel;
     const canonicalAnswer = subtype === 'mcq_multiple' ? correctOptions
-      : ['integer', 'numerical'].includes(subtype) ? (numericalAnswer ? Number(numericalAnswer) : null)
-        : ['fill_blank', 'match_following'].includes(subtype) ? answerText.trim() || null
+      : ['integer', 'numerical'].includes(subtype) ? parseNumericalAnswer(numericalAnswer)
+      : subtype === 'match_following' ? (correctOption ?? null)
           : correctOption;
 
     return {
@@ -764,7 +791,7 @@ export function QuestionEditorForm({
         })) : [],
         explanation: canonicalExplanationBlocks(initial?.canonical_content?.explanation, explanation.trim()),
         answer: ['integer', 'numerical'].includes(subtype)
-          ? { value: canonicalAnswer, tolerance: Number(numericalTolerance || 0) }
+          ? { value: canonicalAnswer, comparisonPolicy: numericalComparisonPolicy, tolerance: numericalComparisonPolicy === 'TOLERANCE' ? Number(numericalTolerance || 0) : 0 }
           : canonicalAnswer,
         provenance: canonicalContent.provenance || { kind: initial?.source || 'manual', sourceFile: initial?.source_file || null },
         validation: canonicalContent.validation || {},
@@ -775,10 +802,8 @@ export function QuestionEditorForm({
       question_type: sub.questionType,
       response_type: ['integer', 'numerical'].includes(subtype) ? 'NUMERICAL'
         : subtype === 'mcq_multiple' ? 'MSQ'
-          : ['mcq_single', 'assertion_reason', 'true_false', 'match_following'].includes(subtype) ? 'MCQ' : null,
-      subtype: subtype === 'assertion_reason' ? 'ASSERTION_REASON'
-        : subtype === 'match_following' ? 'MATCH_THE_FOLLOWING'
-          : subtype === 'comprehension' ? 'COMPREHENSION' : 'STANDARD',
+          : ['mcq_single', 'assertion_reason', 'match_following', 'true_false'].includes(subtype) ? 'MCQ' : null,
+      subtype: questionStructure,
       class: derivedClass,
       year: year || null,
       chapter_name: (isCustomChapter && !selectedChapterNode) ? customChapterName || null : null,
@@ -786,16 +811,14 @@ export function QuestionEditorForm({
       options: isMcq ? options.filter(hasOptionContent) : [],
       correct_option: isMcq ? (subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption) : null,
       correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String)
-        : ['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
+        : ['mcq_single', 'assertion_reason', 'match_following', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
       numerical_answer:
         ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(sub.questionType) && numericalAnswer
-          ? Number(numericalAnswer)
+          ? parseNumericalAnswer(numericalAnswer)
           : null,
       numerical_tolerance: ['NUMERICAL', 'NUMERICAL_INTEGER'].includes(sub.questionType) ? Number(numericalTolerance || 0) : 0,
-      answer_text:
-        ['FILL_BLANK', 'MATCH_FOLLOWING'].includes(sub.questionType)
-          ? answerText.trim() || null
-          : null,
+      numerical_comparison_policy: numericalComparisonPolicy,
+      answer_text: null,
       explanation: explanation.trim() || null,
       tags: [...new Set(tags)],
       status: 'pending',
@@ -814,16 +837,14 @@ export function QuestionEditorForm({
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
     response_type: ['integer', 'numerical'].includes(subtype) ? 'NUMERICAL'
       : subtype === 'mcq_multiple' ? 'MSQ'
-        : ['mcq_single', 'assertion_reason', 'true_false', 'match_following'].includes(subtype) ? 'MCQ' : null,
-    subtype: subtype === 'assertion_reason' ? 'ASSERTION_REASON'
-      : subtype === 'match_following' ? 'MATCH_THE_FOLLOWING'
-        : subtype === 'comprehension' ? 'COMPREHENSION' : 'STANDARD',
+        : ['mcq_single', 'assertion_reason', 'match_following', 'true_false'].includes(subtype) ? 'MCQ' : null,
+    subtype: questionStructure as Question['subtype'],
     question_images: questionImages,
     options: isMcq ? options.filter(hasOptionContent) : [],
     correct_option: subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption,
     correct_answers: subtype === 'mcq_multiple' ? correctOptions.map(String)
-      : ['mcq_single', 'assertion_reason', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
-    numerical_answer: numericalAnswer ? Number(numericalAnswer) : null,
+      : ['mcq_single', 'assertion_reason', 'match_following', 'true_false'].includes(subtype) && correctOption !== null ? [String(correctOption)] : [],
+    numerical_answer: parseNumericalAnswer(numericalAnswer),
     numerical_tolerance: 0,
     answer_text: answerText || null,
     difficulty,
@@ -970,6 +991,21 @@ export function QuestionEditorForm({
               </button>
             ))}
           </div>
+          <Select
+            label="Question structure"
+            options={[
+              { value: 'STANDARD', label: 'Standard' },
+              { value: 'ASSERTION_REASON', label: 'Assertion / reason' },
+              { value: 'MATCH_THE_FOLLOWING', label: 'Match the following' },
+              { value: 'COMPREHENSION', label: 'Comprehension' },
+              { value: 'PASSAGE_BASED', label: 'Passage based' },
+              { value: 'STATEMENT_BASED', label: 'Statement based' },
+              { value: 'INTEGER_RESPONSE', label: 'Integer response' },
+              { value: 'TRUE_FALSE', label: 'True / false' },
+            ]}
+            value={questionStructure}
+            onChange={(event) => setQuestionStructure(event.target.value)}
+          />
 
           {structuredEditing ? (
             <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
@@ -1105,10 +1141,11 @@ export function QuestionEditorForm({
 
         {(subtype === 'integer' || subtype === 'numerical') && (
           <Card className="p-3">
+            <Select label="Answer comparison" options={[{ value: 'EXACT', label: 'Exact match' }, { value: 'TOLERANCE', label: 'Within tolerance' }]} value={numericalComparisonPolicy} onChange={(event) => setNumericalPolicy(event.target.value as 'EXACT' | 'TOLERANCE')} />
             <Input
               label="Answer"
-              type="number"
-              step="any"
+              type="text"
+              inputMode="decimal"
               value={numericalAnswer}
               onChange={(e) => {
                 setNumericalAnswer(e.target.value);
@@ -1122,6 +1159,7 @@ export function QuestionEditorForm({
               min="0"
               step="any"
               value={numericalTolerance}
+              disabled={numericalComparisonPolicy !== 'TOLERANCE'}
               onChange={(e) => {
                 setNumericalTolerance(e.target.value);
                 setAutosaveStatus('saving');
@@ -1131,7 +1169,7 @@ export function QuestionEditorForm({
           </Card>
         )}
 
-        {['fill_blank', 'match_following'].includes(subtype) && (
+        {subtype === 'fill_blank' && (
           <Card className="p-3">
             <Textarea
               label={subtype === 'match_following' ? 'Correct matching answer' : 'Correct answer'}

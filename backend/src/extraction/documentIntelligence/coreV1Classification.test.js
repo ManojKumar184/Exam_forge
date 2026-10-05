@@ -16,9 +16,12 @@ function classify(stem, options = [], detectedAnswer = null) {
 test('classifies supported objective question types', () => {
   assert.equal(classify('Choose the correct answer', [{ text: 'A' }, { text: 'B' }]).questionType, 'MCQ_SINGLE');
   assert.equal(classify('Select multiple correct options', [{ text: 'A' }, { text: 'B' }]).questionType, 'MCQ_MULTIPLE');
-  assert.equal(classify('Mark this statement true or false').questionType, 'TRUE_FALSE');
-  assert.equal(classify('Fill in the blank: 2 + 2 = ____').questionType, 'FILL_BLANK');
-  assert.equal(classify('Match the following columns').questionType, 'MATCH_FOLLOWING');
+  const trueFalse = classify('Mark this statement true or false');
+  assert.equal(trueFalse.questionType, 'MCQ_SINGLE');
+  assert.equal(trueFalse.responseType, 'MCQ');
+  assert.equal(trueFalse.subtype, 'TRUE_FALSE');
+  assert.equal(classify('Fill in the blank: 2 + 2 = ____').questionType, 'UNCLASSIFIED');
+  assert.equal(classify('Match the following columns').questionType, 'MCQ_SINGLE');
 });
 
 test('keeps ambiguous questions for human review', () => {
@@ -35,9 +38,11 @@ test('keeps ambiguous questions for human review', () => {
   assert.equal(validation.status, 'needs_review');
 });
 
-test('keeps numerical and integer classifications distinct and unsupported forms unclassified', () => {
+test('uses one numerical response type with an integer-response subtype', () => {
   assert.equal(classify('Give the numerical value to two decimal places.').questionType, 'NUMERICAL');
-  assert.equal(classify('Give the answer as an integer.').questionType, 'NUMERICAL_INTEGER');
+  const integer = classify('Give the answer as an integer.');
+  assert.equal(integer.questionType, 'NUMERICAL');
+  assert.equal(integer.subtype, 'INTEGER_RESPONSE');
   assert.equal(classify('Read the passage and explain your reasoning.').questionType, 'UNCLASSIFIED');
 });
 
@@ -45,7 +50,7 @@ test('approval validation accepts a complete objective item and rejects descript
   const valid = {
     questionText: 'Choose the correct answer.', questionType: 'MCQ_SINGLE',
     options: [{ text: 'A' }, { text: 'B' }], correctOption: 1,
-    syllabusMappings: [{ subjectId: 'subject', examPatternId: 'pattern' }],
+    syllabusMappings: [{ subjectId: 'subject', classId: 'class', chapterId: 'chapter', examPatternId: 'pattern' }],
   };
   assert.doesNotThrow(() => validateQuestionForApproval(valid));
   assert.throws(() => validateQuestionForApproval({ ...valid, questionType: 'DESCRIPTIVE' }), { code: 'UNSUPPORTED_QUESTION_TYPE' });

@@ -60,6 +60,7 @@ export function ImportCenterPage() {
   const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
 
   const [syllabusNodesMap, setSyllabusNodesMap] = useState<Record<string, string>>({});
+  const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
 
   useEffect(() => {
     function flattenTree(nodes: SyllabusNode[], map: Record<string, string> = {}) {
@@ -70,6 +71,7 @@ export function ImportCenterPage() {
       return map;
     }
     fetchSyllabusTree().then((tree) => {
+      setSyllabusTree(tree);
       setSyllabusNodesMap(flattenTree(tree));
     }).catch((err) => console.error('Failed to load syllabus tree map in staging:', err));
   }, []);
@@ -107,6 +109,13 @@ export function ImportCenterPage() {
 
   // Ingestion settings — only exam pattern is required; class & subject are auto-detected
   const [uploadExamTypeId, setUploadExamTypeId] = useState('');
+  const [uploadClassId, setUploadClassId] = useState('');
+  const [uploadSubjectId, setUploadSubjectId] = useState('');
+  const [uploadChapterId, setUploadChapterId] = useState('');
+  const examPatternNodes = syllabusTree.filter((node) => node.type === 'exam_pattern');
+  const uploadClassNodes = examPatternNodes.find((node) => node._id === uploadExamTypeId)?.children?.filter((node) => node.type === 'class') || [];
+  const uploadSubjectNodes = uploadClassNodes.find((node) => node._id === uploadClassId)?.children?.filter((node) => node.type === 'subject') || [];
+  const uploadChapterNodes = uploadSubjectNodes.find((node) => node._id === uploadSubjectId)?.children?.filter((node) => node.type === 'chapter') || [];
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
 
   // File Ingest state
@@ -266,11 +275,12 @@ export function ImportCenterPage() {
   });
 
   const uploadFiles = async () => {
-    // Only exam pattern is required — class & subject are auto-detected by classification
+    // Academic metadata is selected by the faculty and applied to every imported question.
     const errors: string[] = [];
-    if (!uploadExamTypeId) {
-      errors.push('Exam Pattern is required. Please select an exam pattern before uploading.');
-    }
+    if (!uploadExamTypeId) errors.push('Select an exam pattern.');
+    if (!uploadClassId) errors.push('Select a class.');
+    if (!uploadSubjectId) errors.push('Select a subject.');
+    if (!uploadChapterId) errors.push('Select a chapter.');
     if (errors.length > 0) {
       setUploadErrors(errors);
       return;
@@ -292,6 +302,9 @@ export function ImportCenterPage() {
       try {
         const result = await uploadQuestionFileApi(fileItem.file, {
           exam_type_id: uploadExamTypeId || undefined,
+          class_id: uploadClassId,
+          subject_id: uploadSubjectId,
+          chapter_id: uploadChapterId,
         });
 
         pollActiveUpload(result.upload.id, fileItem.id);
@@ -353,7 +366,8 @@ export function ImportCenterPage() {
       const data = await commitStagedQuestionsApi(selectedUploadId, selectedStagedIndices);
       setUploadDetail(data);
       setSelectedStagedIndices([]);
-      toast.success('Selected questions committed to private workspace!', { id: loading });
+      const summary = data.commit_summary;
+      toast.success(summary ? `${summary.approved} approved · ${summary.duplicate} duplicates · ${summary.needsReview} need review · ${summary.failedValidation} invalid` : 'Selected questions committed to private workspace!', { id: loading });
       loadHistory();
     } catch (err) {
       toast.error(getApiErrorMessage(err), { id: loading });
@@ -655,11 +669,14 @@ export function ImportCenterPage() {
 
                   <Select
                   label="Exam Pattern *"
-                  options={[{ value: '', label: '— Select Exam Pattern —' }, ...examTypes.map((e) => ({ value: e.id, label: e.name }))]}
+                  options={[{ value: '', label: '— Select Exam Pattern —' }, ...examPatternNodes.map((e) => ({ value: e._id, label: e.name }))]}
                   value={uploadExamTypeId}
-                  onChange={(e) => { setUploadExamTypeId(e.target.value); setUploadErrors([]); }}
+                  onChange={(e) => { setUploadExamTypeId(e.target.value); setUploadClassId(''); setUploadSubjectId(''); setUploadChapterId(''); setUploadErrors([]); }}
                   className={!uploadExamTypeId && uploadErrors.length > 0 ? 'border-red-400' : ''}
                 />
+                <Select label="Class *" options={[{ value: '', label: '— Select Class —' }, ...uploadClassNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadClassId} disabled={!uploadExamTypeId} onChange={(e) => { setUploadClassId(e.target.value); setUploadSubjectId(''); setUploadChapterId(''); setUploadErrors([]); }} />
+                <Select label="Subject *" options={[{ value: '', label: '— Select Subject —' }, ...uploadSubjectNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadSubjectId} disabled={!uploadClassId} onChange={(e) => { setUploadSubjectId(e.target.value); setUploadChapterId(''); setUploadErrors([]); }} />
+                <Select label="Chapter *" options={[{ value: '', label: '— Select Chapter —' }, ...uploadChapterNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadChapterId} disabled={!uploadSubjectId} onChange={(e) => { setUploadChapterId(e.target.value); setUploadErrors([]); }} />
 
                 {uploadErrors.length > 0 && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">

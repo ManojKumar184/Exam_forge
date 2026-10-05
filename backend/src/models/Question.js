@@ -13,12 +13,12 @@ const questionOptionSchema = new mongoose.Schema(
 
 const questionSchema = new mongoose.Schema(
   {
-    // Compatibility projection; canonicalContent is the authoritative stem.
+    // Legacy compatibility projection only; responseType and subtype define new question semantics.
     questionText: { type: String, default: '' },
     questionType: {
       type: String,
       enum: [
-        // Canonical types
+        // Legacy storage projections for older readers; canonical response semantics live in responseType.
         'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
         'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'DESCRIPTIVE',
         // Legacy backward-compatible aliases (case-insensitive variants)
@@ -48,12 +48,16 @@ const questionSchema = new mongoose.Schema(
       ],
       default: null,
     },
+    contextGroupId: { type: String, default: null, index: true },
+    contextGroupPosition: { type: Number, default: 0, min: 0 },
+    sharedContext: { type: [mongoose.Schema.Types.Mixed], default: [] },
     questionLatex: { type: String, default: null },
     questionImages: { type: [String], default: [] },
     options: { type: [questionOptionSchema], default: [] },
     correctOption: { type: Number, default: null },
     numericalAnswer: { type: Number, default: null },
     numericalTolerance: { type: Number, default: 0 },
+    numericalComparisonPolicy: { type: String, enum: ['EXACT', 'TOLERANCE'], default: 'EXACT' },
     answerText: { type: String, default: null },
     answerKey: { type: String, default: null },
     difficulty: {
@@ -100,7 +104,10 @@ const questionSchema = new mongoose.Schema(
     },
     extractionWarnings: { type: [String], default: [] },
     duplicateHash: { type: String, default: null, index: true },
+    duplicatePolicy: { type: String, enum: ['PROHIBIT', 'SYSTEM_TEST_ALLOW'], default: 'PROHIBIT' },
     duplicateOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', default: null },
+    usageCount: { type: Number, default: 0, min: 0 },
+    lastUsedAt: { type: Date, default: null },
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     reviewedAt: { type: Date, default: null },
     reviewNotes: { type: String, default: null },
@@ -162,6 +169,8 @@ questionSchema.index({ questionText: 'text' });
 questionSchema.index({ createdAt: -1 });
 questionSchema.index({ uploadId: 1, status: 1 });
 questionSchema.index({ duplicateOf: 1 });
+questionSchema.index({ usageCount: -1, lastUsedAt: -1 });
+questionSchema.index({ contextGroupId: 1, contextGroupPosition: 1 });
 questionSchema.index({ aiConfidence: 1, status: 1 });
 questionSchema.index({ "syllabusMappings.examPatternId": 1 });
 questionSchema.index({ "syllabusMappings.classId": 1 });

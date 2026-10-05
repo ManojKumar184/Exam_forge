@@ -93,15 +93,20 @@ function mapBodyToPaperFields(body) {
     paperCode: body.paper_code || body.paperCode || `PAPER-${uuidv4().slice(0, 8).toUpperCase()}`,
     examTypeId: body.exam_type_id || body.examTypeId || null,
     subjectId: body.subject_id || body.subjectId || null,
+    subjectIds: body.subject_ids || body.subjectIds || (body.subject_id || body.subjectId ? [body.subject_id || body.subjectId] : []),
+    classId: body.class_id || body.classId || null,
     class: Number(body.class),
     totalMarks: Number(body.total_marks ?? body.totalMarks ?? 0),
     totalQuestions: Number(body.total_questions ?? body.totalQuestions ?? 0),
     durationMinutes: Number(body.duration_minutes ?? body.durationMinutes ?? 180),
     sections: (body.sections || []).map((s) => ({
+      id: s.id || s.section_id || null,
       name: s.name,
       questionCount: Number(s.questionCount ?? s.question_count ?? 0),
       marksPerQuestion: Number(s.marksPerQuestion ?? s.marks_per_question ?? 4),
       negativeMarksPerQuestion: Number(s.negativeMarksPerQuestion ?? s.negative_marks_per_question ?? s.negativeMarks ?? 0),
+      subjectId: s.subject_id || s.subjectId || null,
+      subjectName: s.subject_name || s.subjectName || null,
     })),
     instructions: body.instructions ?? null,
     paperSet: body.paper_set || body.paperSet || 'A',
@@ -137,6 +142,30 @@ function mapBodyToPaperFields(body) {
       watermarkRotation: Number((body.export_settings || body.exportSettings).watermark_rotation ?? (body.export_settings || body.exportSettings).watermarkRotation ?? -25)
     } : undefined
   };
+}
+
+function validatePaperPublication(fields) {
+  const questionRows = fields.questions || [];
+  const errors = [];
+  if (!fields.sections?.length) errors.push('Add at least one section.');
+  if (!questionRows.length) errors.push('Add at least one question.');
+  if (Number(fields.totalQuestions) !== questionRows.length) errors.push(`Question total is ${questionRows.length}, expected ${fields.totalQuestions}.`);
+  for (const section of fields.sections || []) {
+    const rows = questionRows.filter((row) => String(row.section) === String(section.id) || String(row.section) === String(section.name));
+    if (Number(section.questionCount) !== rows.length) errors.push(`${section.name}: ${rows.length} questions are assigned, expected ${section.questionCount}.`);
+    if (!Number.isFinite(Number(section.marksPerQuestion)) || Number(section.marksPerQuestion) <= 0) errors.push(`${section.name}: marks per question must be positive.`);
+    if (!Number.isFinite(Number(section.negativeMarksPerQuestion)) || Number(section.negativeMarksPerQuestion) < 0) errors.push(`${section.name}: negative marks cannot be below zero.`);
+  }
+  const sectionIndex = new Map((fields.sections || []).flatMap((section, index) => [[String(section.id || String.fromCharCode(65 + index)), section], [String.fromCharCode(65 + index), section]]));
+  for (const row of questionRows) {
+    if (row.customNegativeMarks != null && (!Number.isFinite(Number(row.customNegativeMarks)) || Number(row.customNegativeMarks) < 0)) errors.push(`Question in section ${row.section}: negative marks cannot be below zero.`);
+  }
+  const marks = questionRows.reduce((sum, row) => {
+    const section = sectionIndex.get(String(row.section)) || (fields.sections || []).find((item) => item.name === row.section);
+    return sum + Number(row.customMarks ?? section?.marksPerQuestion ?? 0);
+  }, 0);
+  if (Number(fields.totalMarks) !== marks) errors.push(`Maximum marks total is ${marks}, expected ${fields.totalMarks}.`);
+  if (errors.length) throw new AppError(`Paper preflight failed: ${errors.join(' ')}`, 400, 'PAPER_PREFLIGHT_FAILED', { errors });
 }
 
 async function validatePaperAgainstTemplate(fields) {
@@ -211,6 +240,7 @@ export async function createPaper(body, user) {
 
   fields.questions = questions.map((q, idx) => ({
     questionId: q.question_id || q.questionId || q.id,
+    subjectId: q.subject_id || q.subjectId || null,
     section: q.section || 'A',
     sectionOrder: Number(q.section_order ?? q.sectionOrder ?? 0),
     questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
@@ -220,9 +250,13 @@ export async function createPaper(body, user) {
   }));
   fields.createdBy = user._id;
 
+  if (fields.status === 'published') validatePaperPublication(fields);
   await validatePaperAgainstTemplate(fields);
 
   const doc = await Paper.create(fields);
+  if (questionIds.length) {
+    await Question.updateMany({ _id: { $in: [...new Set(questionIds.map(String))] } }, { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } });
+  }
   if (tenantId) await recordUsage(tenantId, 'papers');
   // Populate for flat Subject/ExamType removed; only populate questions
   await doc.populate(['questions.questionId']);
@@ -236,6 +270,8 @@ export async function updatePaper(id, body, user) {
     throw new AppError('Forbidden', 403, 'FORBIDDEN');
   }
 
+  const isNewVersion = paper.status === 'published';
+  const previousQuestionIds = new Set((paper.questions || []).map((entry) => String(entry.questionId?._id || entry.questionId)));
   if (paper.status === 'published') {
     const original = paper;
     paper = new Paper({
@@ -268,6 +304,7 @@ export async function updatePaper(id, body, user) {
     const snapshots = new Map(snapshotDocs.map((question) => [String(question._id), mapQuestion(question)]));
     paper.questions = body.questions.map((q, idx) => ({
       questionId: q.question_id || q.questionId || q.id,
+      subjectId: q.subject_id || q.subjectId || null,
       section: q.section || 'A',
       sectionOrder: Number(q.section_order ?? q.sectionOrder ?? 0),
       questionOrder: Number(q.question_order ?? q.questionOrder ?? idx),
@@ -276,6 +313,7 @@ export async function updatePaper(id, body, user) {
       contentSnapshot: snapshots.get(String(q.question_id || q.questionId || q.id)),
     }));
   }
+  if (paper.status === 'published') validatePaperPublication(paper);
   if (body.status === 'published' && !paper.publishedAt) {
     paper.publishedAt = new Date();
   }
@@ -283,6 +321,12 @@ export async function updatePaper(id, body, user) {
   await validatePaperAgainstTemplate(paper);
 
   await paper.save();
+  const newlyUsedQuestionIds = [...new Set((paper.questions || [])
+    .map((entry) => String(entry.questionId?._id || entry.questionId))
+    .filter((questionId) => questionId && (isNewVersion || !previousQuestionIds.has(questionId))))];
+  if (newlyUsedQuestionIds.length) {
+    await Question.updateMany({ _id: { $in: newlyUsedQuestionIds } }, { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } });
+  }
   // Populate for flat Subject/ExamType removed; only populate questions
   await paper.populate(['questions.questionId']);
   return mapPaper(paper);
@@ -309,7 +353,7 @@ export async function generatePaper(config, user) {
     const query = mongoose.isValidObjectId(config.template_id || config.template)
       ? { _id: config.template_id || config.template }
       : { code: config.template_id || config.template };
-    const template = await ExamTemplate.findOne(query);
+    const template = await ExamTemplate.findOne({ ...query, isCurrent: { $ne: false } }).sort({ version: -1 });
     if (template) {
       sectionSpecs = template.sections.map((s, idx) => ({
         id: String.fromCharCode(65 + idx),
@@ -318,7 +362,48 @@ export async function generatePaper(config, user) {
         marksPerQuestion: s.marksPerQuestion,
         negativeMarksPerQuestion: s.negativeMarksPerQuestion,
         question_types: s.allowedQuestionTypes,
+        response_types: s.responseTypes,
+        subtypes: s.subtypes,
+        subjectName: s.subjectName,
       }));
+      if (template.subjectStructure?.length > 1) {
+        const { SyllabusNode } = await import('../models/SyllabusNode.js');
+        const patternId = config.syllabus_exam_pattern_id || config.syllabusExamPatternId || config.exam_type_id || config.examTypeId;
+        const patternCode = template.code === 'jee_main' ? 'JEE_MAIN' : template.code === 'jee_advanced' ? 'JEE_ADVANCED' : template.code === 'neet' ? 'NEET' : null;
+        const pattern = patternId
+          ? await SyllabusNode.findOne({ type: 'exam_pattern', $or: [{ _id: patternId }, { code: String(patternId).toUpperCase() }] }).lean()
+          : await SyllabusNode.findOne({ type: 'exam_pattern', code: patternCode }).lean();
+        if (!pattern) throw new AppError('Select a valid exam pattern for this blueprint', 400, 'INVALID_BLUEPRINT_PATTERN');
+        let classNode = config.syllabus_class_id || config.syllabusClassId
+          ? await SyllabusNode.findOne({ _id: config.syllabus_class_id || config.syllabusClassId, type: 'class', parentId: pattern._id }).lean()
+          : null;
+        if (!classNode) {
+          const classes = await SyllabusNode.find({ type: 'class', parentId: pattern._id, isActive: true }).lean();
+          classNode = classes.find((node) => Number(String(node.name).match(/\d+/)?.[0]) === Number(config.class)) || null;
+        }
+        if (!classNode) throw new AppError('Select a class in the chosen exam pattern before generating this blueprint', 400, 'INVALID_BLUEPRINT_CLASS');
+        const requestedSubjectIds = config.subject_ids || config.subjectIds;
+        const subjectNodes = await SyllabusNode.find({
+          type: 'subject', isActive: true, parentId: classNode._id,
+          name: { $in: template.subjectStructure },
+          ...(requestedSubjectIds?.length ? { _id: { $in: requestedSubjectIds } } : {}),
+        }).sort({ name: 1 }).lean();
+        const expectedCount = requestedSubjectIds?.length || template.subjectStructure.length;
+        if (subjectNodes.length !== expectedCount) throw new AppError('This blueprint requires matching canonical subjects in the selected syllabus', 400, 'BLUEPRINT_SUBJECTS_UNAVAILABLE');
+        config.subject_ids = subjectNodes.map((subject) => String(subject._id));
+        config.class_id = String(classNode._id);
+        config.syllabus_class_id = String(classNode._id);
+        config.exam_type_id = String(pattern._id);
+        sectionSpecs = subjectNodes.flatMap((subject, subjectIndex) => sectionSpecs
+          .filter((spec) => !spec.subjectName || spec.subjectName === subject.name)
+          .map((spec, sectionIndex) => ({
+            ...spec,
+            id: `${subject.code || subjectIndex}-${sectionIndex + 1}`,
+            name: `${subject.name} — ${spec.name}`,
+            subject_id: String(subject._id),
+            subjectName: subject.name,
+          })));
+      }
       instructions = instructions || template.instructions;
       exportSettings = exportSettings || {
         layout: template.layoutDefaults.layout,
@@ -353,6 +438,9 @@ export async function generatePaper(config, user) {
       questionCount: s.questionCount ?? s.question_count,
       marksPerQuestion: s.marksPerQuestion ?? s.marks_per_question ?? 4,
       question_types: s.question_types || s.questionTypes,
+      response_types: s.response_types || s.responseTypes,
+      subtypes: s.subtypes,
+      subject_id: s.subject_id || s.subjectId,
     })),
   });
 
@@ -361,6 +449,7 @@ export async function generatePaper(config, user) {
     sec.questions.forEach((q, questionOrder) => {
       paperQuestions.push({
         question_id: q.id,
+        subject_id: sec.subjectId || sec.subject_id || q.syllabus_mappings?.[0]?.subjectId || null,
         section: sec.sectionId || sec.sectionName,
         section_order: sectionOrder,
         question_order: questionOrder,
@@ -379,7 +468,10 @@ export async function generatePaper(config, user) {
       generation_version: selection.generation_version,
       generation_blueprint: { ...config, sections: sectionSpecs },
       sections: sectionSpecs.map((s) => ({
+        id: s.id,
         name: s.name,
+        subject_id: s.subject_id || s.subjectId || null,
+        subject_name: s.subjectName || null,
         questionCount: s.questionCount ?? s.question_count,
         marksPerQuestion: s.marksPerQuestion ?? s.marks_per_question ?? 4,
         negativeMarksPerQuestion: s.negativeMarksPerQuestion ?? s.negative_marks_per_question ?? s.negativeMarks ?? 0,

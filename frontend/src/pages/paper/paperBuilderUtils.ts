@@ -8,14 +8,18 @@ export interface Section {
   marksPerQuestion: number;
   negativeMarksPerQuestion: number;
   questionTypes: string[];
+  responseTypes?: string[];
+  subtypes?: string[];
+  subjectName?: string;
+  subjectId?: string;
   targetCount: number;
   questions: SelectedQuestion[];
 }
 
 export const DEFAULT_SECTIONS: Section[] = [
-  { id: 'A', name: 'Section A - Single and multiple choice', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['MCQ_SINGLE', 'MCQ_MULTIPLE'], targetCount: 15, questions: [] },
-  { id: 'B', name: 'Section B - True/False and fill blank', marksPerQuestion: 2, negativeMarksPerQuestion: 0, questionTypes: ['TRUE_FALSE', 'FILL_BLANK'], targetCount: 5, questions: [] },
-  { id: 'C', name: 'Section C - Numerical and matching', marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON'], targetCount: 5, questions: [] },
+  { id: 'A', name: 'Section A - MCQ', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['MCQ_SINGLE'], responseTypes: ['MCQ'], targetCount: 15, questions: [] },
+  { id: 'B', name: 'Section B - MSQ', marksPerQuestion: 4, negativeMarksPerQuestion: 1, questionTypes: ['MCQ_MULTIPLE'], responseTypes: ['MSQ'], targetCount: 5, questions: [] },
+  { id: 'C', name: 'Section C - Numerical', marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['NUMERICAL'], responseTypes: ['NUMERICAL'], targetCount: 5, questions: [] },
 ];
 
 export function applySelectionToSections(
@@ -91,6 +95,7 @@ export function buildSelectPayload(
   return {
     syllabus_exam_pattern_id: config.examTypeId || undefined,
     syllabus_subject_id: config.subjectId || undefined,
+    subject_ids: [...new Set([...(f?.subjectIds || []), ...(config.subjectId ? [config.subjectId] : [])])],
     syllabus_class_id: f?.syllabusClassId || undefined,
     syllabus_chapter_id: f?.syllabusChapterId || undefined,
     syllabus_topic_id: f?.syllabusTopicId || undefined,
@@ -110,6 +115,10 @@ export function buildSelectPayload(
       questionCount: s.targetCount,
       marksPerQuestion: s.marksPerQuestion,
       question_types: s.questionTypes,
+      response_types: s.responseTypes,
+      subtypes: s.subtypes,
+      subject_id: s.subjectId,
+      subject_name: s.subjectName,
     })),
   };
 }
@@ -126,6 +135,7 @@ export function buildPoolStatsPayload(
   return {
     syllabus_exam_pattern_id: config.examTypeId || undefined,
     syllabus_subject_id: config.subjectId || undefined,
+    subject_ids: [...new Set([...(f?.subjectIds || []), ...(config.subjectId ? [config.subjectId] : [])])],
     syllabus_class_id: f?.syllabusClassId || undefined,
     syllabus_chapter_id: f?.syllabusChapterId || undefined,
     syllabus_topic_id: f?.syllabusTopicId || undefined,
@@ -159,7 +169,7 @@ export function validateSectionsLocally(sections: Section[], totalMarks: number)
 }
 
 export function paperToSections(paper: {
-  sections?: { name: string; questionCount: number; marksPerQuestion: number; negativeMarksPerQuestion?: number }[];
+  sections?: { id?: string; name: string; questionCount: number; marksPerQuestion: number; negativeMarksPerQuestion?: number }[];
   questions?: Array<{
     question_id: string;
     section: string;
@@ -188,7 +198,7 @@ export function paperToSections(paper: {
 
   if (paper.sections?.length) {
     return paper.sections.map((ps, i) => {
-      const secId = String.fromCharCode(65 + i);
+      const secId = ps.id || String.fromCharCode(65 + i);
       const defaultSec = base.find(b => b.id === secId) || {
         id: secId,
         name: ps.name,

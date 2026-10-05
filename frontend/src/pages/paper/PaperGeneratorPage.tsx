@@ -7,6 +7,7 @@ import {
   fetchPaperPoolStatsApi,
   selectQuestionsForPaperApi,
   downloadPaperPdfApi,
+  fetchTemplatesApi,
   type PoolStats,
 } from '../../api/papers';
 import { downloadBlob } from '../../utils/downloadBlob';
@@ -14,7 +15,7 @@ import { getApiErrorMessage } from '../../api/client';
 import toast from 'react-hot-toast';
 import { Card, Button, Input, Select, Badge, Alert, Modal, EmptyState, MultiSelect, PageHeader, Loading } from '../../components/ui';
 import { Plus, Wand2, Save, Sparkles, Download, CheckCircle, PlayCircle } from 'lucide-react';
-import type { Question } from '../../types';
+import type { ExamTemplate, Question } from '../../types';
 import {
   SortableSectionQuestions,
   type SelectedQuestion,
@@ -41,6 +42,36 @@ import {
   type PaperBuilderFilters,
 } from './paperBuilderUtils';
 
+function sectionsFromBlueprint(template: ExamTemplate, selectedSubjects: string[], subjectCatalog: Array<{ id: string; name: string }>): Section[] {
+  const supportedSubjectIds = selectedSubjects.filter((id) => {
+    const subject = subjectCatalog.find((item) => item.id === id);
+    return subject && template.subjectStructure.some((name) => name.trim().toLowerCase() === subject.name.trim().toLowerCase());
+  });
+  const specs = template.sections.flatMap((spec) => {
+    if (spec.subjectName) {
+      const subject = subjectCatalog.find((item) => supportedSubjectIds.includes(item.id) && item.name.trim().toLowerCase() === spec.subjectName!.trim().toLowerCase());
+      if (supportedSubjectIds.length && !subject) return [];
+      return [{ spec, subject }];
+    }
+    if (template.subjectStructure.length > 1 && supportedSubjectIds.length) {
+      return supportedSubjectIds.map((id) => ({ spec, subject: subjectCatalog.find((item) => item.id === id) })).filter((item) => item.subject);
+    }
+    return [{ spec, subject: undefined }];
+  });
+  return specs.map(({ spec, subject }, index) => {
+    const responseTypes = spec.responseTypes?.length ? spec.responseTypes : spec.allowedQuestionTypes.map((type) =>
+      type === 'MCQ_MULTIPLE' || type === 'MSQ' ? 'MSQ' : type === 'NUMERICAL' ? 'NUMERICAL' : 'MCQ'
+    );
+    return {
+      id: String.fromCharCode(65 + index), name: `${subject ? `${subject.name} — ` : ''}${spec.name}`,
+      marksPerQuestion: spec.marksPerQuestion, negativeMarksPerQuestion: spec.negativeMarksPerQuestion,
+      questionTypes: responseTypes.map((type) => type === 'MSQ' ? 'MCQ_MULTIPLE' : type === 'NUMERICAL' ? 'NUMERICAL' : 'MCQ_SINGLE'),
+      responseTypes, subtypes: spec.subtypes, subjectName: subject?.name || spec.subjectName,
+      subjectId: subject?.id, targetCount: spec.questionCount, questions: [],
+    };
+  });
+}
+
 export function PaperGeneratorPage() {
   const navigate = useNavigate();
   const { paperId } = useParams();
@@ -57,6 +88,8 @@ export function PaperGeneratorPage() {
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [paperStatus, setPaperStatus] = useState<'draft' | 'published'>('draft');
   const [isExporting, setIsExporting] = useState(false);
+  const [blueprints, setBlueprints] = useState<ExamTemplate[]>([]);
+  const [selectedBlueprint, setSelectedBlueprint] = useState<ExamTemplate | null>(null);
 
   const [title, setTitle] = useState('');
   const [examTypeId, setExamTypeId] = useState('');
@@ -105,7 +138,23 @@ export function PaperGeneratorPage() {
     fetchSubjects();
     fetchExamTypes();
     fetchQuestions({ status: 'approved' });
+    fetchTemplatesApi().then(setBlueprints).catch(() => toast.error('Could not load assessment blueprints'));
   }, []);
+
+  const applyBlueprint = (template: ExamTemplate | null) => {
+    setSelectedBlueprint(template);
+    if (!template) {
+      setSections(DEFAULT_SECTIONS.map((section) => ({ ...section, questions: [] })));
+      setTitle((value) => value || 'Custom Assessment');
+      return;
+    }
+    const sectionsFromTemplate = sectionsFromBlueprint(template, builderFilters.subjectIds, subjects.map(({ id, name }) => ({ id, name })));
+    setSections(sectionsFromTemplate);
+    setTitle((value) => value || `${template.name} Assessment`);
+    setTotalMarks(sectionsFromTemplate.reduce((sum, section) => sum + section.targetCount * section.marksPerQuestion, 0));
+    if (template.code === 'jee_main' || template.code === 'jee_advanced') setExamTypeId(examTypes.find((item) => /jee/i.test(item.name))?.id || '');
+    if (template.code === 'neet') setExamTypeId(examTypes.find((item) => /neet/i.test(item.name))?.id || '');
+  };
 
   useEffect(() => {
     if (subjectId) fetchChapters(subjectId);
@@ -380,12 +429,17 @@ export function PaperGeneratorPage() {
 
     const localValidation = validateSectionsLocally(sections, totalMarks);
     setValidationWarnings(localValidation.warnings);
+    if (status === 'published' && !localValidation.valid) {
+      toast.error(`Preflight failed: ${localValidation.warnings.join(' · ')}`);
+      return;
+    }
 
     setIsLoading(true);
     try {
       const paperQuestions = sections.flatMap((s) =>
         s.questions.map((q, index) => ({
           question_id: q.id,
+          subject_id: q.syllabus_mappings?.[0]?.subjectId || undefined,
           section: s.id,
           section_order: sections.indexOf(s),
           question_order: index,
@@ -399,6 +453,8 @@ export function PaperGeneratorPage() {
         description: `${examTypes.find((e) => e.id === examTypeId)?.name} - ${subjects.find((s) => s.id === subjectId)?.name}`,
         exam_type_id: examTypeId,
         subject_id: subjectId,
+        subject_ids: [...new Set([...builderFilters.subjectIds, subjectId].filter(Boolean))],
+        generation_blueprint: selectedBlueprint ? { templateId: selectedBlueprint.id || selectedBlueprint._id, templateCode: selectedBlueprint.code, version: selectedBlueprint.version || 1 } : { kind: 'custom', sections },
         class: classLevel,
         total_marks: computedMarks,
         total_questions: totalQuestions,
@@ -407,6 +463,7 @@ export function PaperGeneratorPage() {
         status: status as any,
         created_by: profile?.id || '',
         sections: sections.map((s) => ({
+          id: s.id,
           name: s.name,
           questionCount: s.questions.length,
           marksPerQuestion: s.marksPerQuestion,
@@ -642,34 +699,36 @@ export function PaperGeneratorPage() {
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Step 1: Choose an Assessment Template</h3>
               <p className="text-sm text-slate-500">Pick a predefined pattern template aligned with standardized exam schemes.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {examTypes.map((type) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {blueprints.filter((template) => ['jee_main', 'jee_advanced', 'neet'].includes(template.code || '') || (!template.isSystem && template.isPublished === true)).map((template) => (
                 <div
-                  key={type.id}
+                  key={template.id || template._id}
                   onClick={() => {
-                    setExamTypeId(type.id);
-                    setTitle((prev) => prev || `${type.name} Assessment`);
+                    applyBlueprint(template);
                     setCurrentStep(2);
                   }}
-                  className={`p-6 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-indigo-500 flex flex-col justify-between h-44 ${
-                    examTypeId === type.id 
+                  className={`p-6 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-indigo-500 flex flex-col justify-between min-h-44 ${
+                    selectedBlueprint?.id === template.id || selectedBlueprint?._id === template._id
                       ? 'border-indigo-600 bg-indigo-50/30 dark:bg-indigo-950/20' 
                       : 'border-slate-200 dark:border-slate-800'
                   }`}
                 >
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white text-base">{type.name}</h3>
-                    <p className="text-xs text-slate-500 mt-2 line-clamp-3">
-                      {type.description || `Create a test matching the standard ${type.name} layout.`}
-                    </p>
+                    <div className="flex justify-between gap-2"><h3 className="font-semibold text-slate-900 dark:text-white text-base">{template.name}</h3><Badge variant="default">v{template.version || 1}</Badge></div>
+                    <p className="text-xs text-slate-500 mt-2">{template.subjectStructure.join(' · ')}</p>
+                    <p className="text-xs text-slate-500 mt-2 line-clamp-3">{template.instructions || `${template.sections.length} section blueprint`}</p>
                   </div>
                   <div className="flex justify-end">
-                    <Badge variant={examTypeId === type.id ? 'info' : 'default'}>
-                      {examTypeId === type.id ? 'Selected' : 'Use Template'}
+                    <Badge variant={selectedBlueprint?.id === template.id || selectedBlueprint?._id === template._id ? 'info' : 'default'}>
+                      {selectedBlueprint?.id === template.id || selectedBlueprint?._id === template._id ? 'Selected' : 'Use Blueprint'}
                     </Badge>
                   </div>
                 </div>
               ))}
+              <button type="button" onClick={() => { applyBlueprint(null); setCurrentStep(2); }} className="p-6 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-left hover:border-indigo-500 min-h-44">
+                <h3 className="font-semibold text-slate-900 dark:text-white">Custom Blueprint</h3>
+                <p className="text-xs text-slate-500 mt-2">Start with editable MCQ, MSQ, and numerical sections.</p>
+              </button>
             </div>
           </div>
         )}
@@ -681,13 +740,21 @@ export function PaperGeneratorPage() {
               <p className="text-sm text-slate-500 font-medium">Narrow down target questions to specific chapters or subjects.</p>
             </div>
 
-            <Select
-              label="Select Subject"
-              options={subjects.map((s) => ({ value: s.id, label: s.name }))}
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              placeholder="Select subject"
-              required
+            <Select label="Exam syllabus / pattern" options={examTypes.map((item) => ({ value: item.id, label: item.name }))} value={examTypeId} onChange={(event) => setExamTypeId(event.target.value)} />
+
+            <MultiSelect
+              label="Select Subjects"
+              options={subjects.filter((subject) => !selectedBlueprint?.subjectStructure?.length || selectedBlueprint.subjectStructure.some((name) => name.trim().toLowerCase() === subject.name.trim().toLowerCase())).map((s) => ({ value: s.id, label: s.name }))}
+              values={builderFilters.subjectIds.length ? builderFilters.subjectIds : (subjectId ? [subjectId] : [])}
+              onChange={(values) => {
+                setBuilderFilters((current) => ({ ...current, subjectIds: values }));
+                setSubjectId(values[0] || '');
+                if (selectedBlueprint) {
+                  const updatedSections = sectionsFromBlueprint(selectedBlueprint, values, subjects.map(({ id, name }) => ({ id, name })));
+                  setSections(updatedSections);
+                  setTotalMarks(updatedSections.reduce((sum, section) => sum + section.targetCount * section.marksPerQuestion, 0));
+                }
+              }}
             />
             <Select
               label="Select Class Level"
@@ -768,12 +835,13 @@ export function PaperGeneratorPage() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-xs uppercase tracking-wider text-slate-500">Section Blueprint Config</h3>
+              <div className="flex items-center justify-between"><h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-xs uppercase tracking-wider text-slate-500">Section Blueprint Config</h3><Button size="sm" variant="secondary" onClick={() => setSections((current) => [...current, { id: String.fromCharCode(65 + current.length), name: `Section ${String.fromCharCode(65 + current.length)}`, marksPerQuestion: 4, negativeMarksPerQuestion: 0, questionTypes: ['MCQ_SINGLE'], responseTypes: ['MCQ'], targetCount: 5, questions: [] }])}>Add Section</Button></div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {sections.map((section) => (
                   <div key={section.id} className="p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-xl space-y-3 shadow-sm">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{section.name}</p>
                     <div className="space-y-2">
+                      <Select label="Response type" options={[{ value: 'MCQ', label: 'MCQ (one correct)' }, { value: 'MSQ', label: 'MSQ (multiple correct)' }, { value: 'NUMERICAL', label: 'Numerical' }]} value={section.responseTypes?.[0] || 'MCQ'} onChange={(event) => { const responseType = event.target.value; setSections((current) => current.map((item) => item.id === section.id ? { ...item, responseTypes: [responseType], questionTypes: [responseType === 'MSQ' ? 'MCQ_MULTIPLE' : responseType === 'NUMERICAL' ? 'NUMERICAL' : 'MCQ_SINGLE'] } : item)); }} />
                       <Input
                         type="number"
                         label="Questions"
@@ -810,6 +878,7 @@ export function PaperGeneratorPage() {
                         />
                       </div>
                     </div>
+                    {sections.length > 1 && <Button size="sm" variant="ghost" onClick={() => setSections((current) => current.filter((item) => item.id !== section.id))}>Remove section</Button>}
                   </div>
                 ))}
               </div>
@@ -982,6 +1051,12 @@ export function PaperGeneratorPage() {
               {/* Card 3: Create Test */}
               <div 
                 onClick={async () => {
+                  const preflight = validateSectionsLocally(sections, totalMarks);
+                  setValidationWarnings(preflight.warnings);
+                  if (!preflight.valid) {
+                    toast.error(`Preflight failed: ${preflight.warnings.join(' · ')}`);
+                    return;
+                  }
                   setIsLoading(true);
                   try {
                     const paperQuestions = sections.flatMap((s) =>
@@ -1000,6 +1075,8 @@ export function PaperGeneratorPage() {
                       description: `${examTypes.find((e) => e.id === examTypeId)?.name} - ${subjects.find((s) => s.id === subjectId)?.name}`,
                       exam_type_id: examTypeId,
                       subject_id: subjectId,
+                      subject_ids: [...new Set([...builderFilters.subjectIds, subjectId].filter(Boolean))],
+                      generation_blueprint: selectedBlueprint ? { templateId: selectedBlueprint.id || selectedBlueprint._id, templateCode: selectedBlueprint.code, version: selectedBlueprint.version || 1 } : { kind: 'custom', sections },
                       class: classLevel,
                       total_marks: computedMarks,
                       total_questions: totalQuestions,
@@ -1008,6 +1085,7 @@ export function PaperGeneratorPage() {
                       status: 'published' as any,
                       created_by: profile?.id || '',
                       sections: sections.map((s) => ({
+                        id: s.id,
                         name: s.name,
                         questionCount: s.questions.length,
                         marksPerQuestion: s.marksPerQuestion,

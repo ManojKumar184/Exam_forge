@@ -50,7 +50,7 @@ test('production blocker regression suite uses isolated MongoDB', { skip: !isola
     questionText: 'Select the true statement.', questionType: 'MCQ_SINGLE', class: 10,
     status: 'pending', createdBy: faculty._id, ownerId: faculty._id, institutionId: institution._id,
     options: [{ text: 'True' }, { text: 'False' }], correctOption: 0,
-    syllabusMappings: [{ subjectId: new mongoose.Types.ObjectId(), examPatternId: new mongoose.Types.ObjectId() }],
+    syllabusMappings: [{ subjectId: new mongoose.Types.ObjectId(), classId: new mongoose.Types.ObjectId(), chapterId: new mongoose.Types.ObjectId(), examPatternId: new mongoose.Types.ObjectId() }],
   };
   const approved = await Question.create(mappedQuestion);
   await approveQuestion(approved._id, context);

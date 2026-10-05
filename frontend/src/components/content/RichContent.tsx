@@ -413,13 +413,13 @@ export function QuestionContentPreview({
           ))}
         </div>
       )}
-      {showCorrect && question.question_type === 'numerical' && question.numerical_answer !== null && question.numerical_answer !== undefined && (
+      {showCorrect && (question.response_type === 'NUMERICAL' || question.question_type.toLowerCase() === 'numerical') && question.numerical_answer !== null && question.numerical_answer !== undefined && (
         <div className="mt-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded border border-emerald-200/50 dark:border-emerald-800/30">
           Correct Answer: {question.numerical_answer}
           {Number(question.numerical_tolerance || 0) > 0 && ` (±${question.numerical_tolerance})`}
         </div>
       )}
-      {showCorrect && question.question_type === 'descriptive' && question.answer_text && (
+      {showCorrect && (question.question_type.toLowerCase() === 'descriptive') && question.answer_text && (
         <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-800/30 rounded border border-slate-200 dark:border-slate-750 text-xs">
           <span className="font-semibold text-slate-500 dark:text-slate-400 block uppercase mb-1 text-[10px]">Model Answer / Reference Key</span>
           <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{question.answer_text}</p>

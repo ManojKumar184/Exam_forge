@@ -79,8 +79,9 @@ export async function rejectQuestionApi(id: string, notes: string) {
   return data.data;
 }
 
-export async function bulkApproveQuestionsApi(ids: string[]) {
-  await apiClient.post('/questions/bulk/approve', { ids });
+export async function bulkApproveQuestionsApi(ids: string[]): Promise<{ approved: number; rejected: number; duplicate: number; needsReview: number; failedValidation: number; failures: Array<{ id: string; code: string; message: string }> }> {
+  const { data } = await apiClient.post<{ success: boolean; data: { approved: number; rejected: number; duplicate: number; needsReview: number; failedValidation: number; failures: Array<{ id: string; code: string; message: string }> } }>('/questions/bulk/approve', { ids });
+  return data.data;
 }
 
 export async function bulkRejectQuestionsApi(ids: string[], notes?: string) {

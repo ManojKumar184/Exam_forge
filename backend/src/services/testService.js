@@ -9,6 +9,7 @@ import { Membership } from '../models/Membership.js';
 import { Leaderboard } from '../models/Leaderboard.js';
 import { recomputeLeaderboard } from './leaderboardService.js';
 import { getQuestionCategory as getNormalizedCategory, normalizeQuestionType } from '../utils/questionTypeNormalizer.js';
+import { parseNumericalAnswer } from '../utils/numericalAnswer.js';
 import { AppError } from '../utils/AppError.js';
 import { mapOnlineTest, mapTestAttempt, mapLeaderboardEntry, removeAnswersFromOnlineTest } from '../utils/examMapper.js';
 import { mapQuestion } from '../utils/questionMapper.js';
@@ -437,7 +438,10 @@ export async function autosaveAttempt(testId, user, payload) {
         answerUpdates[`answers.$[${identifier}].selectedOptions`] = values;
       }
       if (incoming.numerical_answer !== undefined) {
-        answerUpdates[`answers.$[${identifier}].numericalAnswer`] = (incoming.numerical_answer === null || isNaN(incoming.numerical_answer)) ? null : incoming.numerical_answer;
+        const parsed = incoming.numerical_answer === null ? null : parseNumericalAnswer(incoming.numerical_answer);
+        if (incoming.numerical_answer !== null && parsed === null) throw new AppError('Enter a valid numerical answer', 400, 'INVALID_NUMERICAL_ANSWER');
+        if (parsed !== null && row.contentSnapshot?.subtype === 'INTEGER_RESPONSE' && !Number.isInteger(parsed)) throw new AppError('Enter a whole number for this answer', 400, 'INVALID_INTEGER_ANSWER');
+        answerUpdates[`answers.$[${identifier}].numericalAnswer`] = parsed;
       }
       if (incoming.text_answer !== undefined) answerUpdates[`answers.$[${identifier}].textAnswer`] = incoming.text_answer;
       if (incoming.is_marked_for_review !== undefined) answerUpdates[`answers.$[${identifier}].isMarkedForReview`] = incoming.is_marked_for_review;
@@ -479,6 +483,8 @@ export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
     correctAnswers: question.correctAnswers || question.correct_answers,
     numericalAnswer: question.numericalAnswer ?? question.numerical_answer,
     numericalTolerance: question.numericalTolerance ?? question.numerical_tolerance,
+    numericalComparisonPolicy: question.numericalComparisonPolicy ?? question.numerical_comparison_policy,
+    subtype: question.subtype,
     answerText: question.answerText ?? question.answer_text,
     answerKey: question.answerKey ?? question.answer_key,
   };
@@ -510,12 +516,17 @@ export function scoreAnswer(answer, question, marks, negativeMarks = 0) {
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   if (category === 'numerical') {
-    if (answer.numericalAnswer === null || answer.numericalAnswer === undefined) {
+    const submittedValue = answer.numericalAnswer === null || answer.numericalAnswer === undefined ? null : parseNumericalAnswer(answer.numericalAnswer);
+    if (submittedValue === null) {
       return { isCorrect: null, marks: 0, skipped: true };
     }
     const tolerance = Number(canonicalAnswer?.tolerance ?? question.numericalTolerance ?? 0);
-    const isCorrect =
-      Math.abs(Number(answer.numericalAnswer) - Number(canonicalValue ?? question.numericalAnswer)) <= tolerance;
+    const expectedValue = parseNumericalAnswer(canonicalValue ?? question.numericalAnswer);
+    if (question.subtype === 'INTEGER_RESPONSE' && (!Number.isInteger(submittedValue) || !Number.isInteger(expectedValue))) return { isCorrect: false, marks: -Math.abs(negativeMarks), skipped: false };
+    const policy = canonicalAnswer?.comparisonPolicy || question.numericalComparisonPolicy || 'EXACT';
+    const isCorrect = expectedValue !== null && (policy === 'TOLERANCE'
+      ? Math.abs(submittedValue - expectedValue) <= tolerance
+      : submittedValue === expectedValue);
     return { isCorrect, marks: isCorrect ? marks : -Math.abs(negativeMarks), skipped: false };
   }
   if (category === 'fill_blank') {

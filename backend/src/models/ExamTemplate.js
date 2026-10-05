@@ -5,12 +5,21 @@ const templateSectionSchema = new mongoose.Schema({
   allowedQuestionTypes: [{ type: String }],
   marksPerQuestion: { type: Number, default: 4 },
   negativeMarksPerQuestion: { type: Number, default: 0 },
-  questionCount: { type: Number, default: 10 }
+  questionCount: { type: Number, default: 10 },
+  subjectName: { type: String, default: null },
+  responseTypes: [{ type: String, enum: ['MCQ', 'MSQ', 'NUMERICAL'] }],
+  subtypes: [{ type: String }]
 }, { _id: false });
 
 const examTemplateSchema = new mongoose.Schema({
   name: { type: String, required: true },
   code: { type: String, default: null, index: true },
+  examYear: { type: Number, default: null },
+  effectiveFrom: { type: Date, default: null },
+  effectiveTo: { type: Date, default: null },
+  officialSource: { type: String, default: null },
+  attemptRules: { type: mongoose.Schema.Types.Mixed, default: {} },
+  constraints: { type: mongoose.Schema.Types.Mixed, default: {} },
   subjectStructure: [{ type: String }],
   sections: [templateSectionSchema],
   instructions: { type: String, default: null },
@@ -24,7 +33,13 @@ const examTemplateSchema = new mongoose.Schema({
   exportDefaults: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   institutionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', default: null },
-  isSystem: { type: Boolean, default: false }
+  isSystem: { type: Boolean, default: false },
+  version: { type: Number, default: 1 },
+  versionOf: { type: mongoose.Schema.Types.ObjectId, ref: 'ExamTemplate', default: null },
+  isCurrent: { type: Boolean, default: true },
+  isPublished: { type: Boolean, default: false },
+  paperCount: { type: Number, default: 1 },
+  schemaVersion: { type: String, default: 'blueprint-v1' }
 }, { timestamps: true });
 
 examTemplateSchema.index({ institutionId: 1, createdBy: 1, updatedAt: -1 });

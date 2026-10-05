@@ -33,7 +33,9 @@ export async function uploadFile(req, res) {
     throw new AppError('File contents do not match an accepted file type', 400, 'INVALID_FILE_SIGNATURE');
   }
 
-  const data = await uploadService.startAsyncUpload(req.file, req.user, req.body || {});
+  let data;
+  try { data = await uploadService.startAsyncUpload(req.file, req.user, req.body || {}); }
+  catch (error) { await fs.unlink(req.file.path).catch(() => {}); throw error; }
 
   res.status(202).json({ success: true, data });
 }

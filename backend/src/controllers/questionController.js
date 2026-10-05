@@ -54,8 +54,9 @@ export async function reject(req, res) {
 }
 
 export async function bulkApprove(req, res) {
-  await questionService.bulkApprove(req.body.ids, req.user);
-  res.json({ success: true, message: 'Questions approved' });
+  const data = await questionService.bulkApprove(req.body.ids, req.user);
+  await recordAudit({ req, action: 'questions_bulk_approved', resource: 'question', metadata: { requested: req.body.ids?.length || 0, ...data } });
+  res.json({ success: true, data });
 }
 
 export async function bulkReject(req, res) {

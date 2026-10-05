@@ -38,7 +38,7 @@ export function buildQuestionFilter(config) {
     filter.$or = [{ institutionId: config.institutionId }, { institutionId: null, visibility: 'public' }];
   }
   if (config.coreVersion !== 'legacy') {
-    filter.questionType = { $in: ['MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'mcq', 'MCQ_MULTI', 'numerical', 'NUMERICAL', 'INTEGER', 'MATCH_COLUMNS'] };
+    filter.responseType = { $in: ['MCQ', 'MSQ', 'NUMERICAL'] };
   }
 
   const classes = parseIdList(config.classes || config.class_list).map(Number).filter((n) => n >= 6);
@@ -64,7 +64,9 @@ export function buildQuestionFilter(config) {
   if (config.syllabus_class_id || config.syllabusClassId) {
     filter['syllabusMappings.classId'] = config.syllabus_class_id || config.syllabusClassId;
   }
-  if (config.syllabus_subject_id || config.syllabusSubjectId) {
+  const subjectIds = parseIdList(config.subject_ids || config.subjectIds);
+  if (subjectIds.length) filter['syllabusMappings.subjectId'] = { $in: subjectIds };
+  else if (config.syllabus_subject_id || config.syllabusSubjectId) {
     filter['syllabusMappings.subjectId'] = config.syllabus_subject_id || config.syllabusSubjectId;
   }
   if (config.syllabus_chapter_id || config.syllabusChapterId) {
@@ -85,11 +87,13 @@ export function buildQuestionFilter(config) {
 
 export async function countQuestionPool(config) {
   const filter = buildQuestionFilter(config);
-  const pool = await Question.find(filter).select('_id difficulty questionType chapterId uploadId').lean();
+  const pool = (await Question.find(filter).select('_id difficulty questionType responseType subtype chapterId uploadId contextGroupId sharedContext').lean())
+    .filter((question) => !question.contextGroupId || question.sharedContext?.length);
 
   const byDifficulty = { easy: 0, medium: 0, hard: 0 };
   const byType = { mcq: 0, descriptive: 0, numerical: 0 };
   const byCanonicalType = { MCQ_SINGLE: 0, MCQ_MULTIPLE: 0, NUMERICAL_INTEGER: 0, MATCH_FOLLOWING: 0, ASSERTION_REASON: 0, DESCRIPTIVE: 0 };
+  const byResponseType = { MCQ: 0, MSQ: 0, NUMERICAL: 0 };
   const byChapter = {};
 
   for (const q of pool) {
@@ -97,6 +101,7 @@ export async function countQuestionPool(config) {
     if (byType[q.questionType] !== undefined) byType[q.questionType] += 1;
     const canonical = normalizeQuestionType(q.questionType);
     if (byCanonicalType[canonical] !== undefined) byCanonicalType[canonical] += 1;
+    if (byResponseType[q.responseType] !== undefined) byResponseType[q.responseType] += 1;
     const ch = q.chapterId?.toString() || 'unassigned';
     byChapter[ch] = (byChapter[ch] || 0) + 1;
   }
@@ -106,6 +111,7 @@ export async function countQuestionPool(config) {
     by_difficulty: byDifficulty,
     by_type: byType,
     by_canonical_type: byCanonicalType,
+    by_response_type: byResponseType,
     by_chapter: byChapter,
     filter_applied: filter,
   };
@@ -247,7 +253,8 @@ export async function selectQuestionsForPaper(config) {
     }
   }
 
-  const pool = await Question.find(filter).lean();
+  const pool = (await Question.find(filter).lean())
+    .filter((question) => !question.contextGroupId || question.sharedContext?.length);
   const poolStats = await countQuestionPool(config);
 
   if (!pool.length) {
@@ -270,17 +277,23 @@ export async function selectQuestionsForPaper(config) {
     }
 
     let sectionPool = pool;
+    const sectionSubjectId = spec.subjectId || spec.subject_id;
+    if (sectionSubjectId) sectionPool = sectionPool.filter((q) => (q.syllabusMappings || []).some((mapping) => String(mapping.subjectId) === String(sectionSubjectId)));
     const types = spec.question_types || (spec.question_type ? [spec.question_type] : []);
+    const responseTypes = spec.response_types || spec.responseTypes || [];
+    if (responseTypes.length) sectionPool = sectionPool.filter((q) => responseTypes.includes(q.responseType));
+    const subtypes = spec.subtypes || [];
+    if (subtypes.length) sectionPool = sectionPool.filter((q) => subtypes.includes(q.subtype));
     if (types.length) {
       const targetTypes = new Set(types.map(normalizeQuestionType).filter((type) => type !== 'UNCLASSIFIED'));
       if (config.coreVersion !== 'legacy' && types.some((type) => normalizeQuestionType(type) === 'DESCRIPTIVE')) {
         throw new AppError('Descriptive questions are not supported in Core v1 paper generation.', 400, 'UNSUPPORTED_QUESTION_TYPE');
       }
       if (targetTypes.size) {
-        sectionPool = pool.filter((q) => targetTypes.has(normalizeQuestionType(q.questionType)));
+        sectionPool = sectionPool.filter((q) => targetTypes.has(normalizeQuestionType(q.questionType)));
       } else {
         const targetCategories = types.map((type) => getQuestionCategory(type));
-        sectionPool = pool.filter((q) => targetCategories.includes(getQuestionCategory(q.questionType)));
+        sectionPool = sectionPool.filter((q) => targetCategories.includes(getQuestionCategory(q.questionType)));
       }
     }
 
@@ -306,6 +319,8 @@ export async function selectQuestionsForPaper(config) {
     resultSections.push({
       sectionId: spec.id || spec.sectionId,
       sectionName: spec.name,
+      subjectId: spec.subject_id || spec.subjectId || null,
+      subjectName: spec.subjectName || null,
       marksPerQuestion: Number(spec.marksPerQuestion || spec.marks_per_question || 4),
       questions: picked.map((q, orderIndex) => ({
         ...mapQuestion(q),
