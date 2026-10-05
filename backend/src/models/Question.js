@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Counter } from './Counter.js';
+import { QUESTION_SUBTYPES, resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
 
 const questionOptionSchema = new mongoose.Schema(
   {
@@ -34,6 +35,9 @@ const questionSchema = new mongoose.Schema(
       ],
       required: true,
     },
+    // Canonical response semantics are separate from the legacy compatibility field above.
+    responseType: { type: String, enum: ['MCQ', 'MSQ', 'NUMERICAL', null], default: null },
+    subtype: { type: String, enum: QUESTION_SUBTYPES, default: 'STANDARD' },
     // Complex assessment patterns preserved as context type metadata
     contextType: {
       type: String,
@@ -153,6 +157,7 @@ const questionSchema = new mongoose.Schema(
 
 questionSchema.index({ status: 1, uploadId: 1 });
 questionSchema.index({ status: 1, questionType: 1, class: 1 });
+questionSchema.index({ status: 1, responseType: 1, subtype: 1, class: 1 });
 questionSchema.index({ questionText: 'text' });
 questionSchema.index({ createdAt: -1 });
 questionSchema.index({ uploadId: 1, status: 1 });
@@ -171,6 +176,9 @@ questionSchema.index({ isPrivate: 1 });
 questionSchema.index({ visibility: 1 });
 
 questionSchema.pre('save', async function (next) {
+  const taxonomy = resolveQuestionTaxonomy(this);
+  if (!this.responseType) this.responseType = taxonomy.responseType;
+  if (!this.subtype || this.subtype === 'STANDARD') this.subtype = taxonomy.subtype;
   if (this.isNew && !this.serialId) {
     const counter = await Counter.findOneAndUpdate(
       { _id: 'questions' },

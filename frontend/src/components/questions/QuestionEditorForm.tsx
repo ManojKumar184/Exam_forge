@@ -773,6 +773,12 @@ export function QuestionEditorForm({
       question_latex: questionLatex.trim() || autoLatex || null,
       question_images: questionImages,
       question_type: sub.questionType,
+      response_type: ['integer', 'numerical'].includes(subtype) ? 'NUMERICAL'
+        : subtype === 'mcq_multiple' ? 'MSQ'
+          : ['mcq_single', 'assertion_reason', 'true_false', 'match_following'].includes(subtype) ? 'MCQ' : null,
+      subtype: subtype === 'assertion_reason' ? 'ASSERTION_REASON'
+        : subtype === 'match_following' ? 'MATCH_THE_FOLLOWING'
+          : subtype === 'comprehension' ? 'COMPREHENSION' : 'STANDARD',
       class: derivedClass,
       year: year || null,
       chapter_name: (isCustomChapter && !selectedChapterNode) ? customChapterName || null : null,
@@ -806,6 +812,12 @@ export function QuestionEditorForm({
     content_blocks: contentBlocks,
     question_latex: questionLatex || extractPrimaryLatex(bodyHtml || bodyPlain) || null,
     question_type: SUBTYPE_OPTIONS.find((s) => s.value === subtype)!.questionType,
+    response_type: ['integer', 'numerical'].includes(subtype) ? 'NUMERICAL'
+      : subtype === 'mcq_multiple' ? 'MSQ'
+        : ['mcq_single', 'assertion_reason', 'true_false', 'match_following'].includes(subtype) ? 'MCQ' : null,
+    subtype: subtype === 'assertion_reason' ? 'ASSERTION_REASON'
+      : subtype === 'match_following' ? 'MATCH_THE_FOLLOWING'
+        : subtype === 'comprehension' ? 'COMPREHENSION' : 'STANDARD',
     question_images: questionImages,
     options: isMcq ? options.filter(hasOptionContent) : [],
     correct_option: subtype === 'mcq_multiple' ? (correctOptions[0] ?? null) : correctOption,

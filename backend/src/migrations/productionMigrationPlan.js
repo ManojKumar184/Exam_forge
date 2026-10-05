@@ -8,6 +8,7 @@ export const REQUIRED_PRODUCTION_MIGRATIONS = Object.freeze([
   'workspace-question-ownership-v1',
   'question-marks-v1',
   'system-test-bank-v1',
+  'question-taxonomy-v1',
 ]);
 
 export function findMissingMigrations(required, completedRows) {

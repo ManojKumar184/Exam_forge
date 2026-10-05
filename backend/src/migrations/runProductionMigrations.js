@@ -8,6 +8,7 @@ import { migrateSyllabus } from '../migrateSyllabus.js';
 import { seedSyllabus } from '../seedSyllabus.js';
 import { migrateQuestionMarks } from './migrateQuestionMarks.js';
 import { migrateSystemTestBank } from '../migrateSystemTestBank.js';
+import { migrateQuestionTaxonomy } from './migrateQuestionTaxonomy.js';
 import { initializeQuestionSequenceIds, migrateWorkspaceQuestions } from './workspaceMigrations.js';
 import { REQUIRED_PRODUCTION_MIGRATIONS } from './productionMigrationPlan.js';
 import path from 'node:path';
@@ -26,6 +27,7 @@ const steps = [
   ['workspace-question-ownership-v1', migrateWorkspaceQuestions],
   ['question-marks-v1', migrateQuestionMarks],
   ['system-test-bank-v1', migrateSystemTestBank],
+  ['question-taxonomy-v1', migrateQuestionTaxonomy],
 ];
 
 export async function runProductionMigrations() {

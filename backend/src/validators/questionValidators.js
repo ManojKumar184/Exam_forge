@@ -8,6 +8,8 @@ const optionSchema = z.object({
 
 export const createQuestionSchema = z.object({
   question_text: z.string().min(5),
+  response_type: z.enum(['MCQ', 'MSQ', 'NUMERICAL']).optional().nullable(),
+  subtype: z.enum(['STANDARD', 'ASSERTION_REASON', 'MATCH_THE_FOLLOWING', 'COMPREHENSION', 'PASSAGE_BASED', 'STATEMENT_BASED']).optional(),
   question_type: z.enum(['mcq', 'numerical', 'MCQ_SINGLE', 'MCQ_MULTIPLE', 'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON', 'UNCLASSIFIED', 'MCQ_MULTI', 'INTEGER', 'MATCH_COLUMNS']).optional().default('UNCLASSIFIED'),
   class: z.number().int().min(6).max(12),
   subject_id: z.string().optional().nullable(),

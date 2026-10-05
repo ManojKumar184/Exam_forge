@@ -11,6 +11,7 @@ import { classifyQuestionMetadata } from '../ai/classifyQuestion.js';
 import { assertWithinEntitlement, recordUsage } from './entitlementService.js';
 import { getSystemTestBankIds, prepareQuestionBankSources, validateQuestionBankIds } from './questionBankMembershipService.js';
 import { QuestionBank } from '../models/QuestionBank.js';
+import { resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
 
 export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
   'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
@@ -24,6 +25,7 @@ export function assertCoreV1QuestionType(value) {
 
 const QUESTION_CREATE_FIELDS = new Set([
   'questionText', 'questionType', 'contextType', 'questionLatex', 'questionImages', 'options',
+  'responseType', 'subtype',
   'correctOption', 'numericalAnswer', 'numericalTolerance', 'answerText', 'answerKey', 'difficulty',
   'sourceMarks', 'class', 'year', 'explanation', 'explanationLatex', 'explanationImages', 'diagrams',
   'imageMetadata', 'hasDiagram', 'hasEquation', 'hasTable', 'renderingMetadata', 'contentBlocks',
@@ -34,6 +36,10 @@ const QUESTION_UPDATE_FIELDS = new Set([...QUESTION_CREATE_FIELDS, 'isPrivate', 
 
 export function validateQuestionForApproval(question) {
   const type = normalizeQuestionType(question.questionType);
+  const taxonomy = resolveQuestionTaxonomy(question);
+  if (!taxonomy.responseType) {
+    throw new AppError('Choose MCQ, MSQ, or NUMERICAL before approval', 400, 'UNSUPPORTED_RESPONSE_TYPE');
+  }
   if (!CORE_OBJECTIVE_QUESTION_TYPES.has(type)) {
     throw new AppError('Classify and correct this question as a supported objective type before approval', 400, 'UNSUPPORTED_QUESTION_TYPE');
   }

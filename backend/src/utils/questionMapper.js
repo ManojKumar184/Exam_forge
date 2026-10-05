@@ -1,4 +1,5 @@
 import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields } from './canonicalQuestionContent.js';
+import { resolveQuestionTaxonomy } from './questionTaxonomy.js';
 
 function idStr(v) {
   return v?.toString?.() ?? v;
@@ -9,12 +10,15 @@ export function mapQuestion(doc) {
   const d = doc.toObject ? doc.toObject({ virtuals: true }) : doc;
   const canonicalContent = d.canonicalContent || canonicalContentFromLegacy(d);
   const projected = projectCanonicalContentToLegacyFields(canonicalContent, d.questionType, d);
+  const taxonomy = resolveQuestionTaxonomy(d);
 
   return {
     id: idStr(d._id),
     serial_id: d.serialId ?? null,
     question_text: projected.questionText,
     question_type: d.questionType,
+    response_type: d.responseType || taxonomy.responseType,
+    subtype: d.subtype || taxonomy.subtype,
     context_type: d.contextType || null,
     question_latex: projected.questionLatex,
     question_images: projected.questionImages || [],
@@ -158,6 +162,8 @@ export function bodyToQuestionFields(body, allowedFields = null) {
   const map = {
     question_text: 'questionText',
     question_type: 'questionType',
+    response_type: 'responseType',
+    subtype: 'subtype',
     context_type: 'contextType',
     question_latex: 'questionLatex',
     question_images: 'questionImages',

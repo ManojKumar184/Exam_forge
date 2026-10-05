@@ -52,6 +52,8 @@ export interface ExamType {
 
 // Question types
 export type QuestionType = 'mcq' | 'descriptive' | 'numerical' | 'MCQ_SINGLE' | 'MCQ_MULTIPLE' | 'TRUE_FALSE' | 'FILL_BLANK' | 'UNCLASSIFIED' | 'NUMERICAL_INTEGER' | 'MATCH_FOLLOWING' | 'ASSERTION_REASON' | 'DESCRIPTIVE' | 'MCQ_MULTI' | 'INTEGER' | 'NUMERICAL' | 'MATCH_COLUMNS';
+export type ResponseType = 'MCQ' | 'MSQ' | 'NUMERICAL';
+export type QuestionSubtype = 'STANDARD' | 'ASSERTION_REASON' | 'MATCH_THE_FOLLOWING' | 'COMPREHENSION' | 'PASSAGE_BASED' | 'STATEMENT_BASED';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type QuestionStatus = 'pending' | 'approved' | 'rejected' | 'needs_review';
 export type ContextType = 'COMPREHENSION' | 'CASE_STUDY' | 'PARAGRAPH_BASED' | 'STATEMENT_SET' | 'MATRIX_MATCH' | 'TRUE_FALSE' | 'NESTED_OPTION_MCQ' | null;
@@ -68,6 +70,8 @@ export interface Question {
   serial_id?: number;
   question_text: string;
   question_type: QuestionType;
+  response_type?: ResponseType | null;
+  subtype?: QuestionSubtype;
   context_type?: ContextType;
   question_latex: string | null;
   question_images: string[];

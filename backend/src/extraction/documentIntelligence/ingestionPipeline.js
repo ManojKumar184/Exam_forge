@@ -4,6 +4,7 @@ import { detectQuestionBoundaries, segmentToLegacyBlock } from './boundaryDetect
 import { detectAnswer, extractSeparateAnswerKey, mapSeparateAnswerKey } from './answerDetectionEngine.js';
 import { detectExplanation } from './explanationDetectionEngine.js';
 import { classifyQuestion } from './questionTypeClassifier.js';
+import { resolveQuestionTaxonomy } from '../../utils/questionTaxonomy.js';
 import { validateQuestionObject } from './validationEngine.js';
 import { applyConfidence } from './confidenceEngine.js';
 import { normalizeQuestions } from '../normalizeQuestions.js';
@@ -72,11 +73,14 @@ export class DocumentIntelligencePipeline {
       if (segment.answerMappingIssues?.length) answer.warnings.push(...segment.answerMappingIssues.map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`));
       const explanation = detectExplanation(segment);
       const classification = classifyQuestion(segment, block, answer);
+      const taxonomy = resolveQuestionTaxonomy({ questionType: classification.questionType, subtype: classification.subtype });
 
       const enriched = {
         ...question,
         options: question.options?.length ? question.options : (classification.questionType === 'TRUE_FALSE' ? [{ text: 'True' }, { text: 'False' }] : []),
         questionType: classification.questionType,
+        responseType: taxonomy.responseType,
+        subtype: taxonomy.subtype,
         answerText: answer.answerText || question.answerText,
         answerKey: answer.answerKey || question.answerKey,
         correctOption: answer.correctOption ?? question.correctOption,
