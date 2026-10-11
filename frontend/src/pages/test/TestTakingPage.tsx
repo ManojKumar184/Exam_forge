@@ -202,7 +202,7 @@ export function TestTakingPage() {
   ): QuestionWithOrder[] => {
     const paperQuestions = testData.paper?.questions || [];
     const orderedPaperQuestions = attemptData.answers?.length
-      ? attemptData.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter(Boolean)
+      ? attemptData.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter((pq): pq is NonNullable<typeof pq> => pq !== undefined)
       : paperQuestions;
     return orderedPaperQuestions.map((pq, index) => {
       const saved = attemptData.answers?.find((a) => a.question_id === pq.question_id);
@@ -307,7 +307,7 @@ export function TestTakingPage() {
 
       const paperQuestions = testData.paper?.questions || [];
       const orderedPaperQuestions = started.attempt.answers?.length
-        ? started.attempt.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter(Boolean)
+        ? started.attempt.answers.map((answer) => paperQuestions.find((pq) => pq.question_id === answer.question_id)).filter((pq): pq is NonNullable<typeof pq> => pq !== undefined)
         : paperQuestions;
       const questionsWithShuffled: QuestionWithOrder[] = orderedPaperQuestions.map((pq, index) => {
         const saved = started.attempt.answers?.find((a) => a.question_id === pq.question_id);

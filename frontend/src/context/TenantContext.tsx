@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getActiveInstitutionId, setActiveInstitutionId } from '../api/client';
 import { useCatalogStore } from '../stores/catalogStore';
 import { useQuestionStore } from '../stores/questionStore';
@@ -21,12 +21,25 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [institutions, setInstitutions] = useState<TenantInstitution[]>([]);
   const [activeInstitutionId, setActiveId] = useState(() => getActiveInstitutionId() || '');
   const [membershipRole, setRole] = useState<InstitutionRole | null>(null);
+  useEffect(() => {
+    useCatalogStore.setState({ subjects: [], chapters: [], examTypes: [], error: null });
+    useQuestionStore.setState({ questions: [], error: null, isLoading: false });
+    usePaperStore.setState({ papers: [], error: null, isLoading: false });
+    useTestStore.setState({ onlineTests: [], testAttempts: [], error: null, isLoading: false });
+    useUserStore.setState({ users: [], error: null, isLoading: false });
+  }, []);
   const updateInstitutions = useCallback((rows: TenantInstitution[]) => {
     setInstitutions(rows);
     const active = getActiveInstitutionId();
-    const selected = rows.find((item) => item.id === active);
-    if (selected) { setActiveId(selected.id); setRole(selected.role || null); }
-    else { setActiveId(''); setRole(null); }
+    const selected = rows.find((item) => item.id === active) || (rows.length === 1 ? rows[0] : undefined);
+    if (selected) {
+      setActiveInstitutionId(selected.id);
+      setActiveId(selected.id);
+      setRole(selected.role || null);
+    } else {
+      setActiveId('');
+      setRole(null);
+    }
   }, []);
   const activateInstitution = (id: string, role?: InstitutionRole) => {
     if (!institutions.some((item) => item.id === id)) return;

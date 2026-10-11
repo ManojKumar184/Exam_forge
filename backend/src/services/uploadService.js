@@ -235,6 +235,7 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
       onStageChange: atomicOnStageChange,
       examTypeId: options.exam_type_id || options.examTypeId || null,
       exam_type_id: options.exam_type_id || options.examTypeId || null,
+      answerLayout: options.answer_layout || options.answerLayout || 'INLINE',
     };
 
     const extractResult = await retryAsync(
@@ -376,10 +377,12 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
           (q.metadataConfidence !== undefined && q.metadataConfidence < 0.70) ||
           (classified.aiConfidence !== undefined && classified.aiConfidence < 70);
 
-        const status = (classified.status === 'needs_review' || duplicateAnalysis.isDuplicate || lowConfidence)
-          ? 'needs_review' : 'pending';
+        const status = (
+          classified.status === 'needs_review' || duplicateAnalysis.isDuplicate || lowConfidence || extractResult.warnings?.length
+        ) ? 'needs_review' : 'pending';
 
         const extractionWarnings = [
+          ...(extractResult.warnings || []),
           ...(classified.extractionWarnings || []),
           ...(docMeta.warnings || []),
           ...(q.extractionWarnings || []),
@@ -392,7 +395,7 @@ async function processUploadInternal(upload, file, user, options = {}, startIdx 
         const stagedQuestionObj = {
           ...q,
           class: options.classLevel ?? classified.class ?? q.class,
-          questionType: compatibilityQuestionType(taxonomy.responseType),
+          questionType: compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype),
           responseType: taxonomy.responseType,
           subtype: taxonomy.subtype,
           difficulty: classified.difficulty ?? q.difficulty,
@@ -861,7 +864,7 @@ export async function updateStagedQuestion(uploadId, index, questionFields, user
     const taxonomy = resolveQuestionTaxonomy({ ...(current.toObject ? current.toObject() : current), ...mappedFields });
     mappedFields.responseType = taxonomy.responseType;
     mappedFields.subtype = taxonomy.subtype;
-    mappedFields.questionType = compatibilityQuestionType(taxonomy.responseType);
+    mappedFields.questionType = compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype);
   }
   if (mappedFields.numericalAnswer != null) {
     mappedFields.numericalAnswer = parseNumericalAnswer(mappedFields.numericalAnswer);

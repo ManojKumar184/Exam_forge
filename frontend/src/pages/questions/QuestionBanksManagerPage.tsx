@@ -29,7 +29,7 @@ export function QuestionBanksManagerPage() {
   // Form states
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'system' | 'institution' | 'faculty' | 'custom'>('custom');
+  const [type, setType] = useState<QuestionBank['type']>('custom');
   const [visibility, setVisibility] = useState<'public' | 'institution' | 'private'>('public');
   const [institution, setInstitution] = useState('');
 

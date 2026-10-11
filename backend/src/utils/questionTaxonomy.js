@@ -37,7 +37,11 @@ export function resolveQuestionTaxonomy({ questionType, responseType, subtype, c
 
 export const QUESTION_SUBTYPES = Object.freeze([...SUBTYPES]);
 
-export function compatibilityQuestionType(responseType) {
+export function compatibilityQuestionType(responseType, subtype = 'STANDARD') {
+  if (subtype === 'TRUE_FALSE') return 'TRUE_FALSE';
+  if (subtype === 'ASSERTION_REASON') return 'ASSERTION_REASON';
+  if (subtype === 'MATCH_THE_FOLLOWING') return 'MATCH_FOLLOWING';
+  if (subtype === 'INTEGER_RESPONSE') return 'NUMERICAL_INTEGER';
   if (responseType === 'MCQ') return 'MCQ_SINGLE';
   if (responseType === 'MSQ') return 'MCQ_MULTIPLE';
   if (responseType === 'NUMERICAL') return 'NUMERICAL';

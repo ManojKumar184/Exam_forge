@@ -57,7 +57,7 @@ interface UploadedFile {
 
 export function ImportCenterPage() {
   const { profile } = useAuth();
-  const { subjects, chapters, examTypes, fetchSubjects, fetchExamTypes } = useDataStore();
+  const { subjects, chapters, fetchSubjects, fetchExamTypes } = useDataStore();
 
   const [syllabusNodesMap, setSyllabusNodesMap] = useState<Record<string, string>>({});
   const [syllabusTree, setSyllabusTree] = useState<SyllabusNode[]>([]);
@@ -112,6 +112,7 @@ export function ImportCenterPage() {
   const [uploadClassId, setUploadClassId] = useState('');
   const [uploadSubjectId, setUploadSubjectId] = useState('');
   const [uploadChapterId, setUploadChapterId] = useState('');
+  const [answerLayout, setAnswerLayout] = useState<'INLINE' | 'SEPARATE'>('INLINE');
   const examPatternNodes = syllabusTree.filter((node) => node.type === 'exam_pattern');
   const uploadClassNodes = examPatternNodes.find((node) => node._id === uploadExamTypeId)?.children?.filter((node) => node.type === 'class') || [];
   const uploadSubjectNodes = uploadClassNodes.find((node) => node._id === uploadClassId)?.children?.filter((node) => node.type === 'subject') || [];
@@ -305,6 +306,7 @@ export function ImportCenterPage() {
           class_id: uploadClassId,
           subject_id: uploadSubjectId,
           chapter_id: uploadChapterId,
+          answer_layout: answerLayout,
         });
 
         pollActiveUpload(result.upload.id, fileItem.id);
@@ -677,6 +679,7 @@ export function ImportCenterPage() {
                 <Select label="Class *" options={[{ value: '', label: '— Select Class —' }, ...uploadClassNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadClassId} disabled={!uploadExamTypeId} onChange={(e) => { setUploadClassId(e.target.value); setUploadSubjectId(''); setUploadChapterId(''); setUploadErrors([]); }} />
                 <Select label="Subject *" options={[{ value: '', label: '— Select Subject —' }, ...uploadSubjectNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadSubjectId} disabled={!uploadClassId} onChange={(e) => { setUploadSubjectId(e.target.value); setUploadChapterId(''); setUploadErrors([]); }} />
                 <Select label="Chapter *" options={[{ value: '', label: '— Select Chapter —' }, ...uploadChapterNodes.map((node) => ({ value: node._id, label: node.name }))]} value={uploadChapterId} disabled={!uploadSubjectId} onChange={(e) => { setUploadChapterId(e.target.value); setUploadErrors([]); }} />
+                <Select label="Answer layout" options={[{ value: 'INLINE', label: 'Answers appear with each question' }, { value: 'SEPARATE', label: 'Answer key is at the end' }]} value={answerLayout} onChange={(e) => setAnswerLayout(e.target.value as 'INLINE' | 'SEPARATE')} />
 
                 {uploadErrors.length > 0 && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">

@@ -25,7 +25,11 @@ export class DocumentIntelligencePipeline {
         sourceDetection: source,
       });
 
-    const separateAnswerKey = extractSeparateAnswerKey(semanticDocument.blocks || []);
+    const detectedAnswerKey = extractSeparateAnswerKey(semanticDocument.blocks || []);
+    const answerLayout = String(context.answerLayout || context.answer_layout || 'AUTO_DETECT').toUpperCase();
+    const separateAnswerKey = answerLayout === 'SEPARATE' || answerLayout === 'AUTO_DETECT'
+      ? detectedAnswerKey
+      : { found: false, entries: [], issues: [], sourceBlockIndexes: [] };
     if (separateAnswerKey.found) {
       const excluded = new Set(separateAnswerKey.sourceBlockIndexes);
       semanticDocument.blocks = semanticDocument.blocks.filter((_, index) => !excluded.has(index));
@@ -35,6 +39,11 @@ export class DocumentIntelligencePipeline {
     const globalAnswerKeyWarnings = answerKeyMapping.issues
       .filter((issue) => !issue.questionNumber || !segments.some((segment) => segment.questionNumber === issue.questionNumber))
       .map((issue) => `Answer key review: ${issue.type}${issue.questionNumber ? ` (question ${issue.questionNumber})` : ''}`);
+    if (answerLayout === 'SEPARATE' && !detectedAnswerKey.found) {
+      globalAnswerKeyWarnings.push('Separate answer-key layout was selected, but no answer-key section was detected.');
+    } else if (answerLayout === 'INLINE' && detectedAnswerKey.found) {
+      globalAnswerKeyWarnings.push('A separate answer-key section was detected despite selecting inline answers; verify answer associations.');
+    }
     const blocks = segments.map(segmentToLegacyBlock);
 
     if (context.returnRawBlocks) {

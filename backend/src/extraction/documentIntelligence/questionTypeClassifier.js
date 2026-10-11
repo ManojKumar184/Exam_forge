@@ -73,7 +73,7 @@ export function classifyQuestion(segment, legacyBlock, detectedAnswer = null) {
   const isSupported = Boolean(taxonomy.responseType);
 
   return {
-    questionType: isSupported ? compatibilityQuestionType(taxonomy.responseType) : 'UNCLASSIFIED',
+    questionType: isSupported ? compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype) : 'UNCLASSIFIED',
     responseType: isSupported ? taxonomy.responseType : null,
     subtype: taxonomy.subtype,
     contextType: getContextTypeForType(rawType) || null,

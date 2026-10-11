@@ -1,5 +1,5 @@
 import { canonicalContentFromLegacy, projectCanonicalContentToLegacyFields } from './canonicalQuestionContent.js';
-import { resolveQuestionTaxonomy } from './questionTaxonomy.js';
+import { compatibilityQuestionType, resolveQuestionTaxonomy } from './questionTaxonomy.js';
 
 function idStr(v) {
   return v?.toString?.() ?? v;
@@ -9,16 +9,17 @@ export function mapQuestion(doc) {
   if (!doc) return null;
   const d = doc.toObject ? doc.toObject({ virtuals: true }) : doc;
   const canonicalContent = d.canonicalContent || canonicalContentFromLegacy(d);
-  const projected = projectCanonicalContentToLegacyFields(canonicalContent, d.questionType, d);
   const taxonomy = resolveQuestionTaxonomy(d);
+  const legacyQuestionType = compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype);
+  const projected = projectCanonicalContentToLegacyFields(canonicalContent, legacyQuestionType, { ...d, responseType: taxonomy.responseType });
 
   return {
     id: idStr(d._id),
     serial_id: d.serialId ?? null,
     question_text: projected.questionText,
-    question_type: d.questionType,
-    response_type: d.responseType || taxonomy.responseType,
-    subtype: d.subtype || taxonomy.subtype,
+    question_type: legacyQuestionType,
+    response_type: taxonomy.responseType,
+    subtype: taxonomy.subtype,
     context_type: d.contextType || null,
     context_group_id: d.contextGroupId || null,
     context_group_position: d.contextGroupPosition ?? 0,

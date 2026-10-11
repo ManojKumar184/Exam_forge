@@ -44,14 +44,18 @@ const sidebarItems: SidebarItem[] = [
 ];
 
 export function Layout() {
-  const { profile, signOut, isAdmin, isFaculty } = useAuth();
+  const { profile, signOut, isAdmin, isFaculty, globalRole, institutionRole } = useAuth();
   const tenant = useTenant();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
-  const filteredItems = sidebarItems.filter((item) =>
-    item.roles.includes(profile?.role || 'student')
-  );
+  const filteredItems = sidebarItems.filter((item) => {
+    if (globalRole === 'super_admin') return item.roles.includes('super_admin');
+    if (institutionRole === 'INSTITUTION_ADMIN') {
+      return item.roles.includes('faculty') || item.path === '/settings';
+    }
+    return item.roles.includes(profile?.role || 'student');
+  });
 
   const handleSignOut = async () => {
     await signOut();

@@ -20,6 +20,10 @@ export function setActiveInstitutionId(id: string) {
   localStorage.setItem(INSTITUTION_KEY, id);
 }
 
+export function clearActiveInstitutionId() {
+  localStorage.removeItem(INSTITUTION_KEY);
+}
+
 export function getAccessToken(): string | null {
   return null;
 }

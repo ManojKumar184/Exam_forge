@@ -22,7 +22,7 @@ import { InstitutionProfilePage } from './pages/settings/InstitutionProfilePage'
 import { AcceptInvitationPage } from './pages/auth/AcceptInvitationPage';
 import { InstitutionMembersPage } from './pages/settings/InstitutionMembersPage';
 import { UsersPage } from './pages/users/UsersPage';
-import { apiClient, getActiveInstitutionId, setActiveInstitutionId } from './api/client';
+import { apiClient, clearActiveInstitutionId, getActiveInstitutionId, setActiveInstitutionId } from './api/client';
 
 // Layout
 import { Layout } from './components/layout/Layout';
@@ -49,6 +49,7 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
   const [selectedId, setSelectedId] = useState(getActiveInstitutionId() || '');
   const [entered, setEntered] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [accessLoadFailed, setAccessLoadFailed] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('SCHOOL');
   const [error, setError] = useState('');
@@ -70,6 +71,8 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
         setInstitutions(rows);
         const active = getActiveInstitutionId();
         const next = active && rows.some((row: { id: string }) => row.id === active) ? active : rows[0]?.id || '';
+        if (next) setActiveInstitutionId(next);
+        else clearActiveInstitutionId();
         setSelectedId(next);
         if (rows.length === 1 && next) {
           const onlyInstitution = rows[0];
@@ -80,7 +83,10 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
         else if (active && rows.some((row: { id: string }) => row.id === active)) setEntered(true);
         if (rows.length && next) setError('');
       } catch (cause) {
-        if (alive) setError(cause instanceof Error ? cause.message : 'Could not load institution access.');
+        if (alive) {
+          setError(cause instanceof Error ? cause.message : 'Could not load institution access.');
+          setAccessLoadFailed(true);
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -110,6 +116,8 @@ function InstitutionGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  if (accessLoadFailed) return <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950"><div className="mx-auto mt-16 max-w-xl rounded-2xl border bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900"><h1 className="text-2xl font-semibold">Could not verify institution access</h1><p role="alert" className="mt-2 text-sm text-red-600">{error || 'Institution access could not be loaded.'}</p><p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Your workspace cannot be opened until access is verified.</p><button className="mt-6 rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white" onClick={() => window.location.reload()}>Try again</button><button className="ml-3 text-sm underline" onClick={() => void signOut()}>Sign out</button></div></div>;
+
   if (profile?.role === 'faculty' || profile?.role === 'super_admin') return <div className="min-h-screen bg-slate-50 px-4 py-12 dark:bg-slate-950"><form onSubmit={createInstitution} className="mx-auto max-w-lg space-y-4 rounded-xl bg-white p-6 shadow dark:bg-slate-900"><h1 className="text-2xl font-semibold">Set up your institution</h1><p className="text-sm text-slate-600">Create a secure workspace to manage questions, papers, and exams.</p>{error && <p role="alert" className="text-sm text-red-600">{error}</p>}<label className="block text-sm">Institution name<input required minLength={2} maxLength={160} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded border p-2" /></label><label className="block text-sm">Institution type<select value={type} onChange={(event) => setType(event.target.value)} className="mt-1 w-full rounded border p-2"><option value="SCHOOL">School</option><option value="COLLEGE">College</option><option value="UNIVERSITY">University</option><option value="COACHING">Coaching</option><option value="OTHER">Other</option></select></label><button className="rounded bg-blue-600 px-4 py-2 text-white">Create institution workspace</button><button type="button" className="ml-3 text-sm underline" onClick={() => void signOut()}>Sign out</button></form></div>;
 
   return <div className="p-8"><h1 className="text-xl font-semibold">Institution access required</h1><p className="mt-2">Ask your institution administrator to invite this account.</p><button className="mt-4 underline" onClick={() => void signOut()}>Sign out</button></div>;
@@ -124,6 +132,11 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
+  const { globalRole } = useAuth();
+  return globalRole === 'super_admin' ? <>{children}</> : <Navigate to="/dashboard" replace />;
 }
 
 // Admin or Faculty Route wrapper
@@ -223,9 +236,9 @@ function AppRoutes() {
         path="/syllabus"
         element={
           <ProtectedRoute>
-            <AdminRoute>
+            <PlatformAdminRoute>
               <Layout />
-            </AdminRoute>
+            </PlatformAdminRoute>
           </ProtectedRoute>
         }
       >
@@ -369,17 +382,17 @@ function AppRoutes() {
         }
       >
         <Route index element={<SettingsPage />} />
-        <Route path="institution" element={<InstitutionProfilePage />} />
-        <Route path="members" element={<InstitutionMembersPage />} />
+        <Route path="institution" element={<AdminRoute><InstitutionProfilePage /></AdminRoute>} />
+        <Route path="members" element={<AdminRoute><InstitutionMembersPage /></AdminRoute>} />
       </Route>
 
       <Route
         path="/users"
         element={
           <ProtectedRoute>
-            <AdminRoute>
+            <PlatformAdminRoute>
               <Layout />
-            </AdminRoute>
+            </PlatformAdminRoute>
           </ProtectedRoute>
         }
       >
@@ -392,15 +405,23 @@ function AppRoutes() {
   );
 }
 
-function App() {
-  const { isInitialized, isAuthenticated } = useAuth();
+function TenantDataBootstrap() {
+  const { isAuthenticated } = useAuth();
+  const { institutions, activeInstitutionId } = useTenant();
   const { fetchSubjects, fetchExamTypes } = useDataStore();
 
   useEffect(() => {
-    if (!apiConfig.isConfigured || !isInitialized || !isAuthenticated) return;
-    fetchSubjects();
-    fetchExamTypes();
-  }, [isInitialized, isAuthenticated, fetchSubjects, fetchExamTypes]);
+    const isAuthorized = institutions.some((institution) => institution.id === activeInstitutionId);
+    if (!isAuthenticated || !activeInstitutionId || !isAuthorized) return;
+    void fetchSubjects();
+    void fetchExamTypes();
+  }, [isAuthenticated, institutions, activeInstitutionId, fetchSubjects, fetchExamTypes]);
+
+  return null;
+}
+
+function App() {
+  const { user } = useAuth();
 
   if (!apiConfig.isConfigured) {
     return <ApiConfigError />;
@@ -409,7 +430,7 @@ function App() {
   return (
     <>
       <BrowserRouter>
-      <TenantProvider><AppRoutes /></TenantProvider>
+      <TenantProvider key={user?.id || 'signed-out'}><TenantDataBootstrap /><AppRoutes /></TenantProvider>
       </BrowserRouter>
       <Toaster
         position="top-right"

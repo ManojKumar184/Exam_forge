@@ -132,7 +132,7 @@ function applyReconstructResult(
   }
   
   const detectedSubtype = ({ true_false: 'mcq_single', integer: 'integer', numerical_integer: 'integer', mcq: 'mcq_single', mcq_multi: 'mcq_multiple', comprehension: 'unclassified', fill_blank: 'unclassified' } as Record<string, EditorSubtype>)[result.subtype]
-    || (result.subtype === 'standard' ? (result.questionType === 'NUMERICAL' || result.questionType === 'NUMERICAL_INTEGER' ? 'numerical' : result.questionType === 'MCQ_MULTIPLE' ? 'mcq_multiple' : 'mcq_single') : undefined);
+    || (result.subtype === 'mcq_single' ? (result.questionType === 'NUMERICAL' || result.questionType === 'NUMERICAL_INTEGER' ? 'numerical' : result.questionType === 'MCQ_MULTIPLE' ? 'mcq_multiple' : 'mcq_single') : undefined);
   const normalizedSubtype = detectedSubtype || result.subtype;
   setters.setSubtype(SUBTYPE_OPTIONS.some((option) => option.value === normalizedSubtype) ? normalizedSubtype as EditorSubtype : 'unclassified');
   if (result.numericalAnswer != null) {
@@ -1169,7 +1169,7 @@ export function QuestionEditorForm({
           </Card>
         )}
 
-        {subtype === 'fill_blank' && (
+        {(subtype === 'fill_blank' || subtype === 'match_following') && (
           <Card className="p-3">
             <Textarea
               label={subtype === 'match_following' ? 'Correct matching answer' : 'Correct answer'}

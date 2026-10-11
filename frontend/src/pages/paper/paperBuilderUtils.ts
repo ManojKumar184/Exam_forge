@@ -169,7 +169,7 @@ export function validateSectionsLocally(sections: Section[], totalMarks: number)
 }
 
 export function paperToSections(paper: {
-  sections?: { id?: string; name: string; questionCount: number; marksPerQuestion: number; negativeMarksPerQuestion?: number }[];
+  sections?: { id?: string | null; name: string; questionCount: number; marksPerQuestion: number; negativeMarksPerQuestion?: number }[];
   questions?: Array<{
     question_id: string;
     section: string;

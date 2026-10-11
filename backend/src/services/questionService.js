@@ -14,14 +14,11 @@ import { QuestionBank } from '../models/QuestionBank.js';
 import { compatibilityQuestionType, resolveQuestionTaxonomy } from '../utils/questionTaxonomy.js';
 import { parseNumericalAnswer } from '../utils/numericalAnswer.js';
 
-export const CORE_OBJECTIVE_QUESTION_TYPES = new Set([
-  'MCQ_SINGLE', 'MCQ_MULTIPLE', 'TRUE_FALSE', 'FILL_BLANK',
-  'NUMERICAL', 'NUMERICAL_INTEGER', 'MATCH_FOLLOWING', 'ASSERTION_REASON',
-]);
+export const CORE_OBJECTIVE_RESPONSE_TYPES = new Set(['MCQ', 'MSQ', 'NUMERICAL']);
 
 export function assertCoreV1QuestionType(value) {
   const type = normalizeQuestionType(value);
-  return CORE_OBJECTIVE_QUESTION_TYPES.has(type) ? type : 'UNCLASSIFIED';
+  return resolveQuestionTaxonomy({ questionType: type }).responseType ? type : 'UNCLASSIFIED';
 }
 
 const QUESTION_CREATE_FIELDS = new Set([
@@ -38,13 +35,9 @@ const QUESTION_CREATE_FIELDS = new Set([
 const QUESTION_UPDATE_FIELDS = new Set([...QUESTION_CREATE_FIELDS, 'isPrivate', 'visibility']);
 
 export function validateQuestionForApproval(question) {
-  const type = normalizeQuestionType(question.questionType);
   const taxonomy = resolveQuestionTaxonomy(question);
-  if (!taxonomy.responseType) {
+  if (!CORE_OBJECTIVE_RESPONSE_TYPES.has(taxonomy.responseType)) {
     throw new AppError('Choose MCQ, MSQ, or NUMERICAL before approval', 400, 'UNSUPPORTED_RESPONSE_TYPE');
-  }
-  if (!CORE_OBJECTIVE_QUESTION_TYPES.has(type)) {
-    throw new AppError('Classify and correct this question as a supported objective type before approval', 400, 'UNSUPPORTED_QUESTION_TYPE');
   }
   const content = question.canonicalContent;
   const stem = content?.stem || [];
@@ -57,17 +50,17 @@ export function validateQuestionForApproval(question) {
   const answer = canonicalAnswer !== undefined && canonicalAnswer !== null
     ? canonicalAnswer
     : (question.correctAnswers?.length ? question.correctAnswers : question.correctOption ?? question.numericalAnswer ?? question.answerText ?? question.answerKey);
-  if (['MCQ_SINGLE', 'MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type) && options.length < 2) {
+  if (['MCQ', 'MSQ'].includes(taxonomy.responseType) && taxonomy.subtype !== 'MATCH_THE_FOLLOWING' && options.length < 2) {
     throw new AppError('At least two options are required before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   const singleAnswer = content ? answer : (question.correctOption ?? answer);
-  if (type === 'MCQ_SINGLE' && (singleAnswer == null || singleAnswer === '' || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
+  if (taxonomy.responseType === 'MCQ' && taxonomy.subtype !== 'MATCH_THE_FOLLOWING' && (singleAnswer == null || singleAnswer === '' || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
     throw new AppError('Select a valid correct option before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (type === 'MCQ_MULTIPLE' && !(Array.isArray(answer) && answer.length)) {
+  if (taxonomy.responseType === 'MSQ' && !(Array.isArray(answer) && answer.length)) {
     throw new AppError('Select one or more correct options before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (['MCQ_MULTIPLE', 'ASSERTION_REASON'].includes(type)) {
+  if (taxonomy.responseType === 'MSQ') {
     const refs = Array.isArray(answer) ? answer : [];
     const validRef = (ref) => {
       if (Number.isInteger(Number(ref)) && String(ref).trim() !== '') return Number(ref) >= 0 && Number(ref) < options.length;
@@ -76,7 +69,7 @@ export function validateQuestionForApproval(question) {
     };
     if (refs.some((ref) => !validRef(ref))) throw new AppError('Correct answers must reference existing options', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (type === 'ASSERTION_REASON' && (singleAnswer == null || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
+  if (taxonomy.subtype === 'ASSERTION_REASON' && (singleAnswer == null || !Number.isInteger(Number(singleAnswer)) || Number(singleAnswer) < 0 || Number(singleAnswer) >= options.length)) {
     throw new AppError('Select a valid assertion/reason answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   const numericalAnswer = content && answer && typeof answer === 'object' ? answer.value : (content ? answer : question.numericalAnswer ?? answer);
@@ -86,13 +79,21 @@ export function validateQuestionForApproval(question) {
   if (taxonomy.responseType === 'NUMERICAL' && taxonomy.subtype === 'INTEGER_RESPONSE' && !Number.isInteger(parseNumericalAnswer(numericalAnswer))) {
     throw new AppError('Integer-response questions need a whole-number answer', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (content && typeof content.answer === 'object' && Number(content.answer.tolerance ?? 0) < 0) {
-    throw new AppError('Numerical tolerance cannot be negative', 400, 'INVALID_QUESTION_CONTENT');
+  if (taxonomy.responseType === 'NUMERICAL') {
+    const policy = content?.answer?.comparisonPolicy || question.numericalComparisonPolicy || 'EXACT';
+    const tolerance = Number(content?.answer?.tolerance ?? question.numericalTolerance ?? 0);
+    if (!['EXACT', 'TOLERANCE'].includes(policy) || !Number.isFinite(tolerance) || tolerance < 0) {
+      throw new AppError('Set a valid numerical comparison policy and non-negative tolerance before approval', 400, 'INVALID_QUESTION_CONTENT');
+    }
   }
-  if (['TRUE_FALSE', 'FILL_BLANK'].includes(type) && (answer == null || String(answer).trim() === '')) {
+  if (taxonomy.subtype === 'TRUE_FALSE' && (answer == null || String(answer).trim() === '')) {
     throw new AppError('Provide the correct answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
-  if (type === 'MATCH_FOLLOWING' && (answer == null || (Array.isArray(answer) && answer.length === 0) || String(answer).trim() === '')) {
+  const emptyMatchAnswer = answer == null ||
+    (Array.isArray(answer) && (answer.length === 0 || answer.some((pair) => pair == null || pair === ''))) ||
+    (typeof answer === 'object' && !Array.isArray(answer) && Object.keys(answer).length === 0) ||
+    (typeof answer === 'string' && answer.trim() === '');
+  if (taxonomy.subtype === 'MATCH_THE_FOLLOWING' && emptyMatchAnswer) {
     throw new AppError('Provide the correct matching answer before approval', 400, 'INVALID_QUESTION_CONTENT');
   }
   const mapping = question.syllabusMappings?.[0];
@@ -362,7 +363,7 @@ export async function createQuestion(body, user) {
   const fields = bodyToQuestionFields(body, QUESTION_CREATE_FIELDS);
   fields.questionType = assertCoreV1QuestionType(fields.questionType);
   const taxonomy = resolveQuestionTaxonomy(fields);
-  if (fields.responseType) fields.questionType = compatibilityQuestionType(taxonomy.responseType);
+  if (fields.responseType) fields.questionType = compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype);
   fields.responseType = taxonomy.responseType;
   fields.subtype = taxonomy.subtype;
   if (taxonomy.responseType === 'NUMERICAL' && fields.numericalAnswer != null) {
@@ -487,7 +488,7 @@ export async function updateQuestion(id, body, user) {
   if (Object.hasOwn(fields, 'questionType')) fields.questionType = assertCoreV1QuestionType(fields.questionType);
   if (fields.responseType) {
     const taxonomy = resolveQuestionTaxonomy({ ...question.toObject(), ...fields });
-    fields.questionType = compatibilityQuestionType(taxonomy.responseType);
+    fields.questionType = compatibilityQuestionType(taxonomy.responseType, taxonomy.subtype);
     fields.responseType = taxonomy.responseType;
     fields.subtype = taxonomy.subtype;
   }
